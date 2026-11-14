@@ -121,7 +121,7 @@ extension AppModel {
     }
 
     /// Copies or moves [ids] (with their JPEGs and sidecars) into [to], or a folder chosen now. Moves are undoable.
-    func copyOrMove(_ ids: [String], _ folder: URL, move: Bool, to: URL?) {
+    func copyOrMove(_ ids: [String], _ folder: URL, move: Bool, to: URL?, folders: [URL] = []) {
         guard let destination = to ?? chooseDestination(move: move) else { return }
         guard destination.standardizedFileURL != folder.standardizedFileURL else {
             say("That is this folder")
@@ -149,13 +149,99 @@ extension AppModel {
                 }
             }
         }
+        // Whole folders (dragged from the grid): never into themselves, named freely when the name is taken.
+        let destinationPath = destination.standardizedFileURL.path + "/"
+        var folderCount = 0
+        for source in folders {
+            let path = source.standardizedFileURL.path
+            if destinationPath.hasPrefix(path + "/") { failed += 1; continue }
+            var target = destination.appendingPathComponent(source.lastPathComponent)
+            var k = 2
+            while FileManager.default.fileExists(atPath: target.path) {
+                target = destination.appendingPathComponent("\(source.lastPathComponent) \(k)")
+                k += 1
+            }
+            do {
+                if move {
+                    try FileManager.default.moveItem(at: source, to: target)
+                    moves.append(FileMove(from: source, to: target))
+                } else {
+                    try FileManager.default.copyItem(at: source, to: target)
+                }
+                folderCount += 1
+            } catch {
+                failed += 1
+            }
+        }
         let count = ids.count
         let verb = move ? "Moved" : "Copied"
+        let what =
+            [
+                count > 0 ? "\(count) photo\(count == 1 ? "" : "s")" : nil,
+                folderCount > 0 ? "\(folderCount) folder\(folderCount == 1 ? "" : "s")" : nil,
+            ].compactMap { $0 }.joined(separator: " and ")
         say(
             failed == 0
-                ? "\(verb) \(count) photo\(count == 1 ? "" : "s") to \(destination.lastPathComponent)"
+                ? "\(verb) \(what) to \(destination.lastPathComponent)"
                 : "\(verb) to \(destination.lastPathComponent); \(failed) file\(failed == 1 ? "" : "s") failed")
         if move { culling.recordMoves(moves, what: "Move to \(destination.lastPathComponent)") }
+    }
+
+    // MARK: Drag to Places
+
+    /// What the grid or list is dragging: set when a drag starts, so a drop knows it was ours.
+    struct DragSet {
+        var ids: [String] = []
+        var folders: [URL] = []
+        var lead: URL?
+    }
+
+    /// Starts dragging [entry]: the whole selection when it is part of it, else just that entry. The pasteboard
+    /// carries the entry's own file URL, so Finder accepts the drop too.
+    func beginDrag(_ entry: GridEntry) -> NSItemProvider? {
+        guard let folder = browser.folder else { return nil }
+        var entries = [entry]
+        if browser.selection.contains(entry.id) {
+            entries = browser.items.filter { browser.selection.contains($0.id) }
+        } else {
+            browser.click(entry.id, command: false, shift: false)
+        }
+        var set = DragSet()
+        for e in entries {
+            switch e {
+            case .photo(let photo): set.ids.append(photo.id)
+            case .folder(let url): set.folders.append(url)
+            case .parent: break
+            }
+        }
+        guard !set.ids.isEmpty || !set.folders.isEmpty else { return nil }
+        switch entry {
+        case .photo(let photo): set.lead = folder.appendingPathComponent(photo.id)
+        case .folder(let url): set.lead = url
+        case .parent: return nil
+        }
+        drag = set
+        return set.lead.map { NSItemProvider(object: $0 as NSURL) }
+    }
+
+    /// A drop on a folder in Places. Moves on the same volume, copies across volumes or with Option held (as Finder).
+    /// Returns false for drops that aren't from the grid.
+    func dropOnPlace(_ urls: [URL], _ destination: URL) -> Bool {
+        guard let set = drag, let folder = browser.folder, let lead = set.lead,
+            urls.contains(where: { $0.standardizedFileURL == lead.standardizedFileURL })
+        else { return false }
+        drag = nil
+        let copy = NSEvent.modifierFlags.contains(.option) || !Self.sameVolume(folder, destination)
+        copyOrMove(set.ids, folder, move: !copy, to: destination, folders: set.folders)
+        return true
+    }
+
+    private static func sameVolume(_ a: URL, _ b: URL) -> Bool {
+        let key = URLResourceKey.volumeIdentifierKey
+        guard let x = try? a.resourceValues(forKeys: [key]).volumeIdentifier as? NSObject,
+            let y = try? b.resourceValues(forKeys: [key]).volumeIdentifier as? NSObject
+        else { return false }
+        return x.isEqual(y)
     }
 
     private func chooseDestination(move: Bool) -> URL? {

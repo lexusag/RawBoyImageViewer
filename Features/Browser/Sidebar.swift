@@ -160,6 +160,7 @@ private struct FolderRow: View {
     @State private var expanded = false
     @State private var children: [URL]?
     @State private var hovered = false
+    @State private var dropTargeted = false
 
     var body: some View {
         let isCurrent = app.browser.folder?.standardizedFileURL == url.standardizedFileURL
@@ -207,9 +208,18 @@ private struct FolderRow: View {
             .frame(minHeight: 26)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.chip)
-                    .fill(isCurrent || hovered ? Theme.graphiteRaised : .clear)
+                    .fill(isCurrent || hovered || dropTargeted ? Theme.graphiteRaised : .clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.chip)
+                    .strokeBorder(dropTargeted ? Theme.amber : .clear, lineWidth: 1.5)
             )
             .contentShape(Rectangle())
+            .dropDestination(for: URL.self) { urls, _ in
+                app.dropOnPlace(urls, url)
+            } isTargeted: { targeted in
+                dropTargeted = targeted && app.drag != nil
+            }
             .onTapGesture { app.browse(url) }
             .onHover { hovered = $0 }
             .contextMenu { FolderMenu(url: url, browser: app.browser) }

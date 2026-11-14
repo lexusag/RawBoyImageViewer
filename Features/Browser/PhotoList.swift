@@ -24,6 +24,7 @@ struct PhotoList: View {
                         ForEach(browser.items) { entry in
                             ListRow(entry: entry, app: app)
                                 .id(entry.id)
+                                .onDrag { app.beginDrag(entry) ?? NSItemProvider() }
                                 .gesture(
                                     TapGesture(count: 2).onEnded { open(entry.id) }
                                         .exclusively(
