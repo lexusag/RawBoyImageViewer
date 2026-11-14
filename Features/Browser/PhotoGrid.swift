@@ -103,12 +103,20 @@ struct PhotoGrid: View {
     }
 }
 
-private struct PhotoCell: View {
+struct PhotoCell: View {
     let photo: BrowsePhoto
     let size: Double
     let isSelected: Bool
     let store: ThumbnailStore
     @State private var image: CGImage?
+
+    init(photo: BrowsePhoto, size: Double, isSelected: Bool, store: ThumbnailStore, image: CGImage? = nil) {
+        self.photo = photo
+        self.size = size
+        self.isSelected = isSelected
+        self.store = store
+        _image = State(initialValue: image)
+    }
     @State private var hovered = false
 
     var body: some View {
@@ -121,6 +129,8 @@ private struct PhotoCell: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .padding(6)
+                        // Centred: the stack aligns its badges bottom-right, and a portrait picture is narrower than the cell.
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if photo.isOnlineOnly {
                     Image(systemName: "icloud.and.arrow.down")
                         .font(.system(size: 22))

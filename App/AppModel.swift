@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import SwiftUI
 import ViewerFiles
 
 /// App-wide state shared by the browser and the viewer.
@@ -34,6 +35,24 @@ final class AppModel {
                         // Dates first, so the grid is in its final order.
                         try? await Task.sleep(for: .milliseconds(300))
                         Snapshot.write(BrowserView(app: self), size: CGSize(width: 1280, height: 820), name: "browser")
+                        // Real cells with their thumbnails (the grid's load after the snapshot).
+                        var cells: [(BrowsePhoto, CGImage?)] = []
+                        for photo in browser.visible.prefix(4) {
+                            let thumb = await browser.thumbnails.thumbnail(
+                                photo.url, size: photo.size, modified: photo.modified)
+                            cells.append((photo, thumb?.cgImage))
+                        }
+                        let size = browser.thumbnailSize
+                        let store = browser.thumbnails
+                        Snapshot.write(
+                            HStack(spacing: 10) {
+                                ForEach(cells, id: \.0.id) { photo, image in
+                                    PhotoCell(
+                                        photo: photo, size: size, isSelected: false, store: store,
+                                        image: image)
+                                }
+                            }.padding(10),
+                            size: CGSize(width: 4 * (size + 10) + 20, height: size * 0.75 + 50), name: "cells")
                         Trace.log("browser: \(browser.items.map(\.id).joined(separator: ", "))")
                         if let first = browser.visible.first {
                             openViewer(at: first.id)

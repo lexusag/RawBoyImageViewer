@@ -75,7 +75,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   (10 = menu bar + Dock hidden), and opens each panel. Given a folder it opens the browser, then the viewer on its
   first photo. `SNAPSHOT=<folder>` also draws each panel into
   `<folder>/panel-*.png` (`ImageRenderer`; thumbnails stay empty, they load later) so panels can be looked at without
-  screen recording; the browser too (`browser.png`, 1280 × 820). Test folders: `~/_claude/photos` (Pixel DNG + JPEG), `../RawBoy/.raw` (Sony JXL DNGs).
+  screen recording; the browser too (`browser.png`, 1280 × 820), and the first four grid cells with their real
+  thumbnails (`cells.png`: the grid's own thumbnails load too late for a snapshot). Test folders: `~/_claude/photos` (Pixel DNG + JPEG), `../RawBoy/.raw` (Sony JXL DNGs).
 
 ## Traps found
 
@@ -98,6 +99,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   `CreateThumbnailFromImageIfAbsent` returns them as they are, so `Thumbnailer.fits` (size and aspect) decides
   whether an embedded thumbnail may be used. The disk cache key has a version (`v2|`) to drop thumbnails made the
   wrong way: bump it when how thumbnails are made changes.
+- Cells stack picture and badges with `.bottomTrailing` alignment: the picture needs its own
+  `.frame(maxWidth: .infinity, maxHeight: .infinity)` or portrait thumbnails sit against the right edge.
 - A horizontal SwiftUI `ScrollView` ignores a mouse wheel's vertical turn: `ViewerWindowController.filmstripWheel`
   rewrites wheel events over the filmstrip into horizontal ones (axis 1 → axis 2) in a local event monitor.
 - `ImageRenderer` draws native text fields as a yellow placeholder: not a bug in the view.

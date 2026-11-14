@@ -117,6 +117,8 @@ private struct FilmstripCell: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .padding(3)
+                    // Centred: the stack aligns its badges bottom-right, and a portrait picture is narrower than the cell.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             if isRaw {
                 Text("RAW")
