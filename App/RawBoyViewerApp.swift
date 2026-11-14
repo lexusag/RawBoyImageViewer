@@ -7,7 +7,7 @@ struct RawBoyViewerApp: App {
     var body: some Scene {
         // One browser window (Window, not WindowGroup): opening files from Finder must not spawn new ones.
         Window("RawBoy Viewer", id: "main") {
-            BrowserView(app: AppModel.shared)
+            ScaledBrowser()
                 .frame(minWidth: 900, minHeight: 560)
                 .preferredColorScheme(.dark)
         }
@@ -80,5 +80,21 @@ struct RawBoyViewerApp: App {
             SettingsView(app: AppModel.shared)
                 .preferredColorScheme(.dark)
         }
+    }
+}
+
+/// The browser at the chosen interface size (Settings): laid out in a smaller or larger space, then scaled to fit.
+private struct ScaledBrowser: View {
+    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
+
+    var body: some View {
+        let scale = min(max(uiScale, 0.5), 2)
+        GeometryReader { geo in
+            BrowserView(app: AppModel.shared)
+                .frame(width: geo.size.width / scale, height: geo.size.height / scale)
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+        }
+        .ignoresSafeArea()
     }
 }

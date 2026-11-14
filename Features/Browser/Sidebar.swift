@@ -6,7 +6,7 @@ import ViewerFiles
 /// Recent folders, then places (home folders, cloud storage, volumes) as folder trees that open as they are expanded.
 struct Sidebar: View {
     let app: AppModel
-
+    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
     @AppStorage("browser.pinFavourites") private var pinFavourites = true
 
     /// A row is about 28 pt high; the pinned list stops growing at [pinnedMaxHeight] and scrolls inside itself.
@@ -14,12 +14,13 @@ struct Sidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Fixed strip under the window's traffic lights (scaled back to real points), so nothing scrolls under them.
+            Color.clear.frame(height: 38 / min(max(uiScale, 0.5), 2))
             if pinFavourites {
                 let count = max(app.browser.favourites.count, 1)
                 PanelScroll { favourites }
                     .frame(height: min(Double(count) * 28 + 44, Self.pinnedMaxHeight + 44))
                     .padding(.horizontal, DesignTokens.Spacing.sm)
-                    .padding(.top, 38)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
             }
             PanelScroll {
@@ -30,7 +31,7 @@ struct Sidebar: View {
                         ForEach(app.browser.recent.prefix(6), id: \.self) { url in
                             FolderRow(
                                 url: url, title: url.lastPathComponent, icon: "clock", depth: 0, app: app,
-                                tree: false)
+                                tree: false, subtitle: Self.parents(of: url))
                         }
                     }
                     SidebarHeading(title: "Places")
@@ -41,7 +42,6 @@ struct Sidebar: View {
                     }
                 }
                 .padding(.horizontal, DesignTokens.Spacing.sm)
-                .padding(.top, pinFavourites ? 0 : 38)
                 .padding(.bottom, DesignTokens.Spacing.md)
             }
         }
@@ -77,6 +77,12 @@ struct Sidebar: View {
                 }
             }
         }
+    }
+
+    /// Up to three parent folder names above `url` ("Trip / Day 2 / Edits"), so folders with the same name
+    /// (several "_done") can be told apart.
+    static func parents(of url: URL) -> String {
+        url.deletingLastPathComponent().pathComponents.filter { $0 != "/" }.suffix(3).joined(separator: " / ")
     }
 
     struct Place {
@@ -150,6 +156,7 @@ private struct FolderRow: View {
     let tree: Bool
     /// Opens itself when the folder shown in the grid is inside it (the Places tree, so a favourite's folder is found).
     var followsCurrent = false
+    var subtitle: String = ""
     @State private var expanded = false
     @State private var children: [URL]?
     @State private var hovered = false
@@ -179,16 +186,25 @@ private struct FolderRow: View {
                     .font(.system(size: 12))
                     .foregroundStyle(isCurrent ? Theme.amber : Theme.ashMuted)
                     .frame(width: 16)
-                Text(title)
-                    .font(Theme.body)
-                    .foregroundStyle(isCurrent ? Theme.amber : Theme.paperWhite)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title)
+                        .font(Theme.body)
+                        .foregroundStyle(isCurrent ? Theme.amber : Theme.paperWhite)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(Theme.label)
+                            .foregroundStyle(Theme.ashMuted)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding(.leading, Double(depth) * 14 + 4)
             .padding(.trailing, 6)
-            .frame(height: 26)
+            .frame(minHeight: 26)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.chip)
                     .fill(isCurrent || hovered ? Theme.graphiteRaised : .clear)

@@ -91,6 +91,7 @@ private struct EmptyState: View {
 /// The folder's name and count, search, sort and thumbnail size.
 private struct BrowserToolbar: View {
     let app: AppModel
+    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -167,7 +168,7 @@ private struct BrowserToolbar: View {
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
-        .padding(.top, 34)  // under the window's traffic lights
+        .padding(.top, 34 / min(max(uiScale, 0.5), 2))  // under the window's traffic lights
         .padding(.bottom, 10)
     }
 
