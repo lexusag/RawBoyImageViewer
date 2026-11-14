@@ -296,7 +296,7 @@ RawBoyImageViewer/
 
 **Backlog (not done, by value):**
 1. Cloud: "Download folder", flag sync conflict copies.
-2. A sibling-folder switcher in the browser strip; dragging thumbnails onto a folder.
+2. A sibling-folder switcher in the browser strip. (Dragging thumbnails or folders onto a folder in Places: done, `AppModel.beginDrag` / `dropOnPlace`; untried by hand.)
 3. Search by stars, flag or camera in the `⌘F` field (the rating bar filters those today).
 4. A tiled canvas, if 1:1 panning on very large files stutters.
 5. Zero-copy (IOSurface) display, to remove the remaining 0–50 ms when showing a photo; colours must be checked by eye.

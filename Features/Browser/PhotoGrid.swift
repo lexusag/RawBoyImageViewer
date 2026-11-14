@@ -53,6 +53,7 @@ struct PhotoGrid: View {
                                 }
                             }
                             .id(entry.id)
+                            .onDrag { app.beginDrag(entry) ?? NSItemProvider() }
                             // Both gestures run together: waiting to tell a single click from a double one
                             // (`exclusively`) delayed every selection by the double-click interval.
                             .simultaneousGesture(

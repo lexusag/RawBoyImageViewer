@@ -8,6 +8,8 @@ import ViewerFiles
 @MainActor
 @Observable
 final class AppModel {
+    /// The grid items being dragged to a folder in Places (see `beginDrag`).
+    var drag: DragSet?
     static let shared = AppModel()
 
     let culling = CullingStore()

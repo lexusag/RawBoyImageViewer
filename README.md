@@ -33,6 +33,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px, location kept or left out |
 | ⌥⌘C | Copy the photo (its file) |
 | Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share, Send to an app (Reblum when installed, others added in Settings › Files; on a folder it opens the folder) |
+| Drag photos or folders onto a folder in the sidebar | Moves the selection there (with JPEGs and sidecars; undoes). Copies instead with Option held, or across drives |
 | ⌘↑, ⌫ | Up a folder |
 | C | Compare the selection (2–4 photos; one photo is compared with the next) |
 | S | Slideshow from the selection |
