@@ -25,26 +25,26 @@ struct Sidebar: View {
             }
             PanelScroll {
                 ScrollViewReader { proxy in
-                VStack(alignment: .leading, spacing: 2) {
-                    if !pinFavourites { favourites }
-                    if !app.browser.recent.isEmpty {
-                        SidebarHeading(title: "Recent")
-                        ForEach(app.browser.recent.prefix(6), id: \.self) { url in
+                    VStack(alignment: .leading, spacing: 2) {
+                        if !pinFavourites { favourites }
+                        if !app.browser.recent.isEmpty {
+                            SidebarHeading(title: "Recent")
+                            ForEach(app.browser.recent.prefix(6), id: \.self) { url in
+                                FolderRow(
+                                    url: url, title: url.lastPathComponent, icon: "clock", depth: 0, app: app,
+                                    tree: false, subtitle: Self.parents(of: url))
+                            }
+                        }
+                        SidebarHeading(title: "Places")
+                        ForEach(Self.places(), id: \.url) { place in
                             FolderRow(
-                                url: url, title: url.lastPathComponent, icon: "clock", depth: 0, app: app,
-                                tree: false, subtitle: Self.parents(of: url))
+                                url: place.url, title: place.title, icon: place.icon, depth: 0, app: app, tree: true,
+                                followsCurrent: true)
                         }
                     }
-                    SidebarHeading(title: "Places")
-                    ForEach(Self.places(), id: \.url) { place in
-                        FolderRow(
-                            url: place.url, title: place.title, icon: place.icon, depth: 0, app: app, tree: true,
-                            followsCurrent: true)
-                    }
-                }
-                .padding(.horizontal, DesignTokens.Spacing.sm)
-                .padding(.bottom, DesignTokens.Spacing.md)
-                .onChange(of: app.browser.folder) { scrollToCurrent(proxy) }
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.bottom, DesignTokens.Spacing.md)
+                    .onChange(of: app.browser.folder) { scrollToCurrent(proxy) }
                 }
             }
         }
