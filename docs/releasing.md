@@ -61,3 +61,22 @@ login keychain:** without that key, installed copies can't take updates.
    The script builds and signs, makes the DMG, signs it for Sparkle and adds it to `appcast.xml`, tags `v0.2`, creates
    the GitHub release with the DMG and the notes, then commits and pushes `appcast.xml`.
 3. "Check for Updates…" in an older copy offers it.
+
+## 4. Or let CI build the DMG
+
+`.github/workflows/release.yml` runs when a GitHub release is published (or by hand from the Actions tab, giving the
+tag). It checks out the tag, runs `tools/release.sh <version>` on a macOS runner and attaches the DMG to the release.
+Create the release first (tag `v<version>`, notes from `docs/releases/v<version>.md`), without `PUBLISH=1`:
+```sh
+gh release create v0.2 --title "RawBoy Viewer 0.2" --notes-file docs/releases/v0.2.md --prerelease
+```
+Repository secrets, all optional (without them the DMG is ad hoc signed: right-click › Open):
+
+| Secret | What |
+|---|---|
+| `DEVELOPER_ID_CERT_P12`, `DEVELOPER_ID_CERT_PASSWORD` | the "Developer ID Application" certificate exported from Keychain Access as .p12, base64-encoded (`base64 -i cert.p12`), and its password |
+| `DEVELOPER_ID` | the identity name: `Developer ID Application: <name> (<team id>)` |
+| `NOTARY_APPLE_ID`, `NOTARY_PASSWORD`, `NOTARY_TEAM_ID` | Apple ID, its app-specific password and the team id: the DMG is notarized and stapled |
+| `SPARKLE_PRIVATE_KEY` | the Sparkle EdDSA private key (`generate_keys -x file`, in `build/SourcePackages/artifacts/sparkle/Sparkle/bin`): CI signs the DMG and commits `appcast.xml` to `main`. Without it the feed is left alone |
+
+Don't also run `PUBLISH=1 tools/release.sh` for the same version: CI would replace the DMG the feed was signed for.
