@@ -52,7 +52,7 @@ enum HelpContent {
                 Item(keys: "Press and hold", text: "1:1 while held; drag to look around"),
                 Item(keys: "Pinch · wheel (zoomed in)", text: "Zoom; drag or scroll to pan"),
                 Item(
-                    keys: "K", text: "Crop (kept in the sidecar the way RawBoy keeps it; Return applies, Esc cancels)"),
+                    keys: "K", text: "Crop (kept in the sidecar the way RawBoy keeps it; Return applies, Esc cancels; Save copy also saves the cropped photo to the export folder)"),
                 Item(keys: "R", text: "Raws developed by macOS instead of the camera's JPEG"),
                 Item(keys: "J", text: "Show clipped highlights red, crushed shadows blue"),
                 Item(keys: "S", text: "Slideshow (S or Esc stops)"),
