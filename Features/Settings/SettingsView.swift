@@ -6,6 +6,7 @@ import ViewerImaging
 /// The few choices that are personal. Everything else follows RawBoy and isn't a setting.
 enum SettingsKeys {
     static let openLastFolder = "browser.openLastFolder"
+    static let folderContents = "browser.folderContents"
     static let wheel = "viewer.wheel"
     static let slideshowSeconds = "viewer.slideshowSeconds"
     static let editorPath = "files.editorPath"
@@ -22,6 +23,7 @@ enum SettingsKeys {
 struct SettingsView: View {
     let app: AppModel
     @AppStorage(SettingsKeys.openLastFolder) private var openLastFolder = true
+    @AppStorage(SettingsKeys.folderContents) private var folderContents = false
     @AppStorage(SettingsKeys.wheel) private var wheel = "navigate"
     @AppStorage(SettingsKeys.slideshowSeconds) private var slideshowSeconds = 4.0
     @AppStorage(SettingsKeys.editorPath) private var editorPath = ""
@@ -33,6 +35,7 @@ struct SettingsView: View {
         Form {
             Section("Browser") {
                 Toggle("Open the last folder at launch", isOn: $openLastFolder)
+                Toggle("Show what is inside folder tiles (needs the Folder button on)", isOn: $folderContents)
                 LabeledContent("Thumbnail cache") {
                     HStack {
                         Text(ByteCountFormatter.string(fromByteCount: cacheSize, countStyle: .file))

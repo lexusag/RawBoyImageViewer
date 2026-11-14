@@ -12,8 +12,8 @@ struct BrowserView: View {
     var body: some View {
         HStack(spacing: 0) {
             Sidebar(app: app)
-                .frame(width: 248)
-            Rectangle().fill(Theme.hairline).frame(width: 1)
+                .frame(width: browser.sidebarWidth)
+            ResizeHandle(width: Bindable(browser).sidebarWidth, range: 160...480, growsRight: true)
             VStack(spacing: 0) {
                 BrowserToolbar(app: app)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
@@ -22,6 +22,11 @@ struct BrowserView: View {
                     Rectangle().fill(Theme.hairline).frame(height: 1)
                     RatingBar(app: app)
                 }
+            }
+            if browser.showPreview, browser.folder != nil {
+                ResizeHandle(width: Bindable(browser).previewWidth, range: 220...760, growsRight: false)
+                PreviewPane(app: app)
+                    .frame(width: browser.previewWidth)
             }
         }
         .background(Theme.inkBlack)
@@ -59,7 +64,10 @@ struct BrowserView: View {
         } else if browser.items.isEmpty {
             EmptyState(title: "Nothing matches “\(browser.filter)”", detail: nil, action: nil)
         } else {
-            PhotoGrid(app: app)
+            switch browser.viewMode {
+            case .grid: PhotoGrid(app: app)
+            case .list: PhotoList(app: app)
+            }
         }
     }
 }
@@ -107,6 +115,15 @@ private struct BrowserToolbar: View {
                     help: browser.showFolders ? "Hide folders in the grid" : "Show folders in the grid",
                     isOn: browser.showFolders
                 ) { browser.showFolders.toggle() }
+                ToolbarIcon(
+                    icon: browser.viewMode == .list ? "square.grid.2x2" : "list.bullet",
+                    help: browser.viewMode == .list ? "Show thumbnails" : "Show a list", isOn: browser.viewMode == .list
+                ) { browser.viewMode = browser.viewMode == .list ? .grid : .list }
+                ToolbarIcon(
+                    icon: "sidebar.right",
+                    help: browser.showPreview ? "Hide the preview" : "Show a preview of the photo",
+                    isOn: browser.showPreview
+                ) { browser.showPreview.toggle() }
                 if let folder = browser.folder {
                     let favourite = browser.isFavourite(folder)
                     ToolbarIcon(
@@ -138,14 +155,16 @@ private struct BrowserToolbar: View {
             Segmented(
                 options: [(PhotoSort.date, "Shoot date"), (PhotoSort.name, "Name")],
                 selection: Bindable(browser).sort)
-            HStack(spacing: 6) {
-                Image(systemName: "square.grid.3x3").font(.system(size: 11)).foregroundStyle(Theme.ashMuted)
-                Slider(value: Bindable(browser).thumbnailSize, in: 112...320)
-                    .frame(width: 96)
-                    .tint(Theme.amber)
-                Image(systemName: "square.grid.2x2").font(.system(size: 14)).foregroundStyle(Theme.ashMuted)
+            if browser.viewMode == .grid {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.grid.3x3").font(.system(size: 11)).foregroundStyle(Theme.ashMuted)
+                    Slider(value: Bindable(browser).thumbnailSize, in: 112...320)
+                        .frame(width: 96)
+                        .tint(Theme.amber)
+                    Image(systemName: "square.grid.2x2").font(.system(size: 14)).foregroundStyle(Theme.ashMuted)
+                }
+                .help("Thumbnail size")
             }
-            .help("Thumbnail size")
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
         .padding(.top, 34)  // under the window's traffic lights

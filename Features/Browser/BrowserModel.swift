@@ -20,6 +20,8 @@ struct BrowsePhoto: Identifiable, Equatable {
     var name: String { group.main }
 }
 
+enum BrowserViewMode: String { case grid, list }
+
 /// One tile of the grid: the parent folder, a subfolder (both only when folders are shown), or a photo.
 enum GridEntry: Identifiable, Equatable {
     case parent(URL)
@@ -72,6 +74,32 @@ final class BrowserModel {
             reorder()
         }
     }
+    /// Photos as thumbnails or as a list with columns.
+    var viewMode: BrowserViewMode =
+        BrowserViewMode(rawValue: UserDefaults.standard.string(forKey: Keys.viewMode) ?? "") ?? .grid
+    {
+        didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: Keys.viewMode) }
+    }
+    /// A pane on the right with the selected photo, large. Off by default.
+    var showPreview: Bool = UserDefaults.standard.bool(forKey: Keys.showPreview) {
+        didSet { UserDefaults.standard.set(showPreview, forKey: Keys.showPreview) }
+    }
+    /// Pane and column widths, set by dragging their edges.
+    var sidebarWidth = BrowserModel.stored(Keys.sidebarWidth, 248) {
+        didSet { UserDefaults.standard.set(sidebarWidth, forKey: Keys.sidebarWidth) }
+    }
+    var previewWidth = BrowserModel.stored(Keys.previewWidth, 360) {
+        didSet { UserDefaults.standard.set(previewWidth, forKey: Keys.previewWidth) }
+    }
+    var dateColumn = BrowserModel.stored(Keys.dateColumn, 130) {
+        didSet { UserDefaults.standard.set(dateColumn, forKey: Keys.dateColumn) }
+    }
+    var kindColumn = BrowserModel.stored(Keys.kindColumn, 84) {
+        didSet { UserDefaults.standard.set(kindColumn, forKey: Keys.kindColumn) }
+    }
+    var sizeColumn = BrowserModel.stored(Keys.sizeColumn, 76) {
+        didSet { UserDefaults.standard.set(sizeColumn, forKey: Keys.sizeColumn) }
+    }
     private(set) var favourites: [URL] = (UserDefaults.standard.stringArray(forKey: Keys.favourites) ?? []).map {
         URL(fileURLWithPath: $0)
     }
@@ -121,6 +149,17 @@ final class BrowserModel {
         static let last = "browser.lastFolder"
         static let showFolders = "browser.showFolders"
         static let favourites = "browser.favourites"
+        static let viewMode = "browser.viewMode"
+        static let showPreview = "browser.showPreview"
+        static let sidebarWidth = "browser.sidebarWidth"
+        static let previewWidth = "browser.previewWidth"
+        static let dateColumn = "browser.dateColumn"
+        static let kindColumn = "browser.kindColumn"
+        static let sizeColumn = "browser.sizeColumn"
+    }
+
+    nonisolated static func stored(_ key: String, _ fallback: Double) -> Double {
+        UserDefaults.standard.object(forKey: key) as? Double ?? fallback
     }
 
     static var lastFolder: URL? {
