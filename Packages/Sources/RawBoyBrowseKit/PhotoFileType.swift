@@ -5,11 +5,13 @@ public enum PhotoFileType: Equatable, Sendable {
     /// A file that is already a picture: JPEG, HEIC, PNG, TIFF…
     case display
 
+    /// RawBoy's list (`RAW_ACCEPT` in RawBoy's web/src/ui/common/files.ts): keep them the same.
     public static let rawExtensions: Set<String> = [
-        "3fr", "arw", "cr2", "cr3", "crw", "dcr", "dng", "erf", "fff", "gpr", "iiq", "kdc", "mos", "mrw",
-        "nef", "nrw", "orf", "pef", "raf", "rw2", "rwl", "sr2", "srf", "srw", "x3f",
+        "3fr", "arw", "cr2", "cr3", "crw", "dcr", "dng", "erf", "fff", "iiq", "kdc", "mos", "mrw", "nef", "nrw",
+        "orf", "pef", "raf", "raw", "rw2", "rwl", "sr2", "srf", "srw", "x3f",
     ]
 
+    /// RawBoy Browser's image types, plus AVIF, WebP and JPEG XL, which ImageIO opens.
     public static let displayExtensions: Set<String> = [
         "avif", "heic", "heif", "jpeg", "jpg", "jxl", "png", "tif", "tiff", "webp",
     ]

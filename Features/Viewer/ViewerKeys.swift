@@ -1,0 +1,35 @@
+import AppKit
+import RawBoyBrowseKit
+
+/// Viewer keys by physical key (`keyCode`), not by the character typed, so they work on any keyboard layout
+/// (RawBoy's `shortcutKey()` does the same on the web). See PLAN.md §2 for the full table.
+enum ViewerKeys {
+    // Virtual key codes of the ANSI layout's positions.
+    private static let f: UInt16 = 3
+    private static let g: UInt16 = 5
+    private static let z: UInt16 = 6
+    private static let space: UInt16 = 49
+    private static let delete: UInt16 = 51
+    private static let escape: UInt16 = 53
+    private static let home: UInt16 = 115
+    private static let end: UInt16 = 119
+    private static let left: UInt16 = 123
+    private static let right: UInt16 = 124
+    private static let down: UInt16 = 125
+    private static let up: UInt16 = 126
+
+    static func command(for event: NSEvent) -> ViewerCommand? {
+        // Leave ⌘ and ⌃ shortcuts to the menus (⌘⌫ will be Move to Trash).
+        if !event.modifierFlags.intersection([.command, .control, .option]).isEmpty { return nil }
+        switch event.keyCode {
+        case right, down, space: return .next
+        case left, up, delete: return .previous
+        case home: return .first
+        case end: return .last
+        case z: return .toggleZoom
+        case escape, g: return .close
+        case f: return .toggleFullScreen
+        default: return nil
+        }
+    }
+}

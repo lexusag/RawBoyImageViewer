@@ -10,6 +10,23 @@ edges:
 
 Ratings go into XMP sidecars that RawBoy Browser, Lightroom, Capture One and darktable read. Originals are never changed.
 
+## Using it
+
+Open a folder, or one photo in it (⌘O, drop it on the window, or Finder's Open With). The viewer fills the screen.
+
+| Keys / mouse | |
+|---|---|
+| → ↓ Space, wheel down, swipe left | Next photo |
+| ← ↑ ⌫, wheel up, swipe right | Previous photo |
+| Home / End | First / last photo |
+| Z, double-click, smart zoom | Fit ↔ 1:1 at the pointer |
+| Pinch, wheel (zoomed in) | Zoom |
+| Drag, two-finger scroll (zoomed in) | Pan |
+| F | Screen-filling ↔ window |
+| Esc, G | Close the viewer |
+
+A RAW + JPEG pair is one photo, shown from the raw.
+
 Status: early development (see [PLAN.md](PLAN.md)). Windows comes later.
 
 ## Building

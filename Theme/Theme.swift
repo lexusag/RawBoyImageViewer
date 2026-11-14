@@ -1,3 +1,4 @@
+import AppKit
 import RawBoyBrowseKit
 import SwiftUI
 
@@ -57,4 +58,15 @@ struct RawBoyButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == RawBoyButtonStyle {
     static var rawBoy: RawBoyButtonStyle { RawBoyButtonStyle() }
     static var rawBoyPrimary: RawBoyButtonStyle { RawBoyButtonStyle(primary: true) }
+}
+
+extension NSColor {
+    /// A colour from 0xRRGGBB, in sRGB.
+    convenience init(hex: UInt32) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1)
+    }
 }
