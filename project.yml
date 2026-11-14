@@ -17,6 +17,10 @@ targets:
   RawBoyViewer:
     type: application
     platform: macOS
+    # Signing lives here (ad hoc unless Config/Signing.local.xcconfig names a certificate).
+    configFiles:
+      Debug: Config/RawBoyViewer.xcconfig
+      Release: Config/RawBoyViewer.xcconfig
     sources:
       - App
       - Features
@@ -57,9 +61,6 @@ targets:
         # Direct download, not the App Store: no sandbox, so sidecars can be written next to photos.
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: YES
-        # Signed to run locally until a Developer ID is set up for notarization (M8).
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGN_STYLE: Manual
         COMBINE_HIDPI_IMAGES: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Native controls (checkboxes, sliders) take RawBoy's amber, not system blue.

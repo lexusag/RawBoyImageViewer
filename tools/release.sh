@@ -3,10 +3,11 @@
 #
 #   tools/release.sh <version> [build number]
 #
-# Signed and notarized when these are set (both need a paid Apple Developer account):
-#   DEVELOPER_ID    "Developer ID Application: Your Name (TEAMID)"   (security find-identity -v -p codesigning)
-#   NOTARY_PROFILE  a notarytool keychain profile: xcrun notarytool store-credentials <name> --apple-id ... --team-id ...
-# Without them the app is signed ad hoc: it runs on this Mac, and elsewhere only after right-click › Open.
+# Signing (docs/releasing.md walks through it):
+#   DEVELOPER_ID    "Developer ID Application: Your Name (TEAMID)" (paid Apple Developer Program): signs for others
+#   NOTARY_PROFILE  a notarytool keychain profile (paid program too): notarizes, so others can open it normally
+# Without DEVELOPER_ID the app is signed as Config/ says: Config/Signing.local.xcconfig's certificate (a free
+# Personal Team's "Apple Development" works) or ad hoc. Either way others open it with right-click › Open.
 set -e
 cd "$(dirname "$0")/.."
 VERSION=${1:?usage: tools/release.sh <version> [build number]}
@@ -22,8 +23,8 @@ if [ -n "$DEVELOPER_ID" ]; then
     SIGN="CODE_SIGN_IDENTITY=$DEVELOPER_ID CODE_SIGN_STYLE=Manual OTHER_CODE_SIGN_FLAGS=--timestamp"
     echo "Signing with $DEVELOPER_ID"
 else
-    SIGN="CODE_SIGN_IDENTITY=-"
-    echo "No DEVELOPER_ID: signing ad hoc (not for distribution)"
+    SIGN=""
+    echo "No DEVELOPER_ID: signing as Config/ says (not notarizable)"
 fi
 
 # shellcheck disable=SC2086
@@ -33,7 +34,8 @@ xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer -configuration R
 APP="$OUT/RawBoyViewer.xcarchive/Products/Applications/$APP_NAME.app"
 [ -d "$APP" ] || { echo "The archive has no app: see the build log above." >&2; exit 1; }
 codesign --verify --deep --strict "$APP"
-echo "Built $APP_NAME $VERSION ($BUILD)"
+TEAM=$(codesign -dv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+echo "Built $APP_NAME $VERSION ($BUILD), signed $([ "$TEAM" = "not set" ] || [ -z "$TEAM" ] && echo "ad hoc" || echo "by team $TEAM")"
 
 # The disk image: the app and a link to /Applications to drag it onto.
 STAGE="$OUT/dmg"

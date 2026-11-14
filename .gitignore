@@ -13,3 +13,6 @@ xcuserdata/
 
 # Test raw files, never committed
 .raw/
+
+# This Mac's signing identity (Config/RawBoyViewer.xcconfig includes it when present)
+Config/Signing.local.xcconfig

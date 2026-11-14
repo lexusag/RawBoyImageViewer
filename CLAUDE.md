@@ -167,5 +167,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 ## Conventions
 
 - Swift 6, strict concurrency, macOS 15+.
-- No sandbox (direct download, notarized later); the app is ad-hoc signed until a Developer ID exists.
+- No sandbox (direct download). Signing comes from `Config/RawBoyViewer.xcconfig`: ad hoc, unless the git-ignored
+  `Config/Signing.local.xcconfig` names a certificate (the owner's free Personal Team on their Mac). Notarizing needs
+  the paid programme: docs/releasing.md.
+- MIT licence.
 - User-visible changes update `README.md`, and the Help sheet once it exists.

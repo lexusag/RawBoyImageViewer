@@ -1,29 +1,52 @@
-# Releasing
+# Releasing and signing
 
 `tools/release.sh <version>` builds an optimised Release of RawBoy Viewer into `build/release/RawBoy-Viewer-<version>.dmg`
-(the build number defaults to the commit count).
+(the build number defaults to the commit count). How far it gets depends on the Apple account behind it.
 
-## What only the owner can set up
+## What each kind of account allows
 
-1. **A Developer ID.** An Apple Developer Program membership gives a "Developer ID Application" certificate; install it
-   in the keychain, then:
-   ```sh
-   security find-identity -v -p codesigning     # copy the "Developer ID Application: …" name
-   ```
-2. **Notarization credentials**, stored once in the keychain (an app-specific password from appleid.apple.com):
-   ```sh
-   xcrun notarytool store-credentials rawboy-notary --apple-id <apple id> --team-id <team id>
-   ```
-3. Then:
-   ```sh
-   DEVELOPER_ID="Developer ID Application: … (TEAMID)" NOTARY_PROFILE=rawboy-notary tools/release.sh 0.1
-   ```
+| | Ad hoc (no account) | Free account (Personal Team) | Apple Developer Program ($99 a year) |
+|---|---|---|---|
+| Certificate | none | "Apple Development" | "Developer ID Application" |
+| Runs on the Mac that built it | yes | yes | yes |
+| macOS keeps its permissions (drives, cloud folders) across new builds | no: each build is a new app | **yes** | yes |
+| Opens on other Macs with a double-click | no: right-click › Open, or System Settings › Privacy & Security › Open Anyway | no: the same | **yes, once notarized** |
+| Notarization | no | no | **yes** |
 
-Without them the script still makes a DMG, signed ad hoc: it opens on this Mac, and on others only after
-right-click › Open.
+So a free account is worth using on your own Mac, but sharing the app with others needs the paid programme.
+
+## 1. Sign your own builds with the free account (set up)
+
+1. Xcode › Settings › Accounts: your Apple ID is there with its Personal Team (RawBoy's iOS builds use it).
+2. Select the team › **Manage Certificates…** › an **Apple Development** certificate is listed (else **+** › Apple
+   Development). Check from Terminal:
+   ```sh
+   security find-identity -v -p codesigning
+   ```
+3. `Config/Signing.local.xcconfig` (git-ignored, already on this Mac) names the team and identity:
+   ```
+   DEVELOPMENT_TEAM = PB2FFKSMC8
+   CODE_SIGN_IDENTITY = Apple Development
+   ```
+   Then `xcodegen` and build as usual: Debug and `tools/release.sh` builds are signed by the team.
+
+## 2. Notarize for everyone (needs the paid programme)
+
+1. Join the Apple Developer Program with the same Apple ID (developer.apple.com/programs). The Personal Team becomes
+   a paid team; the Team ID may change: update `Config/Signing.local.xcconfig`.
+2. Xcode › Settings › Accounts › Manage Certificates › **+** › **Developer ID Application**.
+3. An app-specific password at account.apple.com › Sign-In and Security › App-Specific Passwords, then store the
+   notarization credentials once in the keychain:
+   ```sh
+   xcrun notarytool store-credentials rawboy-notary --apple-id <your Apple ID> --team-id <team id>
+   ```
+4. Release:
+   ```sh
+   DEVELOPER_ID="Developer ID Application: <name> (<team id>)" NOTARY_PROFILE=rawboy-notary tools/release.sh 0.1
+   ```
+   The script signs with a secure timestamp, notarizes the DMG (a few minutes), staples the ticket and checks it with
+   `spctl`.
 
 ## Not done yet
 
-- **Auto-update (Sparkle).** Needs a place for the update feed and the DMGs (GitHub Releases would do) and an EdDSA
-  key pair kept by the owner. Decide where updates are hosted first.
-- **A licence.** The repository has none yet (PLAN.md §10).
+- **Auto-update (Sparkle):** releases and the update feed go to this repository's GitHub Releases (public).

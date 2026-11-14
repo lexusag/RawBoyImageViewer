@@ -109,3 +109,7 @@ swift test --package-path Packages        # unit tests
 ```
 
 Requires macOS 15 or later.
+
+## Licence
+
+MIT: see [LICENSE](LICENSE).

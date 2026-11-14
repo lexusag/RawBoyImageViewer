@@ -277,7 +277,7 @@ RawBoyImageViewer/
 - **Colour labels (`xmp:Label`):** add them to both apps together, or to neither.
 
 ## 10. Still open
-- A licence.
+- ~~A licence~~: MIT.
 - Where releases and the update feed live (GitHub Releases?), then Sparkle.
 - Apple Silicon only or universal: the release build is whatever `xcodebuild archive` makes for "generic macOS"
   (universal by default).
