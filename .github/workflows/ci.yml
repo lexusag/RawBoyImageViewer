@@ -62,3 +62,20 @@ jobs:
         run: >
           xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer -configuration Debug
           -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+
+  # One check to mark as required in branch protection: green when the build passed or was skipped
+  # because only docs changed, red when anything failed or was cancelled.
+  ci-passed:
+    name: CI passed
+    needs: [changes, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "*|*" cancelled "*) exit 1 ;;
+          esac
