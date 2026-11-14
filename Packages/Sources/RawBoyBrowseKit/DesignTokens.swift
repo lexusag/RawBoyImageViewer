@@ -5,7 +5,7 @@ public enum DesignTokens {
     public enum Colour {
         /// Window and photo background. The photo area stays neutral: nothing tinted touches it.
         public static let inkBlack: UInt32 = 0x121212
-        /// Edge panels, sidebar.
+        /// PanelEdge panels, sidebar.
         public static let graphiteSurface: UInt32 = 0x1C1C1E
         /// Buttons, hovered rows, thumbnail cells.
         public static let graphiteRaised: UInt32 = 0x26262A

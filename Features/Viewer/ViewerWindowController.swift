@@ -7,27 +7,49 @@ final class ViewerWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
-/// The viewer's window. Screen-filling by default: a borderless window over the whole screen, with the menu bar and
-/// Dock hidden while it is the key window. Native macOS full screen isn't used, because there the menu bar comes down
-/// when the pointer reaches the top edge and the Dock comes up at the bottom, where the viewer's own edge controls go
-/// (PLAN.md §2).
+/// The viewer's window and its edge panels. Screen-filling by default: a borderless window over the whole screen,
+/// with the menu bar and Dock hidden while it is the key window. Native macOS full screen isn't used, because there
+/// the menu bar comes down when the pointer reaches the top edge and the Dock comes up at the bottom, where the
+/// viewer's own edge controls are (PLAN.md §2).
 final class ViewerWindowController: NSWindowController, NSWindowDelegate {
-    let canvas = ImageCanvasView(frame: .zero)
+    let root: ViewerRootView
+    var canvas: ImageCanvasView { root.canvas }
     var onClose: (() -> Void)?
+    private let model: ViewerModel
     private(set) var isScreenFilling = true
     private var windowedFrame: NSRect?
 
-    init(screen: NSScreen) {
+    private var zones: EdgeZones
+    private var pointer: Point2D?
+    private var deadline: DispatchWorkItem?
+    private var moveMonitor: Any?
+
+    private static let pinnedKey = "viewer.pinnedEdges"
+
+    init(screen: NSScreen, model: ViewerModel) {
+        self.model = model
+        let pinned = Set((UserDefaults.standard.stringArray(forKey: Self.pinnedKey) ?? []).compactMap(PanelEdge.init))
+        zones = EdgeZones(pinned: pinned)
+        root = ViewerRootView(model: model)
         let window = ViewerWindow(
             contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false, screen: screen)
         window.backgroundColor = NSColor(hex: DesignTokens.Colour.inkBlack)
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.fullScreenNone, .managed]
-        window.contentView = canvas
+        window.acceptsMouseMovedEvents = true
+        window.contentView = root
         window.title = "RawBoy Viewer"
         super.init(window: window)
         window.delegate = self
         window.setFrame(screen.frame, display: false)
+        root.onPointer = { [weak self] in self?.pointerMoved($0) }
+        // Drags (mouse button down) don't reach mouseMoved; edges must still respond while dragging a photo.
+        moveMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged]) { [weak self] event in
+            if event.window === self?.window { self?.root.report(event) }
+            return event
+        }
+        model.pinned = zones.pinned
+        applyZones()
     }
 
     @available(*, unavailable)
@@ -42,10 +64,70 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         updatePresentation()
     }
 
+    // MARK: PanelEdge panels
+
+    private func pointerMoved(_ p: Point2D?) {
+        pointer = p
+        updateZones()
+    }
+
+    private func updateZones() {
+        let size = Size2D(width: root.bounds.width, height: root.bounds.height)
+        zones.update(pointer: pointer, size: size, panels: root.panelRects, now: ProcessInfo.processInfo.systemUptime)
+        applyZones()
+    }
+
+    private func applyZones() {
+        root.apply(visible: zones.visible, reserved: zones.reservedEdges)
+        if model.pinned != zones.pinned {
+            model.pinned = zones.pinned
+            UserDefaults.standard.set(zones.pinned.map(\.rawValue).sorted(), forKey: Self.pinnedKey)
+        }
+        // Wake up when a dwell or close delay ends, even if the pointer rests.
+        deadline?.cancel()
+        if let at = zones.nextDeadline {
+            let work = DispatchWorkItem { [weak self] in self?.updateZones() }
+            deadline = work
+            let delay = max(at - ProcessInfo.processInfo.systemUptime, 0) + 0.005
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+    }
+
+    func togglePanel(_ edge: PanelEdge) {
+        zones.toggle(edge)
+        applyZones()
+    }
+
+    func togglePin(_ edge: PanelEdge) {
+        zones.togglePin(edge)
+        applyZones()
+        focusCanvas()
+    }
+
+    func toggleChrome() {
+        zones.toggleChrome()
+        applyZones()
+    }
+
+    /// Esc: closes showing panels; returns false when there were none (then Esc closes the viewer).
+    func closePanels() -> Bool {
+        let closed = zones.closeUnpinned()
+        applyZones()
+        return closed
+    }
+
+    /// Keys go to the canvas, also after a click in a panel.
+    func focusCanvas() {
+        window?.makeFirstResponder(canvas)
+    }
+
+    // MARK: Window
+
     /// Screen-filling ↔ an ordinary titled window.
     func toggleScreenFilling() {
         guard let window, let screen = window.screen ?? NSScreen.main else { return }
         isScreenFilling.toggle()
+        model.isScreenFilling = isScreenFilling
         if isScreenFilling {
             windowedFrame = window.frame
             window.styleMask = [.borderless]
@@ -56,7 +138,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             window.titleVisibility = .visible
             window.setFrame(windowedFrame ?? screen.visibleFrame.insetBy(dx: 80, dy: 60), display: true)
         }
-        window.makeFirstResponder(canvas)
+        focusCanvas()
         updatePresentation()
     }
 
@@ -77,7 +159,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidBecomeKey(_ notification: Notification) { updatePresentation() }
-    func windowDidResignKey(_ notification: Notification) { updatePresentation() }
+    func windowDidResignKey(_ notification: Notification) {
+        updatePresentation()
+        pointerMoved(nil)
+    }
 
     func windowDidChangeScreen(_ notification: Notification) {
         guard isScreenFilling, let window, let screen = window.screen else { return }
@@ -85,6 +170,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        deadline?.cancel()
+        if let moveMonitor { NSEvent.removeMonitor(moveMonitor) }
+        moveMonitor = nil
         NSApp.presentationOptions = []
         onClose?()
     }

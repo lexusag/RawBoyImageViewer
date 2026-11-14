@@ -8,6 +8,11 @@ enum ViewerKeys {
     private static let f: UInt16 = 3
     private static let g: UInt16 = 5
     private static let z: UInt16 = 6
+    private static let b: UInt16 = 11
+    private static let e: UInt16 = 14
+    private static let i: UInt16 = 34
+    private static let m: UInt16 = 46
+    private static let tab: UInt16 = 48
     private static let space: UInt16 = 49
     private static let delete: UInt16 = 51
     private static let escape: UInt16 = 53
@@ -27,8 +32,14 @@ enum ViewerKeys {
         case home: return .first
         case end: return .last
         case z: return .toggleZoom
-        case escape, g: return .close
+        case escape: return .dismiss
+        case g: return .close
         case f: return .toggleFullScreen
+        case i: return .togglePanel(.right)
+        case m: return .togglePanel(.left)
+        case b: return .togglePanel(.top)
+        case tab: return .toggleChrome
+        case e: return .openInEditor
         default: return nil
         }
     }

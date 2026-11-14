@@ -102,3 +102,18 @@ struct DisplayReadyTests {
         #expect(ImageLoader.displayReady(ready) === ready)
     }
 }
+
+struct ThumbnailStoreTests {
+    @Test func thumbnailsAreSmallAndCached() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try TestImages.writePNG(width: 2000, height: 1000, to: url)
+        let store = ThumbnailStore(pixelSize: 320)
+
+        let first = try #require(await store.thumbnail(url))
+        let second = try #require(await store.thumbnail(url))
+
+        #expect(first.cgImage.width == 320)
+        #expect(first.cgImage === second.cgImage)
+    }
+}

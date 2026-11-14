@@ -24,19 +24,27 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   (Finder "Open With", Dock drops, a path on the command line), `AppModel` (shared state), `Trace` (dev log).
 - `Features/Browser/`: the start screen (until the M3 browser). `Theme/`: tokens as SwiftUI/AppKit colours, RawBoy
   button styles.
-- `Features/Viewer/`: `ViewerSession` (open folder, photo list from `PhotoGroups`, navigation, load + prefetch through
-  `ImageStore`, full resolution on zoom), `ViewerWindowController` (screen-filling borderless window ↔ titled window),
-  `ImageCanvasView` (AppKit + one `CALayer`; zoom/pan via `ZoomMath`, mouse/trackpad/keys → `ViewerCommand`),
+- `Features/Viewer/`: `ViewerSession` (open folder, photo list from `PhotoGroups`, every `ViewerCommand`, load +
+  prefetch through `ImageStore`, full resolution on zoom), `ViewerModel` (@Observable state the panels show and their
+  `send`), `ViewerWindowController` (screen-filling borderless window ↔ titled window; owns `EdgeZones`, feeds it the
+  pointer and wakes it at `nextDeadline`; pins saved in UserDefaults `viewer.pinnedEdges`), `ViewerRootView` (flipped,
+  y down like `EdgeZones`: the canvas plus the three panels in NSHostingViews, slide/fade, panel frames),
+  `ImageCanvasView` (AppKit + one `CALayer`; zoom/pan via `ZoomMath` inside `imageArea` = bounds minus pinned panels;
+  bottom band via `BottomBand`, chevron cursors, hold-repeat, counter pill; mouse/trackpad/keys → `ViewerCommand`),
   `ViewerKeys` (physical key codes).
+- `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right), `ActionMenu` (left),
+  `BrowserStrip` (top: breadcrumb + filmstrip from `ThumbnailStore`). Scrolling goes through `PanelScroll`, because
+  `ImageRenderer` (debug snapshots) draws nothing inside a ScrollView.
 - `Packages/` (one local Swift package):
   - `RawBoyBrowseKit`: pure Swift, **no AppKit/SwiftUI/CoreGraphics/ImageIO** (own `Point2D`/`Size2D`: Foundation's
     `CGPoint` lacks `.zero` and `Equatable` without CoreGraphics). Design tokens, file types, `PhotoGroups` (port of
     RawBoy Browser's `PhotoGroups.ts`: RAW + JPEG = one photo, the raw is main), `ZoomMath`, `PrefetchPlan`,
-    `LRUCache`, `ViewerCommand`; later the XMP sidecar, embedded-preview parser, capture dates and the edge-zone state
+    `LRUCache`, `ViewerCommand`, `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
+    passed in, so tested without timers), `BottomBand`, `Rect2D` (y down); later the XMP sidecar, embedded-preview parser, capture dates and the edge-zone state
     machine. It is meant to move into the RawBoy repo and serve RawBoy desktop and the Windows port.
   - `ViewerImaging`: `ImageLoader` (ImageIO: screen-size preview, embedded one when ≥ 2560 px, else decoded;
     full resolution for 1:1; `displayReady` redraws to 8-bit BGRA), `ImageStore` (actor: LRU 1.5 GB, shared in-flight
-    decodes, sequential prefetch), `Thumbnailer`.
+    decodes, sequential prefetch), `ThumbnailStore` (actor: filmstrip thumbnails, 256 MB), `Thumbnailer`.
   - `ViewerFiles`: folder scanning, file operations. Scanning reads directory entries only, never file contents:
     photo folders are often cloud sync folders where reading a placeholder downloads it.
 
@@ -50,7 +58,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 
 - `tools/smoke.sh <folder> [steps]`: opens a folder in the debug build through LaunchServices, steps through photos
   (`RAWBOY_AUTOPLAY`), zooms to 1:1, quits, and prints the trace (`RAWBOY_TRACE=1`): load times and presentation options
-  (10 = menu bar + Dock hidden). Test folders: `~/_claude/photos` (Pixel DNG + JPEG), `../RawBoy/.raw` (Sony JXL DNGs).
+  (10 = menu bar + Dock hidden), and opens each panel. `SNAPSHOT=<folder>` also draws each panel into
+  `<folder>/panel-*.png` (`ImageRenderer`; thumbnails stay empty, they load later) so panels can be looked at without
+  screen recording. Test folders: `~/_claude/photos` (Pixel DNG + JPEG), `../RawBoy/.raw` (Sony JXL DNGs).
 
 ## Traps found
 
@@ -63,6 +73,10 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   might remove that but must be checked for colour by eye first.
 - Previews are sized to the screen's long edge in pixels, set on the store in the same task as the first load: a
   separate task could clear the cache after prefetching had begun.
+
+- SwiftUI's `Edge` clashes with ours in the app target: ours is `PanelEdge`.
+- A horizontal `ScrollView` takes all the height it's offered: give it a height (the browser strip's breadcrumb hid the
+  filmstrip this way).
 
 ## Conventions
 
