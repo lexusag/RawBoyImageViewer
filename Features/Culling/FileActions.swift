@@ -27,6 +27,7 @@ extension AppModel {
         case .moveTo: copyOrMove(ids, folder, move: true, to: nil)
         case .clipboard: copyToClipboard(ids, folder)
         case .share: share(ids, folder)
+        case .sendTo(let path): send(ids.map { folder.appendingPathComponent($0) }, to: URL(fileURLWithPath: path))
         }
     }
 
@@ -176,6 +177,20 @@ extension AppModel {
         board.clearContents()
         board.writeObjects(urls)
         say(ids.count == 1 ? "Copied \(ids[0])" : "Copied \(ids.count) photos")
+    }
+
+    /// Opens photos, or a folder, in another app (Reblum, say) chosen from the Send to menu.
+    func send(_ urls: [URL], to app: URL) {
+        guard !urls.isEmpty else { return }
+        let name = SendToApps.name(of: app)
+        SendToApps.send(urls, to: app) { [weak self] error in
+            if error != nil {
+                self?.say("Couldn't open in \(name)")
+            } else {
+                let what = urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) photos"
+                self?.say("Sent \(what) to \(name)")
+            }
+        }
     }
 
     private func share(_ ids: [String], _ folder: URL) {

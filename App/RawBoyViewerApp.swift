@@ -64,6 +64,7 @@ struct RawBoyViewerApp: App {
                 Button("Copy Photo") { AppModel.shared.perform(.clipboard) }
                     .keyboardShortcut("c", modifiers: [.command, .option])
                 Button("Share…") { AppModel.shared.perform(.share) }
+                SendToMenu(app: AppModel.shared)
                 Divider()
                 Toggle("Go to the Next Photo After Rating", isOn: Bindable(AppModel.shared.culling).autoAdvance)
             }

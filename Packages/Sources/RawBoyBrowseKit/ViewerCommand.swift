@@ -1,6 +1,8 @@
 /// What can be done with photos' files (the app decides how: sheets, panels, the system's share menu).
 public enum FileAction: Equatable, Sendable {
     case export, copyTo, moveTo, clipboard, share
+    /// Open in the app at this path (Send to).
+    case sendTo(String)
 }
 
 /// What the viewer can be asked to do, whatever the input (keys, mouse, trackpad, touch, a panel's button). Each
