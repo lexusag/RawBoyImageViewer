@@ -1,0 +1,27 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>RawBoy Viewer</title>
+        <item>
+            <title>0.1</title>
+            <pubDate>Sat, 14 Nov 2026 18:19:22 +0200</pubDate>
+            <link>https://github.com/lexusag/RawBoyImageViewer</link>
+            <sparkle:version>20</sparkle:version>
+            <sparkle:shortVersionString>0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[The first release of RawBoy Viewer: a mouse-first photo viewer and culling tool for macOS 15+, from the RawBoy family.
+
+- Browser: folders, favourites, a thumbnail grid from the cameras' own previews, sort by shoot date, ratings bar and
+  filters; cloud placeholders aren't downloaded by browsing; the folder updates itself when other apps change it.
+- Viewer: the photo fills the screen; the edges show actions (left), details with histogram and EXIF (right) and the
+  filmstrip (top); the bottom of the photo goes to the previous / next photo.
+- Culling: stars, pick, reject in XMP sidecars RawBoy, Lightroom, Capture One and darktable read; `_bin`, Trash, undo.
+- Rotate, crop (kept the way RawBoy keeps it), export, compare 2–4 photos, slideshow, real RAW preview.
+
+**Not notarized** (signed with a free Personal Team): the first time, right-click the app › Open, or System Settings ›
+Privacy & Security › Open Anyway. Later versions arrive through Check for Updates.
+]]></description>
+            <enclosure url="https://github.com/lexusag/RawBoyImageViewer/releases/download/v0.1/RawBoy-Viewer-0.1.dmg" length="2885271" type="application/octet-stream" sparkle:edSignature="uJnKgmDvF8ZlFFNpwbjbUsNAc5bW3U4jRPAwxcpyj9AIcFMfPmOwH+O4yBO3Ga9skp5vImShm/8ljSVy0Ku6Dw=="/>
+        </item>
+    </channel>
+</rss>
