@@ -463,6 +463,36 @@ final class ViewerSession {
             controller.canvas.crop = culling.crop(id)
             controller.canvas.flash(crop.isFull ? "Not cropped" : "Cropped (RawBoy reads it too)")
         }
+        state.onSaveCopy = { [weak self] crop in
+            guard let self, let folder = model.folder else { return }
+            controller.endCrop()
+            controller.canvas.navigationEnabled = true
+            culling.setCrop(id, crop)
+            controller.canvas.crop = culling.crop(id)
+            let source = folder.appendingPathComponent(id)
+            let orientation = culling.orientation(id)
+            let destination = AppModel.exportFolder
+            // The last export format and quality, at full size.
+            var options = AppModel.exportOptions
+            options.longEdge = nil
+            controller.canvas.flash("Saving cropped copy…")
+            Task.detached(priority: .userInitiated) {
+                let result = Result {
+                    try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+                    return try Exporter.export(
+                        source, orientation: orientation, crop: crop.isFull ? nil : crop, to: destination,
+                        options: options)
+                }
+                await MainActor.run {
+                    switch result {
+                    case .success(let url):
+                        controller.canvas.flash("Saved \(url.lastPathComponent) in \(destination.lastPathComponent)")
+                    case .failure:
+                        controller.canvas.flash("Couldn't save the copy")
+                    }
+                }
+            }
+        }
         state.onCancel = { [weak self] in
             guard let self else { return }
             controller.endCrop()
