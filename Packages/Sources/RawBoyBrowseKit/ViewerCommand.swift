@@ -19,6 +19,8 @@ public enum ViewerCommand: Equatable, Sendable {
     case togglePin(PanelEdge)
     /// Tab: hide every panel, pinned ones too.
     case toggleChrome
+    /// J (or a click on the histogram): show clipped highlights red and crushed shadows blue, as RawBoy does.
+    case toggleClipping
     /// Show the photo's file in the file manager.
     case revealFile
     /// Open the photo in the external editor.

@@ -22,6 +22,8 @@ final class ViewerSession {
     /// Bumped on every navigation: loads that finish for an older photo are dropped.
     private var generation = 0
     private var shownURL: URL?
+    /// The picture on screen (preview or full resolution), for the histogram and the clipping overlay.
+    private var shownImage: LoadedImage?
     private var loadingFull = false
     /// The long edge previews are decoded to, for the viewer's screen.
     private var previewPixelSize = 3840
@@ -73,6 +75,14 @@ final class ViewerSession {
                     Trace.log("panel \(edge.rawValue) shown: \(controller?.root.panels[edge]?.isHidden == false)")
                     snapshot(edge)
                 }
+                handle(.toggleClipping)
+                try? await Task.sleep(for: .milliseconds(800))
+                if let h = model.histogram {
+                    Trace.log(
+                        "histogram: highlights \(Histogram.percent(h.highlights)), shadows \(Histogram.percent(h.shadows))"
+                    )
+                }
+                Trace.log("clip overlay on screen: \(controller?.canvas.hasClipOverlay == true)")
                 handle(.dismiss)
                 handle(.toggleZoom)
                 try? await Task.sleep(for: .seconds(4))
@@ -137,6 +147,9 @@ final class ViewerSession {
         case .togglePanel(let edge): controller?.togglePanel(edge)
         case .togglePin(let edge): controller?.togglePin(edge)
         case .toggleChrome: controller?.toggleChrome()
+        case .toggleClipping:
+            model.showClipping.toggle()
+            updateClipOverlay()
         case .revealFile:
             if let url = model.currentURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         case .openInEditor:
@@ -176,6 +189,7 @@ final class ViewerSession {
         model.modified = values?.contentModificationDate
         model.fullSize = nil
         model.metadata = nil
+        model.histogram = nil
         Task.detached(priority: .userInitiated) {
             let metadata = PhotoMetadata.read(url)
             await MainActor.run {
@@ -204,6 +218,7 @@ final class ViewerSession {
             if let image {
                 controller.canvas.show(image, samePhoto: shownURL == url)
                 shownURL = url
+                shown(image, generation)
                 model.fullSize = image.fullSize
                 let ms = Int(Date().timeIntervalSince(started) * 1000)
                 Trace.log(
@@ -223,6 +238,40 @@ final class ViewerSession {
         }
     }
 
+    /// A new photo is on screen: count its levels, and redo the clipping warning when it is on.
+    private func shown(_ image: LoadedImage, _ generation: Int) {
+        shownImage = image
+        controller?.canvas.setClipOverlay(nil)
+        updateClipOverlay()
+        Task.detached(priority: .userInitiated) {
+            let histogram = ImageAnalysis.histogram(of: image.cgImage)
+            await MainActor.run {
+                if generation == self.generation { self.model.histogram = histogram }
+            }
+        }
+    }
+
+    /// The clipping warning for the picture on screen, made in the background; cleared when it is off.
+    private func updateClipOverlay() {
+        guard model.showClipping, let image = shownImage else {
+            controller?.canvas.setClipOverlay(nil)
+            return
+        }
+        let generation = generation
+        Task.detached(priority: .userInitiated) {
+            let overlay = ImageAnalysis.clipOverlay(of: image.cgImage)
+            await MainActor.run {
+                guard generation == self.generation, self.model.showClipping,
+                    self.shownImage?.cgImage === image.cgImage
+                else { return }
+                self.controller?.canvas.setClipOverlay(overlay)
+                #if DEBUG
+                    if let overlay { Snapshot.writeImage(overlay, name: "clip-overlay") }
+                #endif
+            }
+        }
+    }
+
     private func loadFullResolution() {
         guard !loadingFull, photos.indices.contains(index), let controller else { return }
         loadingFull = true
@@ -236,6 +285,8 @@ final class ViewerSession {
             controller.canvas.setLoading(false)
             if let image {
                 controller.canvas.show(image, samePhoto: true)
+                shownImage = image
+                updateClipOverlay()
                 Trace.log("full \(url.lastPathComponent) in \(Int(Date().timeIntervalSince(started) * 1000)) ms")
             }
         }

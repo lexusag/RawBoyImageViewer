@@ -40,7 +40,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   `peekDelay`, at once on drag; release → fit); the wheel/trackpad don't change photos for `navigationPause` after
   zooming or panning, so zooming out to fit doesn't run on into the next photos; mouse/trackpad/keys → `ViewerCommand`),
   `ViewerKeys` (physical key codes).
-- `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right), `ActionMenu` (left),
+- `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right; `HistogramView`, a port of
+  RawBoy's, clicking it toggles clipping), `ActionMenu` (left),
   `BrowserStrip` (top: breadcrumb + filmstrip from `ThumbnailStore`). Scrolling goes through `PanelScroll`, because
   `ImageRenderer` (debug snapshots) draws nothing inside a ScrollView.
 - `Packages/` (one local Swift package):
@@ -49,13 +50,15 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     RawBoy Browser's `PhotoGroups.ts`: RAW + JPEG = one photo, the raw is main), `ZoomMath`, `PrefetchPlan`,
     `LRUCache`, `ViewerCommand`, `ByteSource`/`FileSource` (block-cached random reads), `EmbeddedPreviews` and
     `CaptureDate` (ports of RawBoy's `EmbeddedPreview.ts` / `CaptureDate.ts`, with its tests; JPEG XL previews not
-    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
+    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `Histogram` + `ClipWarning` (ports of RawBoy's
+    Histogram and its shader's `clipWarning`: 64 bins, a channel at 255 = highlight, all ≤ 1 = shadow; keep in step), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
     passed in, so tested without timers), `BottomBand`, `Rect2D` (y down); later the XMP sidecar, embedded-preview parser, capture dates and the edge-zone state
     machine. It is meant to move into the RawBoy repo and serve RawBoy desktop and the Windows port.
   - `ViewerImaging`: `ImageLoader` (screen-size preview: a raw's embedded JPEG from `EmbeddedPreviews` when
     ≥ 2560 px, else ImageIO's embedded one, else decoded;
     full resolution for 1:1; `displayReady` redraws to 8-bit BGRA), `ImageStore` (actor: LRU 1.5 GB, shared in-flight
-    decodes, sequential prefetch), `PhotoMetadata` (ImageIO properties → the details panel's fields), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
+    decodes, sequential prefetch), `PhotoMetadata` (ImageIO properties → the details panel's fields), `ImageAnalysis` (histogram from a 512 px
+    nearest-neighbour copy, as RawBoy; clip overlay up to 4096 px), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
     path + size + mtime + pixels, 1 GB → made: a raw's embedded JPEG when ≥ 400 px, else ImageIO), `Thumbnailer`.
   - `ViewerFiles`: `FolderScanner` (photos with size, date and `isOnlineOnly`; sidecar names; subfolders without
     packages or `_bin`), `CloudStatus` (ubiquitous status or `SF_DATALESS`). Scanning reads directory entries only,
@@ -75,7 +78,7 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   (10 = menu bar + Dock hidden), and opens each panel. Given a folder it opens the browser, then the viewer on its
   first photo. `SNAPSHOT=<folder>` also draws each panel into
   `<folder>/panel-*.png` (`ImageRenderer`; thumbnails stay empty, they load later) so panels can be looked at without
-  screen recording; the browser too (`browser.png`, 1280 × 820), and the first four grid cells with their real
+  screen recording; with clipping on, the overlay too (`clip-overlay.png`); the browser too (`browser.png`, 1280 × 820), and the first four grid cells with their real
   thumbnails (`cells.png`: the grid's own thumbnails load too late for a snapshot). Test folders: `~/_claude/photos` (Pixel DNG + JPEG), `../RawBoy/.raw` (Sony JXL DNGs).
 
 ## Traps found

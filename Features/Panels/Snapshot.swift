@@ -9,7 +9,7 @@
         static let folder = ProcessInfo.processInfo.environment["RAWBOY_SNAPSHOT"].map { URL(fileURLWithPath: $0) }
 
         static func write<V: View>(_ view: V, size: CGSize, name: String) {
-            guard let folder else { return }
+            guard folder != nil else { return }
             let renderer = ImageRenderer(
                 content: view.frame(width: size.width, height: size.height)
                     .background(Theme.inkBlack).environment(\.colorScheme, .dark).environment(\.isSnapshot, true))
@@ -18,7 +18,11 @@
                 Trace.log("snapshot \(name): nothing rendered")
                 return
             }
-            guard
+            writeImage(image, name: name)
+        }
+
+        static func writeImage(_ image: CGImage, name: String) {
+            guard let folder,
                 let dest = CGImageDestinationCreateWithURL(
                     folder.appendingPathComponent("\(name).png") as CFURL, "public.png" as CFString, 1, nil)
             else { return }

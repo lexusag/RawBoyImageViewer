@@ -11,6 +11,7 @@ enum ViewerKeys {
     private static let b: UInt16 = 11
     private static let e: UInt16 = 14
     private static let i: UInt16 = 34
+    private static let j: UInt16 = 38
     private static let m: UInt16 = 46
     private static let tab: UInt16 = 48
     private static let returnKey: UInt16 = 36
@@ -38,6 +39,7 @@ enum ViewerKeys {
         case g, returnKey, enter: return .close
         case f: return .toggleFullScreen
         case i: return .togglePanel(.right)
+        case j: return .toggleClipping
         case m: return .togglePanel(.left)
         case b: return .togglePanel(.top)
         case tab: return .toggleChrome

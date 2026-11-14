@@ -13,6 +13,11 @@ struct InfoPanel: View {
             PanelScroll {
                 VStack(alignment: .leading, spacing: 6) {
                     if let group = model.current {
+                        HistogramView(histogram: model.histogram, active: model.showClipping) {
+                            model.send(.toggleClipping)
+                        }
+                        .frame(height: 84)
+                        .padding(.bottom, 6)
                         let m = model.metadata
                         if let summary = m?.exposureSummary {
                             Text(summary)

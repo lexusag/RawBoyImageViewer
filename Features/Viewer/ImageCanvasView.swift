@@ -32,6 +32,8 @@ final class ImageCanvasView: NSView {
     }
 
     private let imageLayer = CALayer()
+    /// RawBoy's clipping warning, over the photo with the same frame.
+    private let clipLayer = CALayer()
     private let zoomLabel = ImageCanvasView.pill()
     private let counterLabel = ImageCanvasView.pill()
     private let messageLabel = NSTextField(labelWithString: "")
@@ -64,6 +66,10 @@ final class ImageCanvasView: NSView {
         imageLayer.contentsGravity = .resize
         imageLayer.minificationFilter = .trilinear
         layer?.addSublayer(imageLayer)
+        clipLayer.contentsGravity = .resize
+        clipLayer.magnificationFilter = .nearest
+        clipLayer.isHidden = true
+        layer?.addSublayer(clipLayer)
 
         zoomLabel.alphaValue = 0
         counterLabel.alphaValue = 0
@@ -133,11 +139,23 @@ final class ImageCanvasView: NSView {
         }
     }
 
+    var hasClipOverlay: Bool { !clipLayer.isHidden && clipLayer.contents != nil }
+
+    /// The clipping warning for the picture on screen; nil hides it.
+    func setClipOverlay(_ overlay: CGImage?) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        clipLayer.contents = overlay
+        clipLayer.isHidden = overlay == nil
+        CATransaction.commit()
+    }
+
     /// Clears the photo and says why.
     func showMessage(_ text: String) {
         image = nil
         imageLayer.contents = nil
         imageLayer.isHidden = true
+        clipLayer.isHidden = true
         setLoading(false)
         messageLabel.stringValue = text
         messageLabel.isHidden = false
@@ -216,6 +234,7 @@ final class ImageCanvasView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         imageLayer.frame = backingAligned(frame)
+        clipLayer.frame = imageLayer.frame
         // Past 1:1, show the pixels as pixels.
         imageLayer.magnificationFilter = devicePixels > 1.01 ? .nearest : .linear
         CATransaction.commit()

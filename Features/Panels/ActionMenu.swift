@@ -19,6 +19,10 @@ struct ActionMenu: View {
                         icon: model.isScreenFilling ? "macwindow" : "rectangle.inset.filled",
                         title: model.isScreenFilling ? "Show in a window" : "Fill the screen", key: "F"
                     ) { model.send(.toggleFullScreen) }
+                    ActionRow(
+                        icon: "exclamationmark.triangle",
+                        title: model.showClipping ? "Hide clipping" : "Show clipping", key: "J"
+                    ) { model.send(.toggleClipping) }
                     ActionRow(icon: "eye.slash", title: "Hide panels", key: "Tab") { model.send(.toggleChrome) }
 
                     PanelSection(title: "Go to").padding(.horizontal, DesignTokens.Spacing.sm)

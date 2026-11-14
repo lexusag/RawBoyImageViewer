@@ -200,3 +200,33 @@ struct ThumbnailFitTests {
         #expect(Thumbnailer.fits(try image(360, 480), size: portrait, maxPixelSize: 480))
     }
 }
+
+struct ImageAnalysisTests {
+    /// Left half white, right half mid grey.
+    func image() throws -> CGImage {
+        let context = try #require(
+            CGContext(
+                data: nil, width: 100, height: 10, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        context.setFillColor(gray: 0.5, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 100, height: 10))
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 50, height: 10))
+        return try #require(context.makeImage())
+    }
+
+    @Test func histogramCountsTheClippedHalf() throws {
+        let h = try #require(ImageAnalysis.histogram(of: try image()))
+        #expect(abs(h.highlights - 0.5) < 0.01)
+        #expect(h.shadows == 0)
+    }
+
+    @Test func overlayIsRedOverTheClippedHalfOnly() throws {
+        let overlay = try #require(ImageAnalysis.clipOverlay(of: try image()))
+        let data = try #require(overlay.dataProvider?.data) as Data
+        // BGRA: the first pixel (white) is red, the last (grey) transparent.
+        #expect(Array(data[0..<4]) == [0, 0, 255, 255])
+        let last = (overlay.height - 1) * overlay.bytesPerRow + (overlay.width - 1) * 4
+        #expect(data[last + 3] == 0)
+    }
+}

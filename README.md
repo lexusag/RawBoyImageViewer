@@ -32,7 +32,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
 Move the pointer to an edge and rest it there for a moment: the **left** edge shows actions, the **right** edge the
-photo's details (exposure, camera and lens, file, colour profile, location, credits), the **top** edge the folder's filmstrip (the mouse wheel scrolls it sideways). A panel goes away when the pointer leaves it; its pin keeps
+photo's details (its histogram, exposure, camera and lens, file, colour profile, location, credits), the **top** edge the folder's filmstrip (the mouse wheel scrolls it sideways). A panel goes away when the pointer leaves it; its pin keeps
 it showing, and the photo then fits beside it. Along the **bottom** of the photo, the left half goes to the previous
 photo and the right half to the next (hold to keep going).
 
@@ -47,6 +47,7 @@ photo and the right half to the next (hold to keep going).
 | Drag, two-finger scroll (zoomed in) | Pan |
 | F | Screen-filling ↔ window |
 | I / M / B | Details / actions / filmstrip panel |
+| J, click the histogram | Show clipped highlights red and crushed shadows blue, as RawBoy does |
 | Tab | Hide every panel, pinned ones too (again: bring the pinned back) |
 | E | Open in darktable (or the photo's default app) |
 | Esc | Close the panels; with none showing, back to the browser |

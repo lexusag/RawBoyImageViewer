@@ -16,6 +16,10 @@ final class ViewerModel {
     var fileSize: Int64?
     /// The current photo's EXIF, once read.
     var metadata: PhotoMetadata?
+    /// The levels of the picture on screen, once counted.
+    var histogram: Histogram?
+    /// The clipping warning is over the photo (J). Stays on from photo to photo.
+    var showClipping = false
     var modified: Date?
     var pinned: Set<PanelEdge> = []
     var isFit = true
