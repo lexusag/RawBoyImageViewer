@@ -24,6 +24,8 @@ final class CropToolState {
         self.crop = crop
         self.frameSize = frameSize
         portrait = frameSize.height > frameSize.width
+        // A fresh crop starts at the photo's own proportions; an existing one is left as it is (free).
+        aspect = crop.isFull ? .original : .free
     }
 
     var ratio: Double? { aspect.ratio(frameWidth: frameSize.width, frameHeight: frameSize.height, portrait: portrait) }
@@ -34,7 +36,7 @@ final class CropToolState {
     }
 
     func reset() {
-        aspect = .free
+        aspect = .original
         crop = .full
         changed()
     }
