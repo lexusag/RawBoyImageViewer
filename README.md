@@ -29,6 +29,10 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | P, X, U | Pick, Reject (the same key again unflags), Unflag |
 | ⌘Z | Undo the last rating, move to `_bin` or to the Trash |
 | ⌘⌫ | Move to the Trash (with its JPEG and sidecars) |
+| [ / ], ⌘[ / ⌘] | Rotate left / right: lossless, kept in the sidecar (`tiff:Orientation`, as Lightroom does) |
+| ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px, location kept or left out |
+| ⌥⌘C | Copy the photo (its file) |
+| Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share |
 | ⌘↑ | Up a folder |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
 | Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar) |
@@ -57,6 +61,7 @@ photo and the right half to the next (hold to keep going).
 | F | Screen-filling ↔ window |
 | 1–5, 0, P, X, U | Rate, as in the browser; then on to the next photo (Photo › Go to the Next Photo After Rating) |
 | ⌘Z, ⌘⌫ | Undo, Move to the Trash |
+| [ / ] | Rotate left / right |
 | I / M / B | Details / actions / filmstrip panel |
 | J, click the histogram | Show clipped highlights red and crushed shadows blue, as RawBoy does |
 | Tab | Hide every panel, pinned ones too (again: bring the pinned back) |

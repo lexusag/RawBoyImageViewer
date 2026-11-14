@@ -32,6 +32,8 @@ final class ViewerSession {
     var isOpen: Bool { controller != nil }
     /// The viewer closed, on this photo (its main file name).
     var onClose: ((String?) -> Void)?
+    /// Export, copy, move, clipboard or share for these photos: the app handles them.
+    var onFileAction: ((FileAction, [String]) -> Void)?
     /// A folder in the breadcrumb was clicked: the browser shows it.
     var onBrowse: ((URL) -> Void)?
 
@@ -120,6 +122,35 @@ final class ViewerSession {
             handle(.undo)
             try? await Task.sleep(for: .milliseconds(300))
             Trace.log("cull: \(culling.message ?? "") · bin \(culling.binCount) · viewer has \(photos.count)")
+
+            // M6: turn the photo on screen, export it, move it away and back.
+            go(to: 0)
+            try? await Task.sleep(for: .milliseconds(500))
+            let before = model.fullSize
+            handle(.rotate(clockwise: true))
+            try? await Task.sleep(for: .milliseconds(800))
+            await culling.finishWrites()
+            let id = model.current!.main
+            let sidecar = (culling.sidecars[id] ?? []).first.flatMap {
+                SidecarFiles.read(model.folder!.appendingPathComponent($0))
+            }
+            Trace.log(
+                "rotate: \(id) \(before.map { "\(Int($0.width))×\(Int($0.height))" } ?? "?") → "
+                    + "\(model.fullSize.map { "\(Int($0.width))×\(Int($0.height))" } ?? "?"), sidecar orientation "
+                    + "\(sidecar.flatMap(XmpSidecar.readOrientation).map(String.init) ?? "none")")
+            let exportFolder = model.folder!.appendingPathComponent("export-test")
+            try? FileManager.default.createDirectory(at: exportFolder, withIntermediateDirectories: true)
+            if let out = try? Exporter.export(
+                model.folder!.appendingPathComponent(id), orientation: culling.orientation(id), to: exportFolder,
+                options: ExportOptions(longEdge: 1080))
+            {
+                let size = ImageLoader.fullSize(of: out)
+                Trace.log(
+                    "export: \(out.lastPathComponent) \(size.map { "\(Int($0.width))×\(Int($0.height))" } ?? "?")")
+            }
+            handle(.rotate(clockwise: false))
+            try? await Task.sleep(for: .milliseconds(300))
+            await culling.finishWrites()
         }
 
         private func snapshot(_ edge: PanelEdge) {
@@ -133,6 +164,15 @@ final class ViewerSession {
             Snapshot.write(view.padding(16), size: frame.size, name: "panel-\(edge.rawValue)")
         }
     #endif
+
+    /// A short note over the photo.
+    func flash(_ text: String) {
+        controller?.canvas.flash(text)
+    }
+
+    /// The window to put sheets on, and the view to anchor the share menu to.
+    var window: NSWindow? { controller?.window }
+    var canvasView: NSView? { controller?.canvas }
 
     func close() {
         controller?.close()
@@ -184,6 +224,9 @@ final class ViewerSession {
         case .setStars(let n): rateCurrent { self.culling.setStars($0, n) }
         case .toggleFlag(let flag): rateCurrent { self.culling.toggleFlag($0, flag) }
         case .unflag: rateCurrent { self.culling.clearFlag($0) }
+        case .rotate(let clockwise):
+            guard let id = model.current?.main else { return }
+            culling.rotate([id], clockwise: clockwise)
         case .undo:
             if let id = culling.undo(), let i = model.groups.firstIndex(where: { $0.main == id }) {
                 go(to: i)
@@ -193,6 +236,9 @@ final class ViewerSession {
         case .moveToTrash:
             guard let id = model.current?.main else { return }
             Task { await culling.moveToTrash([id]) }
+        case .file(let action):
+            guard let id = model.current?.main else { return }
+            onFileAction?(action, [id])
         case .revealFile:
             if let url = model.currentURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         case .openInEditor:
@@ -216,6 +262,13 @@ final class ViewerSession {
         let stars = String(repeating: "★", count: rating.stars)
         let pick = rating.flag == .pick ? "Pick" : ""
         return [stars, pick].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// These photos were turned: the one on screen is shown again, turned.
+    func orientationsChanged(_ ids: [String]) {
+        guard let id = model.current?.main, ids.contains(id) else { return }
+        shownURL = nil
+        showCurrent()
     }
 
     /// Ratings changed (another photo's, or the folder's were read).
@@ -286,11 +339,12 @@ final class ViewerSession {
         }
 
         let previewPixelSize = previewPixelSize
+        let orientation = culling.orientation(url.lastPathComponent)
         Task {
             let started = Date()
             // In this task, before any load, so a size change can't drop previews prefetched for the new size.
             await store.setPreviewPixelSize(previewPixelSize)
-            var image = await store.cached(url, .preview)
+            var image = await store.cached(url, .preview, orientation: orientation)
             if image == nil {
                 // While a key is held, photos fly past: only decode the one the keys stop on.
                 try? await Task.sleep(for: .milliseconds(40))
@@ -299,7 +353,7 @@ final class ViewerSession {
                     try? await Task.sleep(for: .milliseconds(150))
                     if !Task.isCancelled, generation == self.generation { controller.canvas.setLoading(true) }
                 }
-                image = await store.image(url, .preview)
+                image = await store.image(url, .preview, orientation: orientation)
                 spinner.cancel()
             }
             guard generation == self.generation else { return }
@@ -322,7 +376,7 @@ final class ViewerSession {
             let order = PrefetchPlan.order(current: index, count: photos.count, forward: forward).filter {
                 abs($0 - index) == 1 || !CloudStatus.isOnlineOnly(photos[$0])
             }
-            await store.prefetch(order.map { photos[$0] })
+            await store.prefetch(order.map { (photos[$0], culling.orientation(photos[$0].lastPathComponent)) })
         }
     }
 
@@ -368,7 +422,7 @@ final class ViewerSession {
         Task {
             let started = Date()
             controller.canvas.setLoading(true)
-            let image = await store.image(url, .full)
+            let image = await store.image(url, .full, orientation: culling.orientation(url.lastPathComponent))
             guard generation == self.generation else { return }
             controller.canvas.setLoading(false)
             if let image {

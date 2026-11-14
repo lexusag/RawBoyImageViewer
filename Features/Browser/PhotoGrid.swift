@@ -31,7 +31,12 @@ struct PhotoGrid: View {
                                     PhotoCell(
                                         photo: photo, size: cell, isSelected: browser.selection.contains(entry.id),
                                         rating: browser.culling.rating(photo.id),
-                                        hasSidecar: browser.culling.hasSidecar(photo.id), store: browser.thumbnails)
+                                        orientation: browser.culling.orientation(photo.id),
+                                        hasSidecar: browser.culling.hasSidecar(photo.id), store: browser.thumbnails
+                                    )
+                                    .contextMenu {
+                                        PhotoMenu(id: photo.id, url: photo.url, app: app)
+                                    }
                                 case .folder(let url):
                                     FolderCell(
                                         title: url.lastPathComponent, icon: "folder.fill", size: cell,
@@ -110,18 +115,20 @@ struct PhotoCell: View {
     let isSelected: Bool
     var rating: Rating = .none
     var hasSidecar = false
+    var orientation: Int?
     let store: ThumbnailStore
     @State private var image: CGImage?
 
     init(
-        photo: BrowsePhoto, size: Double, isSelected: Bool, rating: Rating = .none, hasSidecar: Bool = false,
-        store: ThumbnailStore, image: CGImage? = nil
+        photo: BrowsePhoto, size: Double, isSelected: Bool, rating: Rating = .none, orientation: Int? = nil,
+        hasSidecar: Bool = false, store: ThumbnailStore, image: CGImage? = nil
     ) {
         self.photo = photo
         self.size = size
         self.isSelected = isSelected
         self.rating = rating
         self.hasSidecar = hasSidecar
+        self.orientation = orientation
         self.store = store
         _image = State(initialValue: image)
     }
@@ -170,9 +177,11 @@ struct PhotoCell: View {
         }
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
-        .task(id: photo.id) {
+        .task(id: "\(photo.id)|\(orientation ?? 0)") {
             guard !photo.isOnlineOnly else { return }
-            image = await store.thumbnail(photo.url, size: photo.size, modified: photo.modified)?.cgImage
+            image =
+                await store.thumbnail(photo.url, size: photo.size, modified: photo.modified, orientation: orientation)?
+                .cgImage
         }
     }
 }
@@ -207,6 +216,30 @@ private struct FolderCell: View {
         }
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
+    }
+}
+
+/// Right-click on a photo: acts on the selection when the photo is in it, else on that photo alone.
+private struct PhotoMenu: View {
+    let id: String
+    let url: URL
+    let app: AppModel
+
+    var body: some View {
+        let ids = app.browser.selection.contains(id) ? app.browser.ratingTargets : [id]
+        Button("Open") { app.openViewer(at: id) }
+        Divider()
+        Button("Rotate Left") { app.culling.rotate(ids, clockwise: false) }
+        Button("Rotate Right") { app.culling.rotate(ids, clockwise: true) }
+        Divider()
+        Button("Export…") { app.perform(.export, ids) }
+        Button("Copy to Folder…") { app.perform(.copyTo, ids) }
+        Button("Move to Folder…") { app.perform(.moveTo, ids) }
+        Button("Copy Photo") { app.perform(.clipboard, ids) }
+        Button("Share…") { app.perform(.share, ids) }
+        Divider()
+        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        Button("Move to Trash") { Task { await app.culling.moveToTrash(ids) } }
     }
 }
 

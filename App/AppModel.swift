@@ -20,6 +20,8 @@ final class AppModel {
             self?.browser.ratingsChanged()
             self?.viewer.ratingsChanged()
         }
+        culling.onOrientationsChanged = { [weak self] ids in self?.viewer.orientationsChanged(ids) }
+        viewer.onFileAction = { [weak self] action, ids in self?.perform(action, ids) }
         culling.onFilesChanged = { [weak self] in
             guard let self else { return }
             browser.reload()
@@ -82,6 +84,15 @@ final class AppModel {
         }
     }
 
+    /// ⌘[ / ⌘]: the photo in the viewer, else the browser's selection.
+    func rotate(clockwise: Bool) {
+        if viewerIsKey {
+            viewer.handle(.rotate(clockwise: clockwise))
+        } else {
+            culling.rotate(browser.ratingTargets, clockwise: clockwise)
+        }
+    }
+
     /// ⌘⌫: the photo in the viewer, else the browser's selection.
     func moveToTrash() {
         if NSApp.keyWindow?.firstResponder is NSTextView {
@@ -107,6 +118,7 @@ final class AppModel {
         case .setStars(let n): culling.setStars(ids, n)
         case .toggleFlag(let flag): culling.toggleFlag(ids, flag)
         case .unflag: culling.clearFlag(ids)
+        case .rotate(let clockwise): culling.rotate(ids, clockwise: clockwise)
         default: return false
         }
         return true

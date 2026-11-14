@@ -13,8 +13,13 @@ public struct Thumbnail: @unchecked Sendable {  // CGImage is immutable.
 /// Grid and filmstrip thumbnails: from memory, else the disk cache, else made from the file. Raws use their embedded
 /// camera JPEG when it is at least `minEmbedded` px (RawBoy Browser's rule for its grid), else ImageIO decodes them.
 public actor ThumbnailStore {
-    private var cache: LRUCache<URL, Thumbnail>
-    private var inFlight: [URL: Task<Thumbnail?, Never>] = [:]
+    private struct Key: Hashable {
+        let url: URL
+        let orientation: Int?
+    }
+
+    private var cache: LRUCache<Key, Thumbnail>
+    private var inFlight: [Key: Task<Thumbnail?, Never>] = [:]
     public let pixelSize: Int
     private let disk: DiskThumbnailCache?
 
@@ -28,9 +33,12 @@ public actor ThumbnailStore {
     }
 
     /// The thumbnail of [url]; nil when it can't be read. [modified] and [size] key the disk cache.
-    public func thumbnail(_ url: URL, size: Int64? = nil, modified: Date? = nil) async -> Thumbnail? {
-        if let hit = cache.value(for: url) { return hit }
-        if let running = inFlight[url] { return await running.value }
+    public func thumbnail(_ url: URL, size: Int64? = nil, modified: Date? = nil, orientation: Int? = nil) async
+        -> Thumbnail?
+    {
+        let memoryKey = Key(url: url, orientation: orientation)
+        if let hit = cache.value(for: memoryKey) { return hit }
+        if let running = inFlight[memoryKey] { return await running.value }
         let pixels = pixelSize
         let disk = disk
         let task = Task.detached(priority: .utility) { () -> Thumbnail? in
@@ -42,17 +50,21 @@ public actor ThumbnailStore {
                 size = size ?? values?.fileSize.map(Int64.init)
                 modified = modified ?? values?.contentModificationDate
             }
-            let key = disk?.key(url: url, size: size, modified: modified, pixels: pixels)
+            let key = disk?.key(url: url, size: size, modified: modified, pixels: pixels, orientation: orientation)
             if let key, let image = disk?.read(key) { return Thumbnail(cgImage: image) }
-            guard let made = Self.make(url, pixels) else { return nil }
+            guard var made = Self.make(url, pixels) else { return nil }
+            if let orientation {
+                let delta = Orienting.delta(from: ImageLoader.fileOrientation(of: url), to: orientation)
+                made = Orienting.apply(delta, to: made)
+            }
             if let key { disk?.write(made, key) }
             return Thumbnail(cgImage: made)
         }
-        inFlight[url] = task
+        inFlight[memoryKey] = task
         let thumb = await task.value
-        inFlight[url] = nil
+        inFlight[memoryKey] = nil
         if let thumb {
-            cache.insert(thumb, for: url, cost: thumb.cgImage.bytesPerRow * thumb.cgImage.height)
+            cache.insert(thumb, for: memoryKey, cost: thumb.cgImage.bytesPerRow * thumb.cgImage.height)
         }
         return thumb
     }
@@ -106,9 +118,10 @@ public final class DiskThumbnailCache: Sendable {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     }
 
-    public func key(url: URL, size: Int64?, modified: Date?, pixels: Int) -> String {
+    public func key(url: URL, size: Int64?, modified: Date?, pixels: Int, orientation: Int? = nil) -> String {
         // v2: thumbnails made from letterboxed EXIF thumbnails before Thumbnailer.fits are never read again.
-        let text = "v2|\(url.standardizedFileURL.path)|\(size ?? -1)|\(modified?.timeIntervalSince1970 ?? -1)|\(pixels)"
+        let text =
+            "v2|\(url.standardizedFileURL.path)|\(size ?? -1)|\(modified?.timeIntervalSince1970 ?? -1)|\(pixels)|\(orientation ?? 0)"
         return SHA256.hash(data: Data(text.utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 

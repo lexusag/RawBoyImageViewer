@@ -44,9 +44,31 @@ struct ActionMenu: View {
                     ActionRow(icon: "backward.end", title: "First photo", key: "Home") { model.send(.first) }
                     ActionRow(icon: "forward.end", title: "Last photo", key: "End") { model.send(.last) }
 
-                    PanelSection(title: "File").padding(.horizontal, DesignTokens.Spacing.sm)
+                    PanelSection(title: "Edit elsewhere").padding(.horizontal, DesignTokens.Spacing.sm)
                     ActionRow(icon: "slider.horizontal.3", title: "Open in \(model.editor.name)", key: "E") {
                         model.send(.openInEditor)
+                    }
+                    PanelSection(title: "Transform").padding(.horizontal, DesignTokens.Spacing.sm)
+                    ActionRow(icon: "rotate.left", title: "Rotate left", key: "[") {
+                        model.send(.rotate(clockwise: false))
+                    }
+                    ActionRow(icon: "rotate.right", title: "Rotate right", key: "]") {
+                        model.send(.rotate(clockwise: true))
+                    }
+
+                    PanelSection(title: "Output").padding(.horizontal, DesignTokens.Spacing.sm)
+                    ActionRow(icon: "square.and.arrow.up.on.square", title: "Export…", key: "⇧⌘E") {
+                        model.send(.file(.export))
+                    }
+                    ActionRow(icon: "doc.on.doc", title: "Copy photo", key: "⌥⌘C") { model.send(.file(.clipboard)) }
+                    ActionRow(icon: "square.and.arrow.up", title: "Share…", key: nil) { model.send(.file(.share)) }
+
+                    PanelSection(title: "Files").padding(.horizontal, DesignTokens.Spacing.sm)
+                    ActionRow(icon: "folder.badge.plus", title: "Copy to folder…", key: nil) {
+                        model.send(.file(.copyTo))
+                    }
+                    ActionRow(icon: "arrow.right.doc.on.clipboard", title: "Move to folder…", key: nil) {
+                        model.send(.file(.moveTo))
                     }
                     ActionRow(icon: "folder", title: "Show in Finder", key: nil) { model.send(.revealFile) }
                     ActionRow(icon: "trash", title: "Move to Trash", key: "⌘⌫") { model.send(.moveToTrash) }

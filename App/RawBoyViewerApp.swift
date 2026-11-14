@@ -28,6 +28,29 @@ struct RawBoyViewerApp: App {
                     .keyboardShortcut(.delete, modifiers: .command)
             }
             CommandMenu("Photo") {
+                Button("Rotate Left") { AppModel.shared.rotate(clockwise: false) }
+                    .keyboardShortcut("[")
+                Button("Rotate Right") { AppModel.shared.rotate(clockwise: true) }
+                    .keyboardShortcut("]")
+                Divider()
+                Button("Export…") { AppModel.shared.perform(.export) }
+                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                Button("Copy to Folder…") { AppModel.shared.perform(.copyTo) }
+                Button("Move to Folder…") { AppModel.shared.perform(.moveTo) }
+                Menu("Move to Recent Folder") {
+                    ForEach(AppModel.shared.recentDestinations, id: \.self) { url in
+                        Button(url.lastPathComponent) {
+                            let app = AppModel.shared
+                            if let folder = app.browser.folder {
+                                app.copyOrMove(app.actionTargets, folder, move: true, to: url)
+                            }
+                        }
+                    }
+                }
+                Button("Copy Photo") { AppModel.shared.perform(.clipboard) }
+                    .keyboardShortcut("c", modifiers: [.command, .option])
+                Button("Share…") { AppModel.shared.perform(.share) }
+                Divider()
                 Toggle("Go to the Next Photo After Rating", isOn: Bindable(AppModel.shared.culling).autoAdvance)
             }
             CommandGroup(after: .toolbar) {

@@ -1,3 +1,8 @@
+/// What can be done with photos' files (the app decides how: sheets, panels, the system's share menu).
+public enum FileAction: Equatable, Sendable {
+    case export, copyTo, moveTo, clipboard, share
+}
+
 /// What the viewer can be asked to do, whatever the input (keys, mouse, trackpad, touch, a panel's button). Each
 /// platform maps its own events onto these.
 public enum ViewerCommand: Equatable, Sendable {
@@ -27,10 +32,14 @@ public enum ViewerCommand: Equatable, Sendable {
     case toggleFlag(Flag)
     /// U.
     case unflag
+    /// [ / ]: a quarter turn, lossless (kept in the sidecar).
+    case rotate(clockwise: Bool)
     /// ⌘Z: the last rating, move to the bin or to the Trash.
     case undo
     /// ⌘⌫.
     case moveToTrash
+    /// Export, copy or move the photo, put it on the clipboard, share it.
+    case file(FileAction)
     /// Show the photo's file in the file manager.
     case revealFile
     /// Open the photo in the external editor.

@@ -104,15 +104,27 @@ public enum SidecarFiles {
         return .none
     }
 
-    /// Writes [rating] into each of [names] in [folder] (RawBoy writes every sidecar a photo has), creating a new one
-    /// only when there is a rating to keep. Returns the names written.
-    public static func write(_ rating: Rating, names: [String], in folder: URL) throws -> [String] {
+    /// The orientation a photo's sidecars set (`tiff:Orientation`, from the first that has one), or nil.
+    public static func orientation(of group: PhotoGroup, in folder: URL) -> Int? {
+        for name in group.sidecars {
+            if let text = read(folder.appendingPathComponent(name)), let o = XmpSidecar.readOrientation(text) {
+                return o
+            }
+        }
+        return nil
+    }
+
+    /// Writes [rating] and [orientation] (nil: none) into each of [names] in [folder] (RawBoy writes every sidecar a
+    /// photo has), creating a new one only when there is something to keep. Returns the names written.
+    public static func write(_ rating: Rating, orientation: Int? = nil, names: [String], in folder: URL) throws
+        -> [String]
+    {
         var written: [String] = []
         for name in names {
             let url = folder.appendingPathComponent(name)
             let text = read(url)
-            if text == nil && !rating.isRated { continue }
-            let out = try XmpSidecar.write(text, rating)
+            if text == nil && !rating.isRated && orientation == nil { continue }
+            let out = try XmpSidecar.writeOrientation(XmpSidecar.write(text, rating), orientation)
             try Data(out.utf8).write(to: url, options: .atomic)
             written.append(name)
         }

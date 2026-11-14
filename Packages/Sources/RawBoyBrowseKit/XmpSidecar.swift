@@ -35,6 +35,19 @@ public enum XmpSidecar {
         return out
     }
 
+    static let tiffNS = "http://ns.adobe.com/tiff/1.0/"
+
+    /// The orientation a sidecar sets for its photo (`tiff:Orientation`, where Lightroom keeps a rotation of a raw),
+    /// or nil.
+    public static func readOrientation(_ text: String) -> Int? {
+        fieldValue(text, "tiff:Orientation").flatMap { Int($0) }.flatMap { (1...8).contains($0) ? $0 : nil }
+    }
+
+    /// [text] (nil: a new sidecar) with `tiff:Orientation` set to [orientation]; nil removes it.
+    public static func writeOrientation(_ text: String?, _ orientation: Int?) throws -> String {
+        try setField(text ?? empty, "tiff:Orientation", "tiff", tiffNS, orientation.map(String.init))
+    }
+
     static let empty = """
         <?xpacket begin="\u{FEFF}" id="W5M0MpCehiHzreSzNTczkc9d"?>
         <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="RawBoy">

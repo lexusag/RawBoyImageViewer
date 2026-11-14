@@ -12,6 +12,8 @@ public actor ImageStore {
     private struct Key: Hashable {
         let url: URL
         let kind: Kind
+        /// A sidecar's orientation, nil when it sets none.
+        let orientation: Int?
     }
 
     private var cache: LRUCache<Key, LoadedImage>
@@ -33,20 +35,20 @@ public actor ImageStore {
     }
 
     /// The cached image, without loading.
-    public func cached(_ url: URL, _ kind: Kind) -> LoadedImage? {
-        cache.value(for: Key(url: url, kind: kind))
+    public func cached(_ url: URL, _ kind: Kind, orientation: Int? = nil) -> LoadedImage? {
+        cache.value(for: Key(url: url, kind: kind, orientation: orientation))
     }
 
-    /// The image, from the cache or decoded now.
-    public func image(_ url: URL, _ kind: Kind) async -> LoadedImage? {
-        let key = Key(url: url, kind: kind)
+    /// The image, from the cache or decoded now, turned to [orientation] when a sidecar sets one.
+    public func image(_ url: URL, _ kind: Kind, orientation: Int? = nil) async -> LoadedImage? {
+        let key = Key(url: url, kind: kind, orientation: orientation)
         if let hit = cache.value(for: key) { return hit }
         if let running = inFlight[key] { return await running.value }
         let size = previewPixelSize
         let task = Task.detached(priority: .userInitiated) { () -> LoadedImage? in
             switch kind {
-            case .preview: ImageLoader.preview(of: url, maxPixelSize: size)
-            case .full: ImageLoader.fullResolution(of: url)
+            case .preview: ImageLoader.preview(of: url, maxPixelSize: size, orientation: orientation)
+            case .full: ImageLoader.fullResolution(of: url, orientation: orientation)
             }
         }
         inFlight[key] = task
@@ -58,13 +60,13 @@ public actor ImageStore {
         return image
     }
 
-    /// Loads previews of [urls] in order, one at a time, replacing any earlier prefetch.
-    public func prefetch(_ urls: [URL]) {
+    /// Loads previews of [items] in order, one at a time, replacing any earlier prefetch.
+    public func prefetch(_ items: [(url: URL, orientation: Int?)]) {
         prefetchTask?.cancel()
         prefetchTask = Task(priority: .utility) {
-            for url in urls {
+            for item in items {
                 if Task.isCancelled { return }
-                _ = await image(url, .preview)
+                _ = await image(item.url, .preview, orientation: item.orientation)
             }
         }
     }

@@ -2,6 +2,7 @@ import AppKit
 import Observation
 import RawBoyBrowseKit
 import ViewerFiles
+import ViewerImaging
 
 /// Stars, picks and rejects of the open folder, kept in XMP sidecars as RawBoy Browser keeps them: read when the folder
 /// opens, written 0.4 s after each change (one write at a time, each reading the file afresh), undoable together with
@@ -12,6 +13,8 @@ final class CullingStore {
     private(set) var folder: URL?
     /// By photo id (its main file name).
     private(set) var ratings: [String: Rating] = [:]
+    /// Orientations sidecars set (`tiff:Orientation`, EXIF 1...8), by photo id: rotations made here, or in Lightroom.
+    private(set) var orientations: [String: Int] = [:]
     /// The sidecars each photo has, including ones written since the folder opened.
     private(set) var sidecars: [String: [String]] = [:]
     private(set) var canUndo = false
@@ -26,6 +29,8 @@ final class CullingStore {
     var onFilesChanged: (() -> Void)?
     /// A rating changed (or the folder's were read).
     var onRatingsChanged: (() -> Void)?
+    /// These photos were turned: their pictures must be made again.
+    var onOrientationsChanged: (([String]) -> Void)?
 
     private var groups: [String: PhotoGroup] = [:]
     private var undoStack: [Undo] = []
@@ -40,6 +45,7 @@ final class CullingStore {
 
     private enum Undo {
         case ratings([(id: String, rating: Rating)])
+        case orientations([(id: String, orientation: Int?)])
         case moves([FileMove], what: String)
     }
 
@@ -61,6 +67,7 @@ final class CullingStore {
         sidecars = Dictionary(groups.map { ($0.main, $0.sidecars) }, uniquingKeysWith: { a, _ in a })
         if !sameFolder {
             ratings = [:]
+            orientations = [:]
             undoStack = []
             canUndo = false
             message = nil
@@ -68,14 +75,19 @@ final class CullingStore {
         binCount = FileMoves.binPhotoCount(of: folder)
         Task.detached(priority: .userInitiated) {
             var read: [String: Rating] = [:]
+            var turned: [String: Int] = [:]
             for group in groups where !group.sidecars.isEmpty {
                 let rating = SidecarFiles.rating(of: group, in: folder)
                 if rating.isRated { read[group.main] = rating }
+                if let o = SidecarFiles.orientation(of: group, in: folder) { turned[group.main] = o }
             }
             await MainActor.run {
                 guard generation == self.generation else { return }
                 // Changes made while reading win over what was read.
                 self.ratings = read.merging(self.ratings) { _, mine in mine }
+                let before = self.orientations
+                self.orientations = turned.merging(self.orientations) { _, mine in mine }
+                if self.orientations != before { self.onOrientationsChanged?(Array(self.orientations.keys)) }
                 self.onRatingsChanged?()
             }
         }
@@ -109,6 +121,28 @@ final class CullingStore {
         onRatingsChanged?()
     }
 
+    // MARK: Rotating
+
+    /// The orientation a sidecar sets for [id], or nil (the file's own applies).
+    func orientation(_ id: String) -> Int? { orientations[id] }
+
+    /// Turns [ids] a quarter clockwise or anticlockwise, losslessly: the orientation goes into their sidecars, the
+    /// files stay as they are.
+    func rotate(_ ids: [String], clockwise: Bool) {
+        guard let folder else { return }
+        var previous: [(String, Int?)] = []
+        for id in ids {
+            guard groups[id] != nil else { continue }
+            let current = orientations[id] ?? ImageLoader.fileOrientation(of: folder.appendingPathComponent(id))
+            previous.append((id, orientations[id]))
+            orientations[id] = Orientation(exif: current).then(clockwise ? .clockwise : .anticlockwise).exif
+            scheduleWrite(id)
+        }
+        guard !previous.isEmpty else { return }
+        push(.orientations(previous))
+        onOrientationsChanged?(previous.map(\.0))
+    }
+
     // MARK: Undo
 
     /// Undoes the last rating change or file move. Returns the photo to show when one rating was undone.
@@ -119,6 +153,13 @@ final class CullingStore {
         switch last {
         case .ratings(let previous):
             rate(previous.map(\.id), previous.map(\.rating), undoable: false)
+            return previous.count == 1 ? previous[0].id : nil
+        case .orientations(let previous):
+            for (id, o) in previous {
+                orientations[id] = o
+                scheduleWrite(id)
+            }
+            onOrientationsChanged?(previous.map(\.id))
             return previous.count == 1 ? previous[0].id : nil
         case .moves(let moves, let what):
             let failed = FileMoves.moveBack(moves)
@@ -147,12 +188,17 @@ final class CullingStore {
         writeTimers[id] = nil
         guard let folder, let group = groups[id] else { return }
         let rating = rating(id)
+        let orientation = orientations[id]
         let names = (sidecars[id] ?? []).isEmpty ? ["\(group.stem).xmp"] : sidecars[id]!
         let previous = writes
         writes = Task {
             await previous?.value
-            let result = await Task.detached { Result { try SidecarFiles.write(rating, names: names, in: folder) } }
-                .value
+            let result = await Task.detached {
+                Result {
+                    try SidecarFiles.write(rating, orientation: orientation, names: names, in: folder)
+                }
+            }
+            .value
             switch result {
             case .success(let written):
                 if (self.sidecars[id] ?? []).isEmpty, !written.isEmpty, self.folder == folder {
@@ -180,7 +226,7 @@ final class CullingStore {
             timer.cancel()
             guard let group = groups[id] else { continue }
             let names = (sidecars[id] ?? []).isEmpty ? ["\(group.stem).xmp"] : sidecars[id]!
-            _ = try? SidecarFiles.write(rating(id), names: names, in: folder)
+            _ = try? SidecarFiles.write(rating(id), orientation: orientations[id], names: names, in: folder)
         }
         writeTimers = [:]
     }
@@ -253,6 +299,16 @@ final class CullingStore {
             : "Moved \(moved) to the Trash; \(failed) couldn't be moved"
         filesChanged()
     }
+
+    /// Files moved elsewhere (Move to…): undoable like the bin.
+    func recordMoves(_ moves: [FileMove], what: String) {
+        guard !moves.isEmpty else { return }
+        push(.moves(moves, what: what))
+        filesChanged()
+    }
+
+    /// A note for the browser's bar.
+    func say(_ text: String?) { message = text }
 
     private func filesChanged() {
         if let folder { binCount = FileMoves.binPhotoCount(of: folder) }

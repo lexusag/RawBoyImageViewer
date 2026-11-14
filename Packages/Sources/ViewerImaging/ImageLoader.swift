@@ -21,6 +21,14 @@ public enum ImageLoader {
     /// the viewer takes the smallest preview of at least 2560 px).
     public static let minEmbeddedPreview = 2560
 
+    /// The file's own EXIF orientation (1 when it has none).
+    public static func fileOrientation(of url: URL) -> Int {
+        guard let source = makeSource(url),
+            let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else { return 1 }
+        return props[kCGImagePropertyOrientation] as? Int ?? 1
+    }
+
     /// The photo's upright size in pixels, or nil when ImageIO can't read it.
     public static func fullSize(of url: URL) -> Size2D? {
         guard let source = makeSource(url) else { return nil }
@@ -30,7 +38,29 @@ public enum ImageLoader {
     /// A screen-size image: its long edge is at most [maxPixelSize], and at least [minEmbeddedPreview] or the
     /// photo's size when an embedded preview is used. Raws use the camera's JPEG that RawBoy's parser finds
     /// (`EmbeddedPreviews`, so RawBoy Browser and the viewer show the same picture), else ImageIO's.
-    public static func preview(of url: URL, maxPixelSize: Int) -> LoadedImage? {
+    public static func preview(of url: URL, maxPixelSize: Int, orientation: Int? = nil) -> LoadedImage? {
+        oriented(previewAsFiled(of: url, maxPixelSize: maxPixelSize), url: url, orientation: orientation)
+    }
+
+    /// Every pixel of the photo, upright (as [orientation] says, when a sidecar sets one). Slow for raws.
+    public static func fullResolution(of url: URL, orientation: Int? = nil) -> LoadedImage? {
+        oriented(fullResolutionAsFiled(of: url), url: url, orientation: orientation)
+    }
+
+    /// [image] turned from the file's own orientation to [orientation].
+    static func oriented(_ image: LoadedImage?, url: URL, orientation: Int?) -> LoadedImage? {
+        guard let image, let orientation else { return image }
+        let delta = Orienting.delta(from: fileOrientation(of: url), to: orientation)
+        guard delta != .up else { return image }
+        let size =
+            delta.isQuarterTurned
+            ? Size2D(width: image.fullSize.height, height: image.fullSize.width) : image.fullSize
+        return LoadedImage(
+            cgImage: Orienting.apply(delta, to: image.cgImage), fullSize: size,
+            isFullResolution: image.isFullResolution)
+    }
+
+    static func previewAsFiled(of url: URL, maxPixelSize: Int) -> LoadedImage? {
         guard let source = makeSource(url), let size = fullSize(of: source) else { return nil }
         let longEdge = Int(max(size.width, size.height))
         let target = min(maxPixelSize, longEdge)
@@ -53,8 +83,7 @@ public enum ImageLoader {
         return LoadedImage(cgImage: displayReady(decoded), fullSize: size, isFullResolution: isFull(decoded, size))
     }
 
-    /// Every pixel of the photo, upright. Slow for raws.
-    public static func fullResolution(of url: URL) -> LoadedImage? {
+    static func fullResolutionAsFiled(of url: URL) -> LoadedImage? {
         guard let source = makeSource(url), let size = fullSize(of: source) else { return nil }
         guard let image = thumbnail(source, maxPixelSize: Int(max(size.width, size.height)), always: true) else {
             return nil

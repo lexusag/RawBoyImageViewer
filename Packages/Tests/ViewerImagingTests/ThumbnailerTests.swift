@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import RawBoyBrowseKit
 import Testing
 import UniformTypeIdentifiers
 import ViewerImaging
@@ -228,5 +229,93 @@ struct ImageAnalysisTests {
         #expect(Array(data[0..<4]) == [0, 0, 255, 255])
         let last = (overlay.height - 1) * overlay.bytesPerRow + (overlay.width - 1) * 4
         #expect(data[last + 3] == 0)
+    }
+}
+
+/// Orienting must agree with ImageIO's own EXIF handling, orientation by orientation.
+struct OrientingTests {
+    /// 3 × 2 pixels, each a different grey, so every turn and mirror is told apart.
+    func source() throws -> CGImage {
+        var pixels: [UInt8] = []
+        for v in [10, 40, 70, 100, 130, 160] as [UInt8] { pixels += [v, v, v, 255] }
+        let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
+        return try #require(
+            CGImage(
+                width: 3, height: 2, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 12,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider,
+                decode: nil, shouldInterpolate: false, intent: .defaultIntent))
+    }
+
+    /// The grey of each pixel, row by row from the top.
+    func greys(_ image: CGImage) throws -> [UInt8] {
+        let context = try #require(
+            CGContext(
+                data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                bytesPerRow: image.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let data = try #require(context.data)
+        let bytes = UnsafeBufferPointer(
+            start: data.assumingMemoryBound(to: UInt8.self), count: image.width * image.height * 4)
+        return stride(from: 0, to: bytes.count, by: 4).map { bytes[$0] }
+    }
+
+    @Test(arguments: 1...8) func matchesImageIO(_ exif: Int) throws {
+        let image = try source()
+        // ImageIO's answer: a PNG tagged with [exif], read back with its transform applied.
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let dest = try #require(
+            CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(dest, image, [kCGImagePropertyOrientation: exif] as CFDictionary)
+        #expect(CGImageDestinationFinalize(dest))
+        let src = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let imageIO = try #require(
+            CGImageSourceCreateThumbnailAtIndex(
+                src, 0,
+                [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: 3,
+                ] as CFDictionary))
+
+        let ours = Orienting.apply(Orientation(exif: exif), to: image)
+
+        #expect(ours.width == imageIO.width)
+        #expect(ours.height == imageIO.height)
+        #expect(try greys(ours) == greys(imageIO))
+    }
+}
+
+struct ExporterTests {
+    @Test func resizesTurnsAndNeverOverwrites() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photo = folder.appendingPathComponent("IMG_1.png")
+        try TestImages.writePNG(width: 600, height: 400, to: photo)
+        let out = folder.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+
+        let first = try Exporter.export(
+            photo, orientation: 6, to: out, options: ExportOptions(longEdge: 300, removeLocation: true))
+        let second = try Exporter.export(photo, orientation: nil, to: out, options: ExportOptions(longEdge: nil))
+
+        #expect(first.lastPathComponent == "IMG_1.jpg")
+        #expect(second.lastPathComponent == "IMG_1-1.jpg")
+        let a = try #require(ImageLoader.fullSize(of: first))
+        #expect(a.width == 200 && a.height == 300)
+        let b = try #require(ImageLoader.fullSize(of: second))
+        #expect(b.width == 600 && b.height == 400)
+        #expect(ImageLoader.fileOrientation(of: first) == 1)
+    }
+
+    @Test func orientedPreviewSwapsTheSize() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try TestImages.writePNG(width: 600, height: 400, to: url)
+        let turned = try #require(ImageLoader.preview(of: url, maxPixelSize: 600, orientation: 6))
+        #expect(turned.fullSize.width == 400)
+        #expect(turned.cgImage.width == 400)
     }
 }
