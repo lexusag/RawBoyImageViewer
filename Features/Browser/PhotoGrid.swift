@@ -5,7 +5,7 @@ import ViewerImaging
 
 /// The folder's photos as thumbnails, after its subfolders when those are shown. Click selects, ⌘-click adds,
 /// Shift-click selects a range, double-click (or Enter / Space) opens the viewer or the folder; arrows move, ⌘A
-/// selects all, Esc clears (RawBoy Browser's keys), ⌘↑ and ⌫ go up a folder, ⌦ moves the selection to the Trash.
+/// selects all, Esc clears (RawBoy Browser's keys), ⌘↑ and ⌫ go up a folder, ⌦ trashes the selection.
 struct PhotoGrid: View {
     let app: AppModel
     @FocusState private var focused: Bool
