@@ -20,6 +20,8 @@ final class CropToolState {
     var onCancel: () -> Void = {}
     /// Applies the crop and also writes the cropped photo as a new file.
     var onSaveCopy: (CropRect) -> Void = { _ in }
+    /// The same, with the name and folder chosen in a save panel.
+    var onSaveCopyAs: (CropRect) -> Void = { _ in }
     var changed: () -> Void = {}
 
     init(crop: CropRect, frameSize: Size2D) {
@@ -191,7 +193,9 @@ struct CropToolbar: View {
             Button("Reset") { state.reset() }.buttonStyle(.rawBoy)
             Button("Cancel") { state.onCancel() }.buttonStyle(.rawBoy)
             Button("Save copy") { state.onSaveCopy(state.crop) }.buttonStyle(.rawBoy)
-                .help("Apply the crop and save the cropped photo as a new file in the export folder")
+                .help("Apply the crop and save the cropped photo next to the original, with _crop added to its name")
+            Button("Save as…") { state.onSaveCopyAs(state.crop) }.buttonStyle(.rawBoy)
+                .help("Apply the crop and save the cropped photo under a name and in a folder you choose")
             Button("Done") { state.onDone(state.crop) }.buttonStyle(.rawBoyPrimary)
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
