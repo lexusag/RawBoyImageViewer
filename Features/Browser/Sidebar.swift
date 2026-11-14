@@ -30,7 +30,7 @@ struct Sidebar: View {
                         ForEach(app.browser.recent.prefix(6), id: \.self) { url in
                             FolderRow(
                                 url: url, title: url.lastPathComponent, icon: "clock", depth: 0, app: app,
-                                tree: false)
+                                tree: false, subtitle: Self.parents(of: url))
                         }
                     }
                     SidebarHeading(title: "Places")
@@ -77,6 +77,12 @@ struct Sidebar: View {
                 }
             }
         }
+    }
+
+    /// Up to three parent folder names above `url` ("Trip / Day 2 / Edits"), so folders with the same name
+    /// (several "_done") can be told apart.
+    static func parents(of url: URL) -> String {
+        url.deletingLastPathComponent().pathComponents.filter { $0 != "/" }.suffix(3).joined(separator: " / ")
     }
 
     struct Place {
@@ -150,6 +156,7 @@ private struct FolderRow: View {
     let tree: Bool
     /// Opens itself when the folder shown in the grid is inside it (the Places tree, so a favourite's folder is found).
     var followsCurrent = false
+    var subtitle: String = ""
     @State private var expanded = false
     @State private var children: [URL]?
     @State private var hovered = false
@@ -179,16 +186,25 @@ private struct FolderRow: View {
                     .font(.system(size: 12))
                     .foregroundStyle(isCurrent ? Theme.amber : Theme.ashMuted)
                     .frame(width: 16)
-                Text(title)
-                    .font(Theme.body)
-                    .foregroundStyle(isCurrent ? Theme.amber : Theme.paperWhite)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title)
+                        .font(Theme.body)
+                        .foregroundStyle(isCurrent ? Theme.amber : Theme.paperWhite)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(Theme.label)
+                            .foregroundStyle(Theme.ashMuted)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding(.leading, Double(depth) * 14 + 4)
             .padding(.trailing, 6)
-            .frame(height: 26)
+            .frame(minHeight: 26)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.chip)
                     .fill(isCurrent || hovered ? Theme.graphiteRaised : .clear)

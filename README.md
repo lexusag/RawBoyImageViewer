@@ -12,7 +12,7 @@ Ratings go into XMP sidecars that RawBoy Browser, Lightroom, Capture One and dar
 
 ## Using it
 
-The browser opens on the last folder you looked at. Pick a folder on the left (recent folders, then Pictures, Desktop,
+The browser opens on the last folder you looked at. Pick a folder on the left (recent folders (with up to three parent folders shown), then Pictures, Desktop,
 cloud storage and other drives, each opening into its subfolders), drop one on the window, or press ⌘O. Photos show
 in the order they were shot (or by name), from the cameras' own previews, so a folder of raws appears in seconds; a
 RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and aren't downloaded until opened.
@@ -59,7 +59,7 @@ show up by themselves (⌘R reloads by hand).
 
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
-**⌘/ or ?** shows every key. **Settings** (⌘,): open the last folder at launch, what the mouse wheel does, slideshow
+**⌘/ or ?** shows every key. **Settings** (⌘,): open the last folder at launch, interface size (85-150%, browser window), what the mouse wheel does, slideshow
 speed, real preview, next photo after rating, the external editor, the export folder, the thumbnail cache.
 
 Move the pointer to an edge and rest it there for a moment: the **left** edge shows actions, the **right** edge the

@@ -10,6 +10,14 @@ enum SettingsKeys {
     static let wheel = "viewer.wheel"
     static let slideshowSeconds = "viewer.slideshowSeconds"
     static let editorPath = "files.editorPath"
+    static let uiScale = "app.uiScale"
+    static let uiScales: [Double] = [0.85, 1, 1.15, 1.3, 1.5]
+
+    /// Size of the browser's interface, 1 = as designed.
+    static var interfaceScale: Double {
+        let s = UserDefaults.standard.double(forKey: uiScale)
+        return s >= 0.5 && s <= 2 ? s : 1
+    }
 
     static var opensLastFolder: Bool { UserDefaults.standard.object(forKey: openLastFolder) as? Bool ?? true }
     /// The mouse wheel zooms instead of changing photos.
@@ -26,6 +34,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.folderContents) private var folderContents = false
     @AppStorage(SettingsKeys.wheel) private var wheel = "navigate"
     @AppStorage(SettingsKeys.slideshowSeconds) private var slideshowSeconds = 4.0
+    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
     @AppStorage(SettingsKeys.editorPath) private var editorPath = ""
     @AppStorage(CullingStore.Keys.trashNotice) private var trashNoticeShown = false
     @State private var cacheSize: Int64 = 0
@@ -34,6 +43,9 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Browser") {
+                Picker("Interface size", selection: $uiScale) {
+                    ForEach(SettingsKeys.uiScales, id: \.self) { Text("\(Int(($0 * 100).rounded()))%").tag($0) }
+                }
                 Toggle("Open the last folder at launch", isOn: $openLastFolder)
                 Toggle("Show what is inside folder tiles (needs the Folder button on)", isOn: $folderContents)
                 LabeledContent("Thumbnail cache") {
