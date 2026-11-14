@@ -161,6 +161,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - The packages build with `-O` even in Debug (`Package.swift`): unoptimised pixel loops made the clipping overlay
   take seconds.
 
+- Updates: Sparkle (SPM). `App/Updater.swift` (Check for Updates…, the Settings switch; Debug builds don't check by
+  themselves), feed `appcast.xml` on `main` (GitHub's "latest release" link skips pre-releases, so not a release
+  asset), DMGs as release assets. `PUBLISH=1 [PRERELEASE=1] tools/release.sh <version>` does it all.
 - `tools/release.sh <version>`: Release archive, Developer ID signing and notarization when `DEVELOPER_ID` /
   `NOTARY_PROFILE` are set (ad hoc otherwise), DMG. See docs/releasing.md.
 

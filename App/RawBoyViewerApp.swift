@@ -14,6 +14,9 @@ struct RawBoyViewerApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 820)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { Updater.shared.checkForUpdates() }
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Open…") { AppModel.shared.openFolderPanel() }
                     .keyboardShortcut("o")

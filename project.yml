@@ -9,6 +9,10 @@ options:
 packages:
   RawBoyViewerPackages:
     path: Packages
+  # Auto-update: the feed is appcast.xml in this repository, the DMGs are GitHub release assets (docs/releasing.md).
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -32,6 +36,8 @@ targets:
         product: ViewerFiles
       - package: RawBoyViewerPackages
         product: ViewerImaging
+      - package: Sparkle
+        product: Sparkle
     info:
       path: build/generated/Info.plist
       properties:
@@ -40,6 +46,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.photography
         LSMinimumSystemVersion: "15.0"
+        # Sparkle: where updates are announced, and the key their signatures must match.
+        SUFeedURL: https://raw.githubusercontent.com/lexusag/RawBoyImageViewer/main/appcast.xml
+        SUPublicEDKey: "Bl2hd+5HmsGBI/sB8AIDPoBJMr791oxBCbuaMfEr88w="
         # "Open With" for photos and folders, never the default app for a type.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Photo

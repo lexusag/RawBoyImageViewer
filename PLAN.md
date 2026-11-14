@@ -278,6 +278,7 @@ RawBoyImageViewer/
 
 ## 10. Still open
 - ~~A licence~~: MIT.
-- Where releases and the update feed live (GitHub Releases?), then Sparkle.
+- ~~Where releases and the update feed live~~: this repository (public), Sparkle, feed on `main`.
+- Notarizing: needs the paid Apple Developer Program (docs/releasing.md).
 - Apple Silicon only or universal: the release build is whatever `xcodebuild archive` makes for "generic macOS"
   (universal by default).

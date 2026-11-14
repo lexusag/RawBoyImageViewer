@@ -47,6 +47,17 @@ So a free account is worth using on your own Mac, but sharing the app with other
    The script signs with a secure timestamp, notarizes the DMG (a few minutes), staples the ticket and checks it with
    `spctl`.
 
-## Not done yet
+## 3. Publish a release, with auto-update
 
-- **Auto-update (Sparkle):** releases and the update feed go to this repository's GitHub Releases (public).
+The app checks `appcast.xml` on `main` (Sparkle, `SUFeedURL`); each version's DMG is a GitHub release asset, signed
+with the Sparkle key in the owner's login keychain (its public half is `SUPublicEDKey` in project.yml). **Back up the
+login keychain:** without that key, installed copies can't take updates.
+
+1. Write the notes: `docs/releases/v<version>.md`.
+2. Publish (a clean, pushed `main`):
+   ```sh
+   PUBLISH=1 PRERELEASE=1 tools/release.sh 0.2      # drop PRERELEASE once notarized
+   ```
+   The script builds and signs, makes the DMG, signs it for Sparkle and adds it to `appcast.xml`, tags `v0.2`, creates
+   the GitHub release with the DMG and the notes, then commits and pushes `appcast.xml`.
+3. "Check for Updates…" in an older copy offers it.
