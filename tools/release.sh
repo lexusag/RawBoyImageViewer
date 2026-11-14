@@ -52,10 +52,20 @@ if [ "$(team_of "$APP")" = "not set" ] || [ -z "$(team_of "$APP")" ]; then
     for FW in "$APP"/Contents/Frameworks/*.framework; do
         [ -d "$FW" ] || continue
         find "$FW" -depth \( -name "*.xpc" -o -name "*.app" -o -perm -u+x -type f -path "*/Versions/*/Autoupdate" \) \
-            -exec codesign --force --sign - --preserve-metadata=identifier,entitlements,flags {} \;
-        codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$FW"
+            -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
+        codesign --force --sign - --preserve-metadata=identifier,entitlements "$FW"
     done
-    codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$APP"
+    codesign --force --sign - --preserve-metadata=identifier,entitlements "$APP"
+fi
+# The hardened runtime turns on library validation, and macOS 27 rejects an ad hoc framework there even when it is
+# signed with the same ad hoc identity as the app (the 0.0.2 DMG still crashed). An ad hoc app has no Team ID to
+# match anyway, so it must not carry the runtime flag.
+if [ "$(team_of "$APP")" = "not set" ] || [ -z "$(team_of "$APP")" ]; then
+    for C in "$APP" "$APP"/Contents/Frameworks/*.framework; do
+        if codesign -dv "$C" 2>&1 | grep -q 'flags=.*runtime'; then
+            echo "$C is ad hoc but has the hardened runtime: it will not load Sparkle." >&2; exit 1
+        fi
+    done
 fi
 codesign --verify --deep --strict "$APP"
 # Every Mach-O in the app must carry the app's Team ID (empty when ad hoc), or it won't launch.
