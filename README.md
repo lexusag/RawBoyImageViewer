@@ -28,12 +28,12 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | 1–5, 0 | Stars on the selection (the same number again clears them); no stars |
 | P, X, U | Pick, Reject (the same key again unflags), Unflag |
 | ⌘Z | Undo the last rating, move to `_bin` or to the Trash |
-| ⌘⌫ | Move to the Trash (with its JPEG and sidecars) |
+| ⌘⌫, ⌦ | Move to the Trash (with its JPEG and sidecars); ⌦ is Fn-⌫ on a laptop |
 | [ / ], ⌘[ / ⌘] | Rotate left / right: lossless, kept in the sidecar (`tiff:Orientation`, as Lightroom does) |
 | ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px, location kept or left out |
 | ⌥⌘C | Copy the photo (its file) |
 | Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share |
-| ⌘↑ | Up a folder |
+| ⌘↑, ⌫ | Up a folder |
 | C | Compare the selection (2–4 photos; one photo is compared with the next) |
 | S | Slideshow from the selection |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
@@ -78,7 +78,7 @@ photo and the right half to the next (hold to keep going).
 | Drag, two-finger scroll (zoomed in) | Pan |
 | F | Screen-filling ↔ window |
 | 1–5, 0, P, X, U | Rate, as in the browser; then on to the next photo (Photo › Go to the Next Photo After Rating) |
-| ⌘Z, ⌘⌫ | Undo, Move to the Trash |
+| ⌘Z, ⌘⌫ · ⌦ | Undo, Move to the Trash |
 | [ / ] | Rotate left / right |
 | K | Crop: drag corners and edges (RawBoy's aspect ratios), Return applies, Esc cancels |
 | R | Raws developed by macOS instead of the camera's embedded JPEG ("real preview"; not RawBoy's look) |

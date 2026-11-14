@@ -6,7 +6,7 @@ import ViewerImaging
 
 /// The folder's photos as thumbnails, after its subfolders when those are shown. Click selects, ⌘-click adds,
 /// Shift-click selects a range, double-click (or Enter / Space) opens the viewer or the folder; arrows move, ⌘A
-/// selects all, Esc clears (RawBoy Browser's keys), ⌘↑ goes up a folder.
+/// selects all, Esc clears (RawBoy Browser's keys), ⌘↑ and ⌫ go up a folder, ⌦ trashes the selection.
 struct PhotoGrid: View {
     let app: AppModel
     @FocusState private var focused: Bool
@@ -53,16 +53,17 @@ struct PhotoGrid: View {
                                 }
                             }
                             .id(entry.id)
-                            .gesture(
-                                TapGesture(count: 2).onEnded { open(entry.id) }
-                                    .exclusively(
-                                        before: TapGesture().onEnded {
-                                            let flags = NSEvent.modifierFlags
-                                            browser.click(
-                                                entry.id, command: flags.contains(.command),
-                                                shift: flags.contains(.shift))
-                                            focused = true
-                                        }))
+                            // Both gestures run together: waiting to tell a single click from a double one
+                            // (`exclusively`) delayed every selection by the double-click interval.
+                            .simultaneousGesture(
+                                TapGesture().onEnded {
+                                    let flags = NSEvent.modifierFlags
+                                    browser.click(
+                                        entry.id, command: flags.contains(.command), shift: flags.contains(.shift))
+                                    focused = true
+                                }
+                            )
+                            .simultaneousGesture(TapGesture(count: 2).onEnded { open(entry.id) })
                         }
                     }
                     .padding(DesignTokens.Spacing.md)
@@ -92,6 +93,12 @@ struct PhotoGrid: View {
             default:
                 if let anchor = browser.anchor { open(anchor) }
             }
+            return .handled
+        }
+        .onKeyPress(keys: [.delete, .deleteForward]) { press in
+            guard press.modifiers.isEmpty else { return .ignored }
+            // ⌫ goes up a folder; ⌦ (Fn-⌫ on a laptop) moves the selection to the Trash.
+            if press.key == .delete { browser.goUp() } else { app.moveToTrash() }
             return .handled
         }
         .onKeyPress(characters: ["a"]) { press in
