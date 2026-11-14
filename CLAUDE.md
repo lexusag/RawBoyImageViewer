@@ -46,6 +46,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   after a change through one serial chain, undo stack of ratings and file moves, `_bin` and Trash, synced-folder
   Trash notice, `autoAdvance`), `RatingControl` / `RatingBadge`. `AppModel` routes ⌘Z / ⌘⌫ (menus) to the viewer or
   the browser, and the browser's rating keys come through `AppDelegate`'s key monitor by key code.
+- `Features/Viewer/CropTool.swift`: `CropToolState` (shared with the toolbar), `CropOverlayView` (AppKit drawing over
+  the uncropped photo; `ViewerWindowController.beginCrop/endCrop`), `CropToolbar`. The canvas shows a crop through
+  `contentsRect` (layers count from the bottom-left, crops from the top-left).
 - `Features/Compare/`: `CompareSession` (2–4 panes; with two, choosing one brings the next challenger in the
   other; zoom shared through `SharedZoom`; rating keys on the chosen pane), `CompareWindowController` (screen-filling
   like the viewer, `ViewerWindow`, panes side by side or 2 × 2). Canvases there have `navigationEnabled = false`.
@@ -67,7 +70,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `SharedZoom` (zoom over fit + centre as fractions
     of the photo, so another photo shows the same spot), `Rating` / `FlagFilter` and `XmpSidecar` (ports of
     RawBoy Browser's rating rules and `XmpSidecar.ts`, with its tests; plus `tiff:Orientation`), `Orientation` (EXIF
-    1-8 as mirror + quarter turns: compose, inverse), `Histogram` + `ClipWarning` (ports of RawBoy's
+    1-8 as mirror + quarter turns: compose, inverse), `CropMath` (port of RawBoy's: aspects, drag, handles, turning a
+    crop, with its tests), `DevelopEdits` (the geometry of RawBoy's `rawboy:Develop` JSON: rotation, flips, crop;
+    every other field kept, defaults left out, numbers tidied to 6 decimals), `Histogram` + `ClipWarning` (ports of RawBoy's
     Histogram and its shader's `clipWarning`: 64 bins, a channel at 255 = highlight, all ≤ 1 = shadow; keep in step), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
     passed in, so tested without timers), `BottomBand`, `Rect2D` (y down); later the XMP sidecar, embedded-preview parser, capture dates and the edge-zone state
     machine. It is meant to move into the RawBoy repo and serve RawBoy desktop and the Windows port.
@@ -141,6 +146,12 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - A horizontal `ScrollView` takes all the height it's offered: give it a height (the browser strip's breadcrumb hid the
   filmstrip this way).
 
+- **Crops go into RawBoy's `rawboy:Develop`, with RawBoy's rotation**: RawBoy measures a crop in its turned frame
+  and doesn't read `tiff:Orientation`, so a cropped photo (or one with RawBoy edits) gets `rotation` / `flipHorizontal`
+  written too, and RawBoy's turn wins when reading. Straightened photos are left to RawBoy. `CROP=1 tools/smoke.sh`
+  checks the sidecar, renders the canvas against a Core Graphics crop and the tool, turns, exports, undoes.
+- **A sidecar read can predate a write.** `readSidecars` skips photos changed or written since it started
+  (`localChanges` counts both), else a reread put back what the file said before an undo's write.
 - **Folder watching sees the app's own work too.** `CullingStore` notes the names it writes or moves
   (`isOwnChange`, 2 s) and never lets a reread overwrite a photo with a write pending (`isBusy`). Foundation's atomic
   writes use a visible temporary file (`NAME.xmp.sb-…`), so `AppModel.folderChanged` only reacts to photos, sidecars

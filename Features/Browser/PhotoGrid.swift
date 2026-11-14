@@ -32,6 +32,7 @@ struct PhotoGrid: View {
                                         photo: photo, size: cell, isSelected: browser.selection.contains(entry.id),
                                         rating: browser.culling.rating(photo.id),
                                         orientation: browser.culling.orientation(photo.id),
+                                        crop: browser.culling.crop(photo.id),
                                         hasSidecar: browser.culling.hasSidecar(photo.id), store: browser.thumbnails
                                     )
                                     .contextMenu {
@@ -116,12 +117,13 @@ struct PhotoCell: View {
     var rating: Rating = .none
     var hasSidecar = false
     var orientation: Int?
+    var crop: CropRect?
     let store: ThumbnailStore
     @State private var image: CGImage?
 
     init(
         photo: BrowsePhoto, size: Double, isSelected: Bool, rating: Rating = .none, orientation: Int? = nil,
-        hasSidecar: Bool = false, store: ThumbnailStore, image: CGImage? = nil
+        crop: CropRect? = nil, hasSidecar: Bool = false, store: ThumbnailStore, image: CGImage? = nil
     ) {
         self.photo = photo
         self.size = size
@@ -129,6 +131,7 @@ struct PhotoCell: View {
         self.rating = rating
         self.hasSidecar = hasSidecar
         self.orientation = orientation
+        self.crop = crop
         self.store = store
         _image = State(initialValue: image)
     }
@@ -184,10 +187,14 @@ struct PhotoCell: View {
         )
         .accessibilityAddTraits(isSelected ? [.isSelected, .isImage] : .isImage)
         // Made again when the file changes (its modified date) or is turned.
-        .task(id: "\(photo.id)|\(orientation ?? 0)|\(photo.modified?.timeIntervalSince1970 ?? 0)") {
+        .task(
+            id:
+                "\(photo.id)|\(orientation ?? 0)|\(photo.modified?.timeIntervalSince1970 ?? 0)|\(String(describing: crop))"
+        ) {
             guard !photo.isOnlineOnly else { return }
             image =
-                await store.thumbnail(photo.url, size: photo.size, modified: photo.modified, orientation: orientation)?
+                await store.thumbnail(
+                    photo.url, size: photo.size, modified: photo.modified, orientation: orientation, crop: crop)?
                 .cgImage
         }
     }

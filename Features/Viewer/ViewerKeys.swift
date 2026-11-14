@@ -9,6 +9,7 @@ enum ViewerKeys {
     private static let s: UInt16 = 1
     private static let c: UInt16 = 8
     private static let r: UInt16 = 15
+    private static let k: UInt16 = 40
     private static let leftBracket: UInt16 = 33
     private static let rightBracket: UInt16 = 30
     private static let u: UInt16 = 32
@@ -44,6 +45,7 @@ enum ViewerKeys {
         case leftBracket: return .rotate(clockwise: false)
         case rightBracket: return .rotate(clockwise: true)
         case r: return .toggleRealPreview
+        case k: return .crop
         case s: return .toggleSlideshow
         case c: return .compare
         case p: return .toggleFlag(.pick)

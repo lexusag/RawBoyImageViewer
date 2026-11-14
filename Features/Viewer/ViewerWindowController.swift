@@ -1,5 +1,6 @@
 import AppKit
 import RawBoyBrowseKit
+import SwiftUI
 
 /// A window that can be key without a title bar.
 final class ViewerWindow: NSWindow {
@@ -23,6 +24,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private var pointer: Point2D?
     private var deadline: DispatchWorkItem?
     private var moveMonitor: Any?
+    private var cropOverlay: CropOverlayView?
+    private var cropToolbar: NSView?
     private var wheelMonitor: Any?
 
     private static let pinnedKey = "viewer.pinnedEdges"
@@ -96,6 +99,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     // MARK: PanelEdge panels
 
     private func pointerMoved(_ p: Point2D?) {
+        // While cropping the edges show nothing.
+        guard cropOverlay == nil else { return }
         pointer = p
         updateZones()
     }
@@ -148,6 +153,45 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// Keys go to the canvas, also after a click in a panel.
     func focusCanvas() {
         window?.makeFirstResponder(canvas)
+    }
+
+    // MARK: Crop tool
+
+    var isCropping: Bool { cropOverlay != nil }
+    #if DEBUG
+        var debugCropState: CropToolState? { cropOverlay?.state }
+    #endif
+
+    /// Shows the crop tool over the whole photo (the canvas shows it uncropped meanwhile).
+    func beginCrop(_ state: CropToolState) {
+        endCrop()
+        _ = closePanels()
+        let overlay = CropOverlayView(state: state)
+        overlay.imageRect = { [weak self, weak overlay] in
+            guard let self, let overlay else { return .zero }
+            return overlay.convert(canvas.imageFrame, from: canvas)
+        }
+        overlay.frame = root.bounds
+        overlay.autoresizingMask = [.width, .height]
+        root.addSubview(overlay)
+        let toolbar = NSHostingView(rootView: CropToolbar(state: state).preferredColorScheme(.dark))
+        toolbar.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(toolbar)
+        NSLayoutConstraint.activate([
+            toolbar.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            toolbar.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -DesignTokens.Spacing.lg),
+        ])
+        cropOverlay = overlay
+        cropToolbar = toolbar
+        window?.makeFirstResponder(overlay)
+    }
+
+    func endCrop() {
+        cropOverlay?.removeFromSuperview()
+        cropToolbar?.removeFromSuperview()
+        cropOverlay = nil
+        cropToolbar = nil
+        focusCanvas()
     }
 
     // MARK: Window

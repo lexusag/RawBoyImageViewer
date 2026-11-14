@@ -48,6 +48,9 @@ format RawBoy Browser, Lightroom, Capture One and darktable read; other apps' se
 next photo of the folder takes the other place (← → step through them instead), and the rating keys rate the one
 you chose. Esc, G or Return go back to the browser on it.
 
+**Crops** are kept in the sidecar the way RawBoy keeps them (`rawboy:Develop`), with RawBoy's own turn: RawBoy opens
+the photo cropped the same way when its "Edits in sidecars" is on. Thumbnails and exports are cropped too.
+
 The open folder is watched: photos added or removed by other apps, and ratings changed in darktable or RawBoy Web,
 show up by themselves (⌘R reloads by hand).
 
@@ -74,6 +77,7 @@ photo and the right half to the next (hold to keep going).
 | 1–5, 0, P, X, U | Rate, as in the browser; then on to the next photo (Photo › Go to the Next Photo After Rating) |
 | ⌘Z, ⌘⌫ | Undo, Move to the Trash |
 | [ / ] | Rotate left / right |
+| K | Crop: drag corners and edges (RawBoy's aspect ratios), Return applies, Esc cancels |
 | R | Raws developed by macOS instead of the camera's embedded JPEG ("real preview"; not RawBoy's look) |
 | S | Slideshow from this photo (4 s each, crossfading; S or Esc stops) |
 | C | Compare this photo with the next |

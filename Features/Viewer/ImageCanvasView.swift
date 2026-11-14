@@ -18,6 +18,24 @@ final class ImageCanvasView: NSView {
     var onFitChanged: ((Bool) -> Void)?
     /// The person zoomed or panned (Compare passes it on to the other panes).
     var onZoomChanged: ((SharedZoom) -> Void)?
+    /// The part of the photo shown (RawBoy's crop, fractions of the turned photo); nil shows all of it.
+    var crop: CropRect? {
+        didSet {
+            guard crop != oldValue else { return }
+            if let math { setZoom(math.fit, showLabel: false, notify: false) }
+        }
+    }
+
+    /// The photo's size as shown: cropped when there is a crop.
+    private var shownSize: Size2D? {
+        guard let image else { return nil }
+        let c = crop ?? .full
+        return Size2D(width: image.fullSize.width * c.width, height: image.fullSize.height * c.height)
+    }
+
+    /// Where the whole picture is drawn, in this view's coordinates (the crop tool draws over it).
+    var imageFrame: CGRect { imageLayer.frame }
+
     /// A quick click (not a hold, not a double-click): Compare chooses the pane.
     var onClick: (() -> Void)?
     /// The bottom band, the wheel and swipes change photos. Off in Compare, which has its own keys.
@@ -247,10 +265,10 @@ final class ImageCanvasView: NSView {
     }
 
     private var math: ZoomMath? {
-        guard let image, bounds.width > 0, bounds.height > 0 else { return nil }
+        guard let size = shownSize, bounds.width > 0, bounds.height > 0 else { return nil }
         let area = imageArea
         return ZoomMath(
-            imageSize: image.fullSize,
+            imageSize: size,
             viewSize: Size2D(width: area.width, height: area.height),
             backingScale: Double(window?.backingScaleFactor ?? 2))
     }
@@ -288,10 +306,10 @@ final class ImageCanvasView: NSView {
     var sharedZoom: SharedZoom { math.map { $0.shared(zoom) } ?? .fit }
 
     private func applyZoom(showLabel: Bool) {
-        guard let image, let math else { return }
+        guard let image, let math, let size = shownSize else { return }
         let area = imageArea
-        let width = image.fullSize.width * zoom.scale
-        let height = image.fullSize.height * zoom.scale
+        let width = size.width * zoom.scale
+        let height = size.height * zoom.scale
         let frame = CGRect(
             x: area.midX + zoom.offset.x - width / 2,
             y: area.midY + zoom.offset.y - height / 2,
@@ -303,6 +321,11 @@ final class ImageCanvasView: NSView {
         CATransaction.setDisableActions(true)
         imageLayer.frame = backingAligned(frame)
         clipLayer.frame = imageLayer.frame
+        // Layer contents count from the bottom-left; crops from the top-left.
+        let c = crop ?? .full
+        let contentsRect = CGRect(x: c.left, y: 1 - c.bottom, width: c.width, height: c.height)
+        imageLayer.contentsRect = contentsRect
+        clipLayer.contentsRect = contentsRect
         // Past 1:1, show the pixels as pixels.
         imageLayer.magnificationFilter = devicePixels > 1.01 ? .nearest : .linear
         CATransaction.commit()

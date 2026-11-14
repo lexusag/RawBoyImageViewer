@@ -15,6 +15,14 @@ final class CullingStore {
     private(set) var ratings: [String: Rating] = [:]
     /// Orientations sidecars set (`tiff:Orientation`, EXIF 1...8), by photo id: rotations made here, or in Lightroom.
     private(set) var orientations: [String: Int] = [:]
+    /// Crops (RawBoy's `cropLeft`… in `rawboy:Develop`, fractions of the turned photo), by photo id.
+    private(set) var crops: [String: CropRect] = [:]
+    /// Photos whose sidecars hold RawBoy's edits: their turn is kept in RawBoy's fields too.
+    private var hasDevelop: Set<String> = []
+    /// Photos RawBoy straightened or corrected for perspective: the viewer leaves cropping them to RawBoy.
+    private(set) var straightened: Set<String> = []
+    /// Each photo's own EXIF orientation, once read.
+    private var fileOrientations: [String: Int] = [:]
     /// The sidecars each photo has, including ones written since the folder opened.
     private(set) var sidecars: [String: [String]] = [:]
     private(set) var canUndo = false
@@ -35,6 +43,9 @@ final class CullingStore {
     private var groups: [String: PhotoGroup] = [:]
     private var undoStack: [Undo] = []
     private var writeTimers: [String: DispatchWorkItem] = [:]
+    /// How many times each photo was rated, turned or cropped here, and its sidecars written: a sidecar read that
+    /// started before either (it may hold what the file said before the write) mustn't be applied.
+    private var localChanges: [String: Int] = [:]
     /// Sidecar writes under way, by photo id.
     private var inFlight: [String: Int] = [:]
     /// Files this app wrote or moved just now, by name: the folder watcher's events for them aren't someone else's.
@@ -50,6 +61,7 @@ final class CullingStore {
     private enum Undo {
         case ratings([(id: String, rating: Rating)])
         case orientations([(id: String, orientation: Int?)])
+        case crop(id: String, crop: CropRect?, orientation: Int?)
         case moves([FileMove], what: String)
     }
 
@@ -72,6 +84,10 @@ final class CullingStore {
         if !sameFolder {
             ratings = [:]
             orientations = [:]
+            crops = [:]
+            hasDevelop = []
+            straightened = []
+            fileOrientations = [:]
             undoStack = []
             canUndo = false
             message = nil
@@ -94,20 +110,49 @@ final class CullingStore {
                 stem: group.stem, main: group.main, companions: group.companions,
                 sidecars: sidecars[group.main] ?? group.sidecars)
         }
+        let changesAtStart = localChanges
+        let busyAtStart = Set(groups.map(\.main).filter(isBusy))
         Task.detached(priority: .userInitiated) {
             var read: [String: Rating] = [:]
             var turned: [String: Int] = [:]
+            var cropped: [String: CropRect] = [:]
+            var developed: [String: DevelopGeometry] = [:]
+            var own: [String: Int] = [:]
             for group in groups where !group.sidecars.isEmpty {
                 let rating = SidecarFiles.rating(of: group, in: folder)
                 if rating.isRated { read[group.main] = rating }
                 if let o = SidecarFiles.orientation(of: group, in: folder) { turned[group.main] = o }
+                // RawBoy's own turn wins over tiff:Orientation: RawBoy is the editor, and it doesn't keep that field.
+                if let json = SidecarFiles.develop(of: group, in: folder), let g = DevelopEdits.geometry(json) {
+                    let file = ImageLoader.fileOrientation(of: folder.appendingPathComponent(group.main))
+                    own[group.main] = file
+                    developed[group.main] = g
+                    let wanted = Orientation(exif: file).then(g.orientation).exif
+                    if wanted != file || turned[group.main] != nil { turned[group.main] = wanted }
+                    if !g.crop.isFull { cropped[group.main] = g.crop }
+                }
             }
             await MainActor.run {
                 guard generation == self.generation else { return }
                 var turnedIDs: [String] = []
                 var rated = false
-                for group in groups where !self.isBusy(group.main) {
+                for group in groups
+                where !busyAtStart.contains(group.main) && !self.isBusy(group.main)
+                    && self.localChanges[group.main] == changesAtStart[group.main]
+                {
                     let id = group.main
+                    self.fileOrientations.merge(own) { _, new in new }
+                    if let g = developed[id] {
+                        self.hasDevelop.insert(id)
+                        if g.isStraightened { self.straightened.insert(id) } else { self.straightened.remove(id) }
+                    } else {
+                        self.hasDevelop.remove(id)
+                        self.straightened.remove(id)
+                    }
+                    if self.crops[id] != cropped[id] {
+                        self.crops[id] = cropped[id]
+                        if !turnedIDs.contains(id) { turnedIDs.append(id) }
+                    }
                     if self.ratings[id] != read[id] {
                         self.ratings[id] = read[id]
                         rated = true
@@ -180,6 +225,35 @@ final class CullingStore {
     /// The orientation a sidecar sets for [id], or nil (the file's own applies).
     func orientation(_ id: String) -> Int? { orientations[id] }
 
+    /// [id]'s crop, or nil for none.
+    func crop(_ id: String) -> CropRect? { crops[id] }
+
+    /// Crops [id] (nil: no crop), RawBoy's way; undoable.
+    func setCrop(_ id: String, _ crop: CropRect?) {
+        let crop = crop.flatMap { $0.isFull ? nil : $0 }
+        guard groups[id] != nil, crops[id] != crop else { return }
+        push(.crop(id: id, crop: crops[id], orientation: orientations[id]))
+        crops[id] = crop
+        scheduleWrite(id)
+        onOrientationsChanged?([id])
+    }
+
+    private func fileOrientation(_ id: String) -> Int {
+        if let known = fileOrientations[id] { return known }
+        guard let folder else { return 1 }
+        let o = ImageLoader.fileOrientation(of: folder.appendingPathComponent(id))
+        fileOrientations[id] = o
+        return o
+    }
+
+    /// RawBoy's turn and crop for [id], when they go into its sidecars: it is cropped, or already has RawBoy's edits.
+    private func developGeometry(_ id: String) -> DevelopGeometry? {
+        guard crops[id] != nil || hasDevelop.contains(id) else { return nil }
+        let file = fileOrientation(id)
+        let delta = Orienting.delta(from: file, to: orientations[id] ?? file)
+        return DevelopGeometry(rotation: delta.quarterTurns, mirrored: delta.mirrored, crop: crops[id] ?? .full)
+    }
+
     /// Turns [ids] a quarter clockwise or anticlockwise, losslessly: the orientation goes into their sidecars, the
     /// files stay as they are.
     func rotate(_ ids: [String], clockwise: Bool) {
@@ -187,9 +261,12 @@ final class CullingStore {
         var previous: [(String, Int?)] = []
         for id in ids {
             guard groups[id] != nil else { continue }
-            let current = orientations[id] ?? ImageLoader.fileOrientation(of: folder.appendingPathComponent(id))
+            _ = folder
+            let current = orientations[id] ?? fileOrientation(id)
             previous.append((id, orientations[id]))
             orientations[id] = Orientation(exif: current).then(clockwise ? .clockwise : .anticlockwise).exif
+            // The crop turns with the picture, as in RawBoy.
+            if let crop = crops[id] { crops[id] = CropMath.rotate(crop, quarterTurns: clockwise ? 1 : -1) }
             scheduleWrite(id)
         }
         guard !previous.isEmpty else { return }
@@ -210,11 +287,22 @@ final class CullingStore {
             return previous.count == 1 ? previous[0].id : nil
         case .orientations(let previous):
             for (id, o) in previous {
+                // A crop turned with the photo turns back.
+                if let crop = crops[id], let now = orientations[id] ?? Optional(fileOrientation(id)) {
+                    let back = Orientation(exif: now).inverse.then(Orientation(exif: o ?? fileOrientation(id)))
+                    if !back.mirrored { crops[id] = CropMath.rotate(crop, quarterTurns: back.quarterTurns) }
+                }
                 orientations[id] = o
                 scheduleWrite(id)
             }
             onOrientationsChanged?(previous.map(\.id))
             return previous.count == 1 ? previous[0].id : nil
+        case .crop(let id, let crop, let orientation):
+            crops[id] = crop
+            orientations[id] = orientation
+            scheduleWrite(id)
+            onOrientationsChanged?([id])
+            return id
         case .moves(let moves, let what):
             noteOwnChanges(moves)
             let failed = FileMoves.moveBack(moves)
@@ -233,6 +321,7 @@ final class CullingStore {
     // MARK: Writing
 
     private func scheduleWrite(_ id: String) {
+        localChanges[id, default: 0] += 1
         writeTimers[id]?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.write(id) }
         writeTimers[id] = work
@@ -244,6 +333,7 @@ final class CullingStore {
         guard let folder, let group = groups[id] else { return }
         let rating = rating(id)
         let orientation = orientations[id]
+        let geometry = developGeometry(id)
         let names = (sidecars[id] ?? []).isEmpty ? ["\(group.stem).xmp"] : sidecars[id]!
         let previous = writes
         inFlight[id, default: 0] += 1
@@ -251,13 +341,15 @@ final class CullingStore {
         writes = Task {
             await previous?.value
             defer {
+                self.localChanges[id, default: 0] += 1
                 self.inFlight[id, default: 1] -= 1
                 if self.inFlight[id] == 0 { self.inFlight[id] = nil }
                 self.noteOwnChanges(names)
             }
             let result = await Task.detached {
                 Result {
-                    try SidecarFiles.write(rating, orientation: orientation, names: names, in: folder)
+                    try SidecarFiles.write(
+                        rating, orientation: orientation, geometry: geometry, names: names, in: folder)
                 }
             }
             .value
@@ -266,6 +358,7 @@ final class CullingStore {
                 if (self.sidecars[id] ?? []).isEmpty, !written.isEmpty, self.folder == folder {
                     self.sidecars[id] = written
                 }
+                if geometry != nil, self.folder == folder { self.hasDevelop.insert(id) }
             case .failure(let error):
                 self.message = "Couldn't save the rating of \(group.main): \(error.localizedDescription)"
             }
@@ -289,7 +382,8 @@ final class CullingStore {
             guard let group = groups[id] else { continue }
             let names = (sidecars[id] ?? []).isEmpty ? ["\(group.stem).xmp"] : sidecars[id]!
             noteOwnChanges(names)
-            _ = try? SidecarFiles.write(rating(id), orientation: orientations[id], names: names, in: folder)
+            _ = try? SidecarFiles.write(
+                rating(id), orientation: orientations[id], geometry: developGeometry(id), names: names, in: folder)
         }
         writeTimers = [:]
     }

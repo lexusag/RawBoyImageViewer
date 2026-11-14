@@ -87,6 +87,7 @@ private struct Filmstrip: View {
                             url: model.url(of: group), isRaw: PhotoFileType(fileName: group.main) == .raw,
                             isCurrent: offset == model.index, rating: model.culling.rating(group.main),
                             orientation: model.culling.orientation(group.main),
+                            crop: model.culling.crop(group.main),
                             store: model.thumbnails
                         )
                         .id(offset)
@@ -110,6 +111,7 @@ private struct FilmstripCell: View {
     let isCurrent: Bool
     let rating: Rating
     let orientation: Int?
+    let crop: CropRect?
     let store: ThumbnailStore
     @State private var image: CGImage?
 
@@ -149,10 +151,10 @@ private struct FilmstripCell: View {
                 .strokeBorder(isCurrent ? Theme.amber : Theme.hairline, lineWidth: isCurrent ? 2 : 1)
         )
         .contentShape(Rectangle())
-        .task(id: "\(url?.path ?? "")|\(orientation ?? 0)") {
+        .task(id: "\(url?.path ?? "")|\(orientation ?? 0)|\(String(describing: crop))") {
             // A cloud placeholder would download to make its thumbnail.
             guard let url, !CloudStatus.isOnlineOnly(url) else { return }
-            image = await store.thumbnail(url, orientation: orientation)?.cgImage
+            image = await store.thumbnail(url, orientation: orientation, crop: crop)?.cgImage
         }
     }
 }

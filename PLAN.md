@@ -261,7 +261,7 @@ RawBoyImageViewer/
 | M3 ✅ | Browser | Sidebar (recent, places, cloud storage, volumes, lazy tree), grid with sizes, RAW+JPEG grouping, sort by shoot date/name, name search, selection, disk thumbnail cache, embedded-preview and capture-date parsers (ported from RawBoy + its tests), cloud placeholders never downloaded by browsing. Moved on: rating bar and rating filter (M5), sibling-folder switcher in the top strip (later) |
 | M4 ✅ | Info panel | EXIF (exposure summary, camera, lens or why it is missing, mode, metering, flash, WB, colour profile, bit depth, GPS + Show in Maps, credits); RawBoy's histogram (same bins, colours and clipping rules) and clipping overlay (J, or click the histogram) |
 | M5 ✅ | Culling | Stars, pick, reject in RawBoy's XMP format (ported with its tests; another app's sidecar kept byte for byte), auto-advance, undo, `_bin` and restore, Move to Trash (asks once in cloud sync folders), rating bar and filters in the browser. Re-reading sidecars changed by other apps while a folder is open: done after M8 (FSEvents). Not done: a cross-check on the same folder with RawBoy Web by hand |
-| M6 ✅ (no crop) | Actions | Lossless rotate (`tiff:Orientation` in the sidecar, undoable), export (JPEG/HEIC, sizes, quality, location), Copy to / Move to with recent folders (moves undo), copy, Share, right-click menu. **Crop waits** for the sidecar format to be agreed with RawBoy (§9), so RawBoy can read it |
+| M6 ✅ (no crop) | Actions | Lossless rotate (`tiff:Orientation` in the sidecar, undoable), export (JPEG/HEIC, sizes, quality, location), Copy to / Move to with recent folders (moves undo), copy, Share, right-click menu. Crop came after M8, in RawBoy's own `rawboy:Develop` fields (§9) |
 | M7 ✅ | Real preview + Compare | Real preview (R: CIRAWFilter as shot, screen size and 1:1, remembered), Compare 2–4 with synced zoom and the two-photo challenger flow, slideshow (S, crossfade) |
 | M8 ✅ (owner steps left) | Ship | Settings, Help (⌘/ and ?), VoiceOver labels and announcements, reduced motion, icon in RawBoy's family, `tools/release.sh` (archive, DMG; signs and notarizes once the owner has a Developer ID). **Left to the owner:** Developer ID + notarization credentials, where updates are hosted (then Sparkle), a licence |
 | Later | RawBoy desktop | Move RawBoyBrowseKit into the RawBoy repo; real preview through RawBoy's engine; Open in / Send to Auto |
@@ -271,7 +271,9 @@ RawBoyImageViewer/
 
 ## 9. Items for the RawBoy repo (not this one)
 - **Accent colour mismatch:** iOS Pro tints with `#FFB74D` (`ios/Pro/ProApp.swift`), but `DESIGN.md` says `#e8a33d`. Pick one.
-- **Crop and orientation:** agree on a sidecar field the viewer writes and RawBoy reads.
+- **Crop and orientation (done in the viewer):** the viewer writes RawBoy's own fields (`rawboy:Develop`: crop,
+  `rotation`, `flipHorizontal`), so nothing new is needed in RawBoy. RawBoy reads them only with "Edits in sidecars"
+  on; it doesn't read `tiff:Orientation`, which the viewer keeps writing for Lightroom.
 - **Colour labels (`xmp:Label`):** add them to both apps together, or to neither.
 
 ## 10. Still open

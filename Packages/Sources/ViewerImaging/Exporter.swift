@@ -47,7 +47,9 @@ public enum Exporter {
     }
 
     /// Exports [url] into [folder]; returns the new file.
-    public static func export(_ url: URL, orientation: Int?, to folder: URL, options: ExportOptions) throws -> URL {
+    public static func export(
+        _ url: URL, orientation: Int?, crop: CropRect? = nil, to folder: URL, options: ExportOptions
+    ) throws -> URL {
         let name = url.lastPathComponent
         guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
             let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
@@ -55,7 +57,16 @@ public enum Exporter {
             let height = props[kCGImagePropertyPixelHeight] as? Int
         else { throw ExportError.unreadable(name) }
         let longEdge = max(width, height)
-        let target = min(options.longEdge ?? longEdge, longEdge)
+        // The long edge asked for is the cropped photo's: decode enough of the whole one for it. The crop is in the
+        // turned photo, so its size is measured there.
+        let fileOrientation = props[kCGImagePropertyOrientation] as? Int ?? 1
+        let turned = Orientation(exif: fileOrientation).then(
+            Orienting.delta(from: fileOrientation, to: orientation ?? fileOrientation))
+        let (w, h) = turned.isQuarterTurned ? (Double(height), Double(width)) : (Double(width), Double(height))
+        let c = crop ?? .full
+        let croppedLong = max(w * c.width, h * c.height)
+        let scale = min(1, Double(options.longEdge ?? longEdge) / croppedLong)
+        let target = max(1, Int((Double(longEdge) * scale).rounded()))
         guard
             var image = CGImageSourceCreateThumbnailAtIndex(
                 source, 0,
@@ -66,9 +77,9 @@ public enum Exporter {
                 ] as CFDictionary)
         else { throw ExportError.unreadable(name) }
         if let orientation {
-            let fileOrientation = props[kCGImagePropertyOrientation] as? Int ?? 1
             image = Orienting.apply(Orienting.delta(from: fileOrientation, to: orientation), to: image)
         }
+        image = Orienting.crop(image, crop)
 
         let out = freeURL(in: folder, stem: PhotoGroups.stem(of: name), extension: options.format.fileExtension)
         guard

@@ -98,6 +98,11 @@ struct InfoPanel: View {
     @ViewBuilder private func image(_ m: PhotoMetadata?) -> some View {
         PanelSection(title: "Image")
         row("Size", model.fullSize.map(Self.dimensions))
+        if let id = model.current?.main, let crop = model.culling.crop(id), let size = model.fullSize {
+            InfoRow(
+                label: "Cropped",
+                value: Self.dimensions(Size2D(width: size.width * crop.width, height: size.height * crop.height)))
+        }
         if PhotoFileType(fileName: model.current?.main ?? "") == .raw {
             InfoRow(
                 label: "Shown from",

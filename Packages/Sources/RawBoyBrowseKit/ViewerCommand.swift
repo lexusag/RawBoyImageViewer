@@ -40,6 +40,8 @@ public enum ViewerCommand: Equatable, Sendable {
     case toggleSlideshow
     /// C: compare the photo on screen with the next ones.
     case compare
+    /// K: draw a crop (kept RawBoy's way, in the sidecar).
+    case crop
     /// ⌘Z: the last rating, move to the bin or to the Trash.
     case undo
     /// ⌘⌫.

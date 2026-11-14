@@ -114,17 +114,30 @@ public enum SidecarFiles {
         return nil
     }
 
-    /// Writes [rating] and [orientation] (nil: none) into each of [names] in [folder] (RawBoy writes every sidecar a
-    /// photo has), creating a new one only when there is something to keep. Returns the names written.
-    public static func write(_ rating: Rating, orientation: Int? = nil, names: [String], in folder: URL) throws
-        -> [String]
-    {
+    /// RawBoy's edits JSON from a photo's sidecars (the first that has it), or nil.
+    public static func develop(of group: PhotoGroup, in folder: URL) -> String? {
+        for name in group.sidecars {
+            if let text = read(folder.appendingPathComponent(name)), let json = XmpSidecar.readDevelop(text) {
+                return json
+            }
+        }
+        return nil
+    }
+
+    /// Writes [rating], [orientation] (nil: none) and, when given, RawBoy's turn and crop [geometry] into each of
+    /// [names] in [folder] (RawBoy writes every sidecar a photo has), creating a new one only when there is something
+    /// to keep. Returns the names written.
+    public static func write(
+        _ rating: Rating, orientation: Int? = nil, geometry: DevelopGeometry? = nil, names: [String], in folder: URL
+    ) throws -> [String] {
         var written: [String] = []
         for name in names {
             let url = folder.appendingPathComponent(name)
             let text = read(url)
-            if text == nil && !rating.isRated && orientation == nil { continue }
-            let out = try XmpSidecar.writeOrientation(XmpSidecar.write(text, rating), orientation)
+            let develop = geometry.flatMap { DevelopEdits.write(text.flatMap(XmpSidecar.readDevelop), $0) }
+            if text == nil && !rating.isRated && orientation == nil && develop == nil { continue }
+            var out = try XmpSidecar.writeOrientation(XmpSidecar.write(text, rating), orientation)
+            if geometry != nil { out = try XmpSidecar.writeDevelop(out, develop) }
             try Data(out.utf8).write(to: url, options: .atomic)
             written.append(name)
         }

@@ -319,3 +319,36 @@ struct ExporterTests {
         #expect(turned.cgImage.width == 400)
     }
 }
+
+struct CropImageTests {
+    @Test func cropsFromTheTopLeft() throws {
+        // 4 × 2: the top row dark, the bottom row light.
+        let pixels: [UInt8] =
+            Array(repeating: [20, 20, 20, 255], count: 4).flatMap { $0 }
+            + Array(repeating: [220, 220, 220, 255], count: 4).flatMap { $0 }
+        let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
+        let image = try #require(
+            CGImage(
+                width: 4, height: 2, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 16,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider,
+                decode: nil, shouldInterpolate: false, intent: .defaultIntent))
+        let top = Orienting.crop(image, CropRect(left: 0.5, top: 0, right: 1, bottom: 0.5))
+        #expect(top.width == 2 && top.height == 1)
+        let data = try #require(top.dataProvider?.data) as Data
+        #expect(data[0] == 20)
+    }
+
+    @Test func exportCropsToTheLongEdgeAsked() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photo = folder.appendingPathComponent("IMG_1.png")
+        try TestImages.writePNG(width: 1200, height: 800, to: photo)
+        let out = try Exporter.export(
+            photo, orientation: nil, crop: CropRect(left: 0, top: 0, right: 0.5, bottom: 1), to: folder,
+            options: ExportOptions(longEdge: 800))
+        let size = try #require(ImageLoader.fullSize(of: out))
+        #expect(size.width == 600 && size.height == 800)
+    }
+}

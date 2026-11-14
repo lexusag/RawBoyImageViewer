@@ -80,6 +80,11 @@ final class ViewerSession {
                     try? await Task.sleep(for: .milliseconds(700))
                 }
                 if ProcessInfo.processInfo.environment["RAWBOY_CULL"] != nil { await cullTest() }
+                if ProcessInfo.processInfo.environment["RAWBOY_CROP"] != nil {
+                    await cropTest()
+                    NSApp.terminate(nil)
+                    return
+                }
                 if ProcessInfo.processInfo.environment["RAWBOY_WATCH"] != nil {
                     await watchTest()
                     NSApp.terminate(nil)
@@ -166,6 +171,91 @@ final class ViewerSession {
             handle(.rotate(clockwise: false))
             try? await Task.sleep(for: .milliseconds(300))
             await culling.finishWrites()
+        }
+
+        /// RAWBOY_CROP=1 (on copies): crops the photo on screen through the tool, prints the sidecar's RawBoy edits,
+        /// renders the canvas next to a Core Graphics crop of the same picture, turns it, exports it, undoes.
+        private func cropTest() async {
+            guard let controller, let folder = model.folder, let id = model.current?.main else { return }
+            let sidecarName = (culling.sidecars[id] ?? []).first ?? PhotoGroups.stem(of: id) + ".xmp"
+            func develop() -> String {
+                XmpSidecar.readDevelop(SidecarFiles.read(folder.appendingPathComponent(sidecarName)) ?? "") ?? "none"
+            }
+            handle(.crop)
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let state = controller.debugCropState else {
+                Trace.log("crop: the tool didn't open")
+                return
+            }
+            let wanted = CropRect(left: 0.1, top: 0.05, right: 0.6, bottom: 0.65)
+            state.crop = wanted
+            state.aspect = .threeTwo
+            try? await Task.sleep(for: .milliseconds(300))
+            // The tool as drawn: the overlay (AppKit drawing) over the canvas's layers.
+            if let window = controller.window, let content = window.contentView,
+                let rep = content.bitmapImageRepForCachingDisplay(in: content.bounds)
+            {
+                content.cacheDisplay(in: content.bounds, to: rep)
+                if let overlayImage = rep.cgImage,
+                    let ctx = CGContext(
+                        data: nil, width: overlayImage.width, height: overlayImage.height, bitsPerComponent: 8,
+                        bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                {
+                    let scale = Double(overlayImage.width) / content.bounds.width
+                    ctx.scaleBy(x: scale, y: scale)
+                    controller.canvas.layer?.render(in: ctx)
+                    ctx.resetClip()
+                    ctx.scaleBy(x: 1 / scale, y: 1 / scale)
+                    ctx.draw(
+                        overlayImage, in: CGRect(x: 0, y: 0, width: overlayImage.width, height: overlayImage.height))
+                    if let both = ctx.makeImage() { Snapshot.writeImage(both, name: "crop-tool") }
+                }
+            }
+            Trace.log(
+                "crop: 3:2 gives \(String(format: "%.3f", state.crop.width * state.frameSize.width / (state.crop.height * state.frameSize.height)))"
+            )
+            state.onDone(state.crop)
+            await culling.finishWrites()
+            try? await Task.sleep(for: .milliseconds(800))
+            Trace.log("crop: tool closed \(!controller.isCropping), canvas crop \(controller.canvas.crop == wanted)")
+            Trace.log("crop: rawboy:Develop \(develop())")
+            // The canvas as drawn, and the same crop by Core Graphics, to compare.
+            if let layer = controller.canvas.layer, let image = controller.canvas.image {
+                let frame = controller.canvas.imageFrame
+                let scale = 1.0
+                if let ctx = CGContext(
+                    data: nil, width: Int(frame.width * scale), height: Int(frame.height * scale), bitsPerComponent: 8,
+                    bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                {
+                    ctx.translateBy(x: -frame.minX, y: -frame.minY)
+                    layer.render(in: ctx)
+                    if let shown = ctx.makeImage() { Snapshot.writeImage(shown, name: "crop-canvas") }
+                }
+                Snapshot.writeImage(Orienting.crop(image.cgImage, wanted), name: "crop-expected")
+            }
+            handle(.rotate(clockwise: true))
+            await culling.finishWrites()
+            try? await Task.sleep(for: .milliseconds(800))
+            Trace.log("crop: turned, crop \(String(describing: culling.crop(id))), rawboy:Develop \(develop())")
+            let out = folder.appendingPathComponent("export-crop")
+            try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+            if let file = try? Exporter.export(
+                folder.appendingPathComponent(id), orientation: culling.orientation(id), crop: culling.crop(id),
+                to: out,
+                options: ExportOptions(longEdge: 1000))
+            {
+                Trace.log(
+                    "crop: export \(ImageLoader.fullSize(of: file).map { "\(Int($0.width))×\(Int($0.height))" } ?? "?")"
+                )
+            }
+            handle(.undo)
+            handle(.undo)
+            await culling.finishWrites()
+            try? await Task.sleep(for: .milliseconds(500))
+            Trace.log(
+                "crop: after two undos: crop \(String(describing: culling.crop(id))), rawboy:Develop \(develop())")
         }
 
         /// RAWBOY_WATCH=1 (on copies): a rating made here causes no reload; a sidecar written from outside is read
@@ -315,6 +405,7 @@ final class ViewerSession {
         case .setStars(let n): rateCurrent { self.culling.setStars($0, n) }
         case .toggleFlag(let flag): rateCurrent { self.culling.toggleFlag($0, flag) }
         case .unflag: rateCurrent { self.culling.clearFlag($0) }
+        case .crop: startCrop()
         case .toggleRealPreview:
             model.realPreview.toggle()
             controller?.canvas.flash(model.realPreview ? "Raws developed by macOS (R)" : "Camera previews (R)")
@@ -350,6 +441,37 @@ final class ViewerSession {
         case .openInEditor:
             openInEditor()
         }
+    }
+
+    // MARK: Crop
+
+    /// The crop tool on the photo on screen. RawBoy's straightened photos are left to RawBoy: the viewer can't draw
+    /// the frame their crop is measured in.
+    func startCrop() {
+        guard let controller, let id = model.current?.main, let image = controller.canvas.image else { return }
+        if culling.straightened.contains(id) {
+            controller.canvas.flash("Straightened in RawBoy: crop it there")
+            return
+        }
+        stopSlideshow()
+        let state = CropToolState(crop: culling.crop(id) ?? .full, frameSize: image.fullSize)
+        state.onDone = { [weak self] crop in
+            guard let self else { return }
+            controller.endCrop()
+            controller.canvas.navigationEnabled = true
+            culling.setCrop(id, crop)
+            controller.canvas.crop = culling.crop(id)
+            controller.canvas.flash(crop.isFull ? "Not cropped" : "Cropped (RawBoy reads it too)")
+        }
+        state.onCancel = { [weak self] in
+            guard let self else { return }
+            controller.endCrop()
+            controller.canvas.navigationEnabled = true
+            controller.canvas.crop = culling.crop(id)
+        }
+        controller.canvas.navigationEnabled = false
+        controller.canvas.crop = nil
+        controller.beginCrop(state)
     }
 
     // MARK: Slideshow
@@ -527,6 +649,7 @@ final class ViewerSession {
             }
             guard generation == self.generation else { return }
             if let image {
+                controller.canvas.crop = culling.crop(url.lastPathComponent)
                 controller.canvas.show(image, samePhoto: shownURL == url, fade: model.isSlideshow)
                 shownURL = url
                 shown(image, generation)

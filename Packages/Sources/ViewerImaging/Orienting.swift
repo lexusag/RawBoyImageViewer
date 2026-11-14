@@ -25,6 +25,15 @@ public enum Orienting {
         return context.makeImage() ?? image
     }
 
+    /// [image] cut to [crop] (fractions, from the top-left).
+    public static func crop(_ image: CGImage, _ crop: CropRect?) -> CGImage {
+        guard let crop, !crop.isFull else { return image }
+        let w = Double(image.width)
+        let h = Double(image.height)
+        let rect = CGRect(x: crop.left * w, y: crop.top * h, width: crop.width * w, height: crop.height * h).integral
+        return image.cropping(to: rect) ?? image
+    }
+
     /// What must be done to a picture ImageIO already turned upright by [fileOrientation] so it shows as [wanted].
     public static func delta(from fileOrientation: Int, to wanted: Int) -> Orientation {
         Orientation(exif: fileOrientation).inverse.then(Orientation(exif: wanted))

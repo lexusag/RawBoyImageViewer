@@ -78,7 +78,7 @@ extension AppModel {
     }
 
     private func export(_ ids: [String], from folder: URL, to destination: URL, options: ExportOptions) {
-        let items = ids.map { (folder.appendingPathComponent($0), culling.orientation($0)) }
+        let items = ids.map { (folder.appendingPathComponent($0), culling.orientation($0), culling.crop($0)) }
         say("Exporting \(items.count) photo\(items.count == 1 ? "" : "s")…")
         Task.detached(priority: .userInitiated) {
             var done = 0
@@ -89,9 +89,10 @@ extension AppModel {
                 await MainActor.run { self.say("Can't create \(destination.lastPathComponent)") }
                 return
             }
-            for (url, orientation) in items {
+            for (url, orientation, crop) in items {
                 do {
-                    _ = try Exporter.export(url, orientation: orientation, to: destination, options: options)
+                    _ = try Exporter.export(
+                        url, orientation: orientation, crop: crop, to: destination, options: options)
                     done += 1
                 } catch {
                     failed.append(url.lastPathComponent)

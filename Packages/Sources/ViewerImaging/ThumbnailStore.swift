@@ -16,6 +16,7 @@ public actor ThumbnailStore {
     private struct Key: Hashable {
         let url: URL
         let orientation: Int?
+        let crop: CropRect?
     }
 
     private var cache: LRUCache<Key, Thumbnail>
@@ -33,10 +34,10 @@ public actor ThumbnailStore {
     }
 
     /// The thumbnail of [url]; nil when it can't be read. [modified] and [size] key the disk cache.
-    public func thumbnail(_ url: URL, size: Int64? = nil, modified: Date? = nil, orientation: Int? = nil) async
-        -> Thumbnail?
-    {
-        let memoryKey = Key(url: url, orientation: orientation)
+    public func thumbnail(
+        _ url: URL, size: Int64? = nil, modified: Date? = nil, orientation: Int? = nil, crop: CropRect? = nil
+    ) async -> Thumbnail? {
+        let memoryKey = Key(url: url, orientation: orientation, crop: crop)
         if let hit = cache.value(for: memoryKey) { return hit }
         if let running = inFlight[memoryKey] { return await running.value }
         let pixels = pixelSize
@@ -50,13 +51,15 @@ public actor ThumbnailStore {
                 size = size ?? values?.fileSize.map(Int64.init)
                 modified = modified ?? values?.contentModificationDate
             }
-            let key = disk?.key(url: url, size: size, modified: modified, pixels: pixels, orientation: orientation)
+            let key = disk?.key(
+                url: url, size: size, modified: modified, pixels: pixels, orientation: orientation, crop: crop)
             if let key, let image = disk?.read(key) { return Thumbnail(cgImage: image) }
             guard var made = Self.make(url, pixels) else { return nil }
             if let orientation {
                 let delta = Orienting.delta(from: ImageLoader.fileOrientation(of: url), to: orientation)
                 made = Orienting.apply(delta, to: made)
             }
+            made = Orienting.crop(made, crop)
             if let key { disk?.write(made, key) }
             return Thumbnail(cgImage: made)
         }
@@ -118,10 +121,12 @@ public final class DiskThumbnailCache: Sendable {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     }
 
-    public func key(url: URL, size: Int64?, modified: Date?, pixels: Int, orientation: Int? = nil) -> String {
+    public func key(
+        url: URL, size: Int64?, modified: Date?, pixels: Int, orientation: Int? = nil, crop: CropRect? = nil
+    ) -> String {
         // v2: thumbnails made from letterboxed EXIF thumbnails before Thumbnailer.fits are never read again.
         let text =
-            "v2|\(url.standardizedFileURL.path)|\(size ?? -1)|\(modified?.timeIntervalSince1970 ?? -1)|\(pixels)|\(orientation ?? 0)"
+            "v2|\(url.standardizedFileURL.path)|\(size ?? -1)|\(modified?.timeIntervalSince1970 ?? -1)|\(pixels)|\(orientation ?? 0)|\(crop.map { "\($0.left),\($0.top),\($0.right),\($0.bottom)" } ?? "")"
         return SHA256.hash(data: Data(text.utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 

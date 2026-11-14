@@ -67,6 +67,7 @@ struct ActionMenu: View {
                     ActionRow(icon: "rotate.right", title: "Rotate right", key: "]") {
                         model.send(.rotate(clockwise: true))
                     }
+                    ActionRow(icon: "crop", title: "Crop…", key: "K") { model.send(.crop) }
 
                     PanelSection(title: "Output").padding(.horizontal, DesignTokens.Spacing.sm)
                     ActionRow(icon: "square.and.arrow.up.on.square", title: "Export…", key: "⇧⌘E") {

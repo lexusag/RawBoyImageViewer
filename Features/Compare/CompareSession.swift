@@ -89,6 +89,7 @@ final class CompareSession {
             guard self.panes.indices.contains(i), self.panes[i] == id else { return }
             canvas.setLoading(false)
             if let image {
+                canvas.crop = self.culling.crop(id)
                 canvas.show(image, samePhoto: full)
                 // A photo coming in takes on the zoom the others have.
                 if !full { canvas.applyShared(shared) }

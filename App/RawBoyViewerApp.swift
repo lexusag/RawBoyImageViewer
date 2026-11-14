@@ -32,6 +32,8 @@ struct RawBoyViewerApp: App {
                     .keyboardShortcut("[")
                 Button("Rotate Right") { AppModel.shared.rotate(clockwise: true) }
                     .keyboardShortcut("]")
+                Button("Crop… (K, in the viewer)") { AppModel.shared.viewer.handle(.crop) }
+                    .disabled(!AppModel.shared.viewer.isOpen)
                 Divider()
                 Button("Export…") { AppModel.shared.perform(.export) }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
