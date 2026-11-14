@@ -41,7 +41,30 @@ xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer -configuration R
     MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" $SIGN archive | grep -E "error:|ARCHIVE" || true
 APP="$OUT/RawBoyViewer.xcarchive/Products/Applications/$APP_NAME.app"
 [ -d "$APP" ] || { echo "The archive has no app: see the build log above." >&2; exit 1; }
+
+# Sparkle.framework ships signed with its own developer's Team ID. dyld refuses to load a framework whose Team ID
+# differs from the app's ("mapping process and mapped file have different Team IDs"), which crashed the ad hoc DMG at
+# launch. So when the app is ad hoc signed, sign Sparkle's nested code, the framework and then the app again with the
+# same ad hoc identity, inside-out. (Developer ID builds are re-signed by Xcode with the app's own identity.)
+team_of() { codesign -dv "$1" 2>&1 | sed -n 's/^TeamIdentifier=//p'; }
+if [ "$(team_of "$APP")" = "not set" ] || [ -z "$(team_of "$APP")" ]; then
+    echo "Ad hoc: re-signing embedded frameworks with the app's identity"
+    for FW in "$APP"/Contents/Frameworks/*.framework; do
+        [ -d "$FW" ] || continue
+        find "$FW" -depth \( -name "*.xpc" -o -name "*.app" -o -perm -u+x -type f -path "*/Versions/*/Autoupdate" \) \
+            -exec codesign --force --sign - --preserve-metadata=identifier,entitlements,flags {} \;
+        codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$FW"
+    done
+    codesign --force --sign - --preserve-metadata=identifier,entitlements,flags "$APP"
+fi
 codesign --verify --deep --strict "$APP"
+# Every Mach-O in the app must carry the app's Team ID (empty when ad hoc), or it won't launch.
+APP_TEAM=$(team_of "$APP")
+for F in "$APP"/Contents/Frameworks/*.framework; do
+    [ -d "$F" ] || continue
+    FT=$(team_of "$F")
+    [ "$FT" = "$APP_TEAM" ] || { echo "Team ID mismatch: $F is '$FT', the app is '$APP_TEAM'" >&2; exit 1; }
+done
 TEAM=$(codesign -dv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')
 echo "Built $APP_NAME $VERSION ($BUILD), signed $([ "$TEAM" = "not set" ] || [ -z "$TEAM" ] && echo "ad hoc" || echo "by team $TEAM")"
 

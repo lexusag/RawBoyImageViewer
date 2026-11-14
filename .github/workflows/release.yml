@@ -69,6 +69,22 @@ jobs:
       - name: Build and pack DMG
         run: tools/release.sh "${TAG#v}"
 
+      - name: Verify the app inside the DMG
+        run: |
+          MNT="$RUNNER_TEMP/dmg"
+          mkdir -p "$MNT"
+          hdiutil attach build/release/RawBoy-Viewer-*.dmg -mountpoint "$MNT" -nobrowse -quiet
+          APP="$MNT/RawBoy Viewer.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E "Identifier|TeamIdentifier|Signature"
+          codesign -dv "$APP/Contents/Frameworks/Sparkle.framework" 2>&1 | grep -E "TeamIdentifier|Signature"
+          # Launch it for a few seconds: a dyld failure (library signature, Team ID) aborts it at once (exit 134).
+          cp -R "$APP" "$RUNNER_TEMP/RawBoyViewer.app"
+          hdiutil detach "$MNT" -quiet
+          "$RUNNER_TEMP/RawBoyViewer.app/Contents/MacOS/RawBoy Viewer" & PID=$!
+          sleep 8
+          if kill -0 $PID 2>/dev/null; then echo "Launched fine"; kill $PID; else wait $PID; echo "App exited early with $?" >&2; exit 1; fi
+
       - name: Attach DMG to the release
         run: gh release upload "$TAG" build/release/RawBoy-Viewer-*.dmg --clobber
 
