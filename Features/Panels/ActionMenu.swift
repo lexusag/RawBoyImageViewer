@@ -75,6 +75,11 @@ struct ActionMenu: View {
                     }
                     ActionRow(icon: "doc.on.doc", title: "Copy photo", key: "⌥⌘C") { model.send(.file(.clipboard)) }
                     ActionRow(icon: "square.and.arrow.up", title: "Share…", key: nil) { model.send(.file(.share)) }
+                    ForEach(SendToApps.apps, id: \.self) { target in
+                        ActionRow(icon: "paperplane", title: "Send to \(SendToApps.name(of: target))", key: nil) {
+                            model.send(.file(.sendTo(target.path)))
+                        }
+                    }
 
                     PanelSection(title: "Files").padding(.horizontal, DesignTokens.Spacing.sm)
                     ActionRow(icon: "folder.badge.plus", title: "Copy to folder…", key: nil) {

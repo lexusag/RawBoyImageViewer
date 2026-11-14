@@ -38,6 +38,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.editorPath) private var editorPath = ""
     @AppStorage(CullingStore.Keys.trashNotice) private var trashNoticeShown = false
     @State private var cacheSize: Int64 = 0
+    @State private var sendApps = SendToApps.apps
     @State private var autoUpdate = Updater.shared.checksAutomatically
 
     var body: some View {
@@ -88,6 +89,25 @@ struct SettingsView: View {
                     "Ask before moving to the Trash in a synced folder",
                     isOn: Binding(
                         get: { !trashNoticeShown }, set: { trashNoticeShown = !$0 }))
+                LabeledContent("Send to") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ForEach(sendApps, id: \.self) { url in
+                            HStack {
+                                Text(SendToApps.name(of: url)).foregroundStyle(Theme.ashMuted)
+                                Button("Remove") {
+                                    SendToApps.remove(url)
+                                    sendApps = SendToApps.apps
+                                }
+                            }
+                        }
+                        Button("Add app…") {
+                            if let url = SendToApps.chooseApp() {
+                                SendToApps.add(url)
+                                sendApps = SendToApps.apps
+                            }
+                        }
+                    }
+                }
                 LabeledContent("Export folder") {
                     HStack {
                         Text((AppModel.exportFolder.path as NSString).abbreviatingWithTildeInPath)

@@ -330,6 +330,7 @@ private struct PhotoMenu: View {
         Button("Move to Folder…") { app.perform(.moveTo, ids) }
         Button("Copy Photo") { app.perform(.clipboard, ids) }
         Button("Share…") { app.perform(.share, ids) }
+        SendToMenu(app: app, ids: ids)
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         Button("Move to Trash") { Task { await app.culling.moveToTrash(ids) } }
@@ -345,6 +346,7 @@ struct FolderMenu: View {
         Button(browser.isFavourite(url) ? "Remove from Favourites" : "Add to Favourites") {
             browser.toggleFavourite(url)
         }
+        SendToMenu(app: AppModel.shared, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
     }
 }
