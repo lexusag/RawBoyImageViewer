@@ -143,6 +143,20 @@ public final class DiskThumbnailCache: Sendable {
         CGImageDestinationFinalize(dest)
     }
 
+    /// The bytes the cache takes.
+    public var size: Int64 {
+        let files =
+            (try? FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: [.fileSizeKey], options: .skipsHiddenFiles)) ?? []
+        return files.reduce(0) { $0 + Int64((try? $1.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) }
+    }
+
+    /// Deletes every cached thumbnail (they are made again as needed).
+    public func clear() {
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        for file in files { try? FileManager.default.removeItem(at: file) }
+    }
+
     /// Deletes the least recently modified thumbnails until the cache is within its limit.
     public func trim() {
         let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]

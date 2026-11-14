@@ -98,6 +98,9 @@ final class ImageCanvasView: NSView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.backgroundColor = NSColor(hex: DesignTokens.Colour.inkBlack).cgColor
+        // VoiceOver: the photo is an image named by the session (name, position, rating).
+        setAccessibilityElement(true)
+        setAccessibilityRole(.image)
         imageLayer.contentsGravity = .resize
         imageLayer.minificationFilter = .trilinear
         layer?.addSublayer(imageLayer)
@@ -169,7 +172,7 @@ final class ImageCanvasView: NSView {
     /// Shows [image]. A new photo starts at fit; the full-resolution version of the photo already shown keeps the zoom.
     func show(_ image: LoadedImage, samePhoto: Bool, fade: Bool = false) {
         let keepZoom = samePhoto && self.image != nil
-        if fade {
+        if fade, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             // A slideshow's crossfade.
             let transition = CATransition()
             transition.type = .fade
@@ -215,8 +218,11 @@ final class ImageCanvasView: NSView {
         if loading { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
     }
 
-    /// A short note at the top, gone after a moment.
+    /// A short note at the top, gone after a moment (and spoken by VoiceOver).
     func flash(_ text: String) {
+        NSAccessibility.post(
+            element: self, notification: .announcementRequested,
+            userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
         zoomLabel.stringValue = "  \(text)  "
         labelHide?.cancel()
         zoomLabel.alphaValue = 1
@@ -512,6 +518,12 @@ final class ImageCanvasView: NSView {
     private func wheelScroll(_ event: NSEvent, _ math: ZoomMath) {
         let delta = event.scrollingDeltaY
         guard delta != 0 else { return }
+        if SettingsKeys.wheelZooms {
+            // Settings: the wheel always zooms, up in, down out (down at fit stays at fit).
+            lastZoomInput = event.timestamp
+            setZoom(math.zoomed(zoom, to: zoom.scale * (delta > 0 ? 1.25 : 1 / 1.25), around: anchor(event)))
+            return
+        }
         if math.isFit(zoom) {
             guard navigationEnabled else { return }
             // Still the wheel that zoomed out to fit: wait for a pause before changing photos.

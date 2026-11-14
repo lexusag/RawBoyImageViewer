@@ -49,6 +49,11 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - `Features/Compare/`: `CompareSession` (2–4 panes; with two, choosing one brings the next challenger in the
   other; zoom shared through `SharedZoom`; rating keys on the chosen pane), `CompareWindowController` (screen-filling
   like the viewer, `ViewerWindow`, panes side by side or 2 × 2). Canvases there have `navigationEnabled = false`.
+- `Features/Help/`: `HelpContent` (every key; keep it in step with the controls and README's tables), `HelpView`,
+  `HelpWindow` (a floating panel, so it shows over the screen-filling viewer; ⌘/ and ? via `AppDelegate`).
+- `Features/Settings/`: `SettingsKeys` (the few personal choices, read where they apply) and `SettingsView`.
+- `App/Assets.xcassets`: the icon (made by `swift tools/icons/make-icons.swift` from `branding/viewer.svg`, RawBoy's
+  logo in the viewer's colours) and the amber `AccentColor` for native controls.
 - `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right; `HistogramView`, a port of
   RawBoy's, clicking it toggles clipping), `ActionMenu` (left),
   `BrowserStrip` (top: breadcrumb + filmstrip from `ThumbnailStore`). Scrolling goes through `PanelScroll`, because
@@ -139,6 +144,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   Lightroom keeps it), and the image, thumbnail and disk caches are keyed by it.
 - The packages build with `-O` even in Debug (`Package.swift`): unoptimised pixel loops made the clipping overlay
   take seconds.
+
+- `tools/release.sh <version>`: Release archive, Developer ID signing and notarization when `DEVELOPER_ID` /
+  `NOTARY_PROFILE` are set (ad hoc otherwise), DMG. See docs/releasing.md.
 
 ## Conventions
 

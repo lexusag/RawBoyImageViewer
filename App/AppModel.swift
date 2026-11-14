@@ -174,6 +174,7 @@ final class AppModel {
                     // Dates first, so the grid is in its final order.
                     try? await Task.sleep(for: .milliseconds(300))
                     Snapshot.write(BrowserView(app: self), size: CGSize(width: 1280, height: 820), name: "browser")
+                    Snapshot.write(HelpView(), size: CGSize(width: 640, height: 1500), name: "help")
                     // Real cells with their thumbnails (the grid's load after the snapshot).
                     var cells: [(BrowsePhoto, CGImage?)] = []
                     for photo in browser.visible.prefix(4) {

@@ -32,8 +32,8 @@ targets:
       path: build/generated/Info.plist
       properties:
         CFBundleDisplayName: RawBoy Viewer
-        CFBundleShortVersionString: "0.1"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.photography
         LSMinimumSystemVersion: "15.0"
         # "Open With" for photos and folders, never the default app for a type.
@@ -49,6 +49,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.viewer
+        # tools/release.sh sets both.
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
         PRODUCT_NAME: RawBoy Viewer
         PRODUCT_MODULE_NAME: RawBoyViewer
         # Direct download, not the App Store: no sandbox, so sidecars can be written next to photos.
@@ -58,6 +61,9 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         COMBINE_HIDPI_IMAGES: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Native controls (checkboxes, sliders) take RawBoy's amber, not system blue.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
 schemes:
   RawBoyViewer:
     build:

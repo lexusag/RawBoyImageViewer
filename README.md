@@ -50,6 +50,9 @@ you chose. Esc, G or Return go back to the browser on it.
 
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
+**⌘/ or ?** shows every key. **Settings** (⌘,): open the last folder at launch, what the mouse wheel does, slideshow
+speed, real preview, next photo after rating, the external editor, the export folder, the thumbnail cache.
+
 Move the pointer to an edge and rest it there for a moment: the **left** edge shows actions, the **right** edge the
 photo's details (its histogram, exposure, camera and lens, file, colour profile, location, credits), the **top** edge the folder's filmstrip (the mouse wheel scrolls it sideways). A panel goes away when the pointer leaves it; its pin keeps
 it showing, and the photo then fits beside it. Along the **bottom** of the photo, the left half goes to the previous
@@ -81,6 +84,11 @@ photo and the right half to the next (hold to keep going).
 A RAW + JPEG pair is one photo, shown from the raw.
 
 Status: early development (see [PLAN.md](PLAN.md)). Windows comes later.
+
+## Releasing
+
+`tools/release.sh <version>` makes a DMG; signing and notarizing need a Developer ID: see
+[docs/releasing.md](docs/releasing.md).
 
 ## Building
 

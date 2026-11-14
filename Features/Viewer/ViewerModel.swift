@@ -49,8 +49,18 @@ final class ViewerModel {
     func url(of group: PhotoGroup) -> URL? { folder?.appendingPathComponent(group.main) }
     var currentURL: URL? { current.flatMap(url(of:)) }
 
-    /// The external editor: darktable when installed, else the photo's default app.
-    let editor: (name: String, url: URL?) = {
+    /// The external editor: the one chosen in Settings, else darktable when installed, else the photo's default app.
+    var editor: (name: String, url: URL?) {
+        if let path = UserDefaults.standard.string(forKey: SettingsKeys.editorPath), !path.isEmpty,
+            FileManager.default.fileExists(atPath: path)
+        {
+            let url = URL(fileURLWithPath: path)
+            return (url.deletingPathExtension().lastPathComponent, url)
+        }
+        return Self.darktable
+    }
+
+    private static let darktable: (name: String, url: URL?) = {
         for id in ["org.darktable.darktable", "org.darktable"] {
             if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
                 return (url.deletingPathExtension().lastPathComponent, url)

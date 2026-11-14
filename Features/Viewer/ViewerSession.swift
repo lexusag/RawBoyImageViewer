@@ -27,8 +27,8 @@ final class ViewerSession {
     private var shownImage: LoadedImage?
     private var loadingFull = false
     private var slideshow: Task<Void, Never>?
-    /// Seconds per photo in a slideshow.
-    static let slideshowSeconds = 4.0
+    /// Seconds per photo in a slideshow (Settings).
+    static var slideshowSeconds: Double { SettingsKeys.slideshow }
     /// Compare [ids] (2–4), in the browser's order: the app opens the compare view.
     var onCompare: (([String]) -> Void)?
     /// The long edge previews are decoded to, for the viewer's screen.
@@ -359,6 +359,15 @@ final class ViewerSession {
         if culling.autoAdvance, index < photos.count - 1 { go(to: index + 1) }
     }
 
+    /// [ratingText] as VoiceOver should say it ("3 stars, Pick").
+    static func spoken(_ text: String) -> String {
+        let stars = text.filter { $0 == "★" }.count
+        let rest = text.replacingOccurrences(of: "★", with: "").replacingOccurrences(of: " · ", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        return [stars > 0 ? "\(stars) star\(stars == 1 ? "" : "s")" : nil, rest.isEmpty ? nil : rest]
+            .compactMap { $0 }.joined(separator: ", ")
+    }
+
     /// "★★★", "★★ · Pick", "Rejected", or "" when unrated.
     static func ratingText(_ rating: Rating) -> String {
         if rating.flag == .reject { return "Rejected" }
@@ -381,6 +390,10 @@ final class ViewerSession {
 
     private func updateRatingBadge() {
         let text = Self.ratingText(model.rating)
+        if let name = model.current?.main {
+            controller?.canvas.setAccessibilityLabel(
+                "\(name), \(index + 1) of \(photos.count)" + (text.isEmpty ? "" : ", \(Self.spoken(text))"))
+        }
         controller?.canvas.ratingText = text
         controller?.canvas.counterText = "\(index + 1) / \(photos.count)" + (text.isEmpty ? "" : "  ·  \(text)")
     }

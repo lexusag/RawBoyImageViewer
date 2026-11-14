@@ -13,7 +13,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The browser's rating keys, by physical key (SwiftUI's key presses are characters, Cyrillic on a Ukrainian
         // layout).
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            MainActor.assumeIsolated { AppModel.shared.browserKey(event) } ? nil : event
+            MainActor.assumeIsolated {
+                // ? (Shift + the / key) anywhere but a text field: the keys.
+                if event.keyCode == 44, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                    event.modifierFlags.contains(.shift), !(NSApp.keyWindow?.firstResponder is NSTextView)
+                {
+                    HelpWindow.toggle()
+                    return true
+                }
+                return AppModel.shared.browserKey(event)
+            } ? nil : event
         }
         // `RawBoy Viewer <folder or photo>`: skip AppKit's own -Flag value pairs.
         var args = Array(CommandLine.arguments.dropFirst())
@@ -30,7 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ready = true
             if let url = pending.first {
                 AppModel.shared.open(url)
-            } else if AppModel.shared.browser.folder == nil, let last = BrowserModel.lastFolder {
+            } else if SettingsKeys.opensLastFolder, AppModel.shared.browser.folder == nil,
+                let last = BrowserModel.lastFolder
+            {
                 // Back where the last session left off, as RawBoy Browser does.
                 AppModel.shared.browser.load(last)
             }

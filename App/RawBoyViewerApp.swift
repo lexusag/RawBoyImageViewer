@@ -62,10 +62,18 @@ struct RawBoyViewerApp: App {
                 Divider()
                 Toggle("Go to the Next Photo After Rating", isOn: Bindable(AppModel.shared.culling).autoAdvance)
             }
+            CommandGroup(replacing: .help) {
+                Button("RawBoy Viewer Keys") { HelpWindow.toggle() }
+                    .keyboardShortcut("/")
+            }
             CommandGroup(after: .toolbar) {
                 Button("Reload Folder") { AppModel.shared.browser.reload() }
                     .keyboardShortcut("r")
             }
+        }
+        Settings {
+            SettingsView(app: AppModel.shared)
+                .preferredColorScheme(.dark)
         }
     }
 }

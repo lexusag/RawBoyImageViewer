@@ -263,7 +263,7 @@ RawBoyImageViewer/
 | M5 ✅ | Culling | Stars, pick, reject in RawBoy's XMP format (ported with its tests; another app's sidecar kept byte for byte), auto-advance, undo, `_bin` and restore, Move to Trash (asks once in cloud sync folders), rating bar and filters in the browser. Not done: re-reading sidecars changed by other apps while a folder is open (FSEvents), cross-check on the same folder with RawBoy Web by hand |
 | M6 ✅ (no crop) | Actions | Lossless rotate (`tiff:Orientation` in the sidecar, undoable), export (JPEG/HEIC, sizes, quality, location), Copy to / Move to with recent folders (moves undo), copy, Share, right-click menu. **Crop waits** for the sidecar format to be agreed with RawBoy (§9), so RawBoy can read it |
 | M7 ✅ | Real preview + Compare | Real preview (R: CIRAWFilter as shot, screen size and 1:1, remembered), Compare 2–4 with synced zoom and the two-photo challenger flow, slideshow (S, crossfade) |
-| M8 | Ship | Settings, Help sheet, accessibility (VoiceOver, reduced motion), notarization, Sparkle, viewer logo |
+| M8 ✅ (owner steps left) | Ship | Settings, Help (⌘/ and ?), VoiceOver labels and announcements, reduced motion, icon in RawBoy's family, `tools/release.sh` (archive, DMG; signs and notarizes once the owner has a Developer ID). **Left to the owner:** Developer ID + notarization credentials, where updates are hosted (then Sparkle), a licence |
 | Later | RawBoy desktop | Move RawBoyBrowseKit into the RawBoy repo; real preview through RawBoy's engine; Open in / Send to Auto |
 | Later | Windows | Port the UI. RawBoyBrowseKit serves as the portable spec |
 
@@ -274,5 +274,8 @@ RawBoyImageViewer/
 - **Crop and orientation:** agree on a sidecar field the viewer writes and RawBoy reads.
 - **Colour labels (`xmp:Label`):** add them to both apps together, or to neither.
 
-## 10. Still open (decide before M8)
-License, and whether to build for Apple Silicon only or as a universal binary.
+## 10. Still open
+- A licence.
+- Where releases and the update feed live (GitHub Releases?), then Sparkle.
+- Apple Silicon only or universal: the release build is whatever `xcodebuild archive` makes for "generic macOS"
+  (universal by default).

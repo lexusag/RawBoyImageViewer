@@ -138,6 +138,12 @@ private struct FilmstripCell: View {
             }
         }
         .frame(width: 96, height: 72)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            [url?.lastPathComponent ?? "", ViewerSession.spoken(ViewerSession.ratingText(rating))]
+                .filter { !$0.isEmpty }.joined(separator: ", ")
+        )
+        .accessibilityAddTraits(isCurrent ? [.isSelected, .isButton] : .isButton)
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.Radius.chip)
                 .strokeBorder(isCurrent ? Theme.amber : Theme.hairline, lineWidth: isCurrent ? 2 : 1)

@@ -177,6 +177,12 @@ struct PhotoCell: View {
         }
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            [photo.name, ViewerSession.spoken(ViewerSession.ratingText(rating))].filter { !$0.isEmpty }
+                .joined(separator: ", ")
+        )
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isImage] : .isImage)
         .task(id: "\(photo.id)|\(orientation ?? 0)") {
             guard !photo.isOnlineOnly else { return }
             image =
@@ -216,6 +222,9 @@ private struct FolderCell: View {
         }
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Folder \(title)")
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 }
 
