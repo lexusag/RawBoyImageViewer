@@ -85,7 +85,8 @@ private struct Filmstrip: View {
                     ForEach(Array(model.groups.enumerated()), id: \.offset) { offset, group in
                         FilmstripCell(
                             url: model.url(of: group), isRaw: PhotoFileType(fileName: group.main) == .raw,
-                            isCurrent: offset == model.index, store: model.thumbnails
+                            isCurrent: offset == model.index, rating: model.culling.rating(group.main),
+                            store: model.thumbnails
                         )
                         .id(offset)
                         .onTapGesture { model.send(.go(to: offset)) }
@@ -106,6 +107,7 @@ private struct FilmstripCell: View {
     let url: URL?
     let isRaw: Bool
     let isCurrent: Bool
+    let rating: Rating
     let store: ThumbnailStore
     @State private var image: CGImage?
 
@@ -117,9 +119,13 @@ private struct FilmstripCell: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .padding(3)
+                    .opacity(rating.flag == .reject ? 0.4 : 1)
                     // Centred: the stack aligns its badges bottom-right, and a portrait picture is narrower than the cell.
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            RatingBadge(rating: rating)
+                .padding(4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             if isRaw {
                 Text("RAW")
                     .font(.system(size: 9, weight: .semibold))

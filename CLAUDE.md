@@ -40,6 +40,10 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   `peekDelay`, at once on drag; release → fit); the wheel/trackpad don't change photos for `navigationPause` after
   zooming or panning, so zooming out to fit doesn't run on into the next photos; mouse/trackpad/keys → `ViewerCommand`),
   `ViewerKeys` (physical key codes).
+- `Features/Culling/`: `CullingStore` (ratings by photo id, read from sidecars when a folder opens, written 0.4 s
+  after a change through one serial chain, undo stack of ratings and file moves, `_bin` and Trash, synced-folder
+  Trash notice, `autoAdvance`), `RatingControl` / `RatingBadge`. `AppModel` routes ⌘Z / ⌘⌫ (menus) to the viewer or
+  the browser, and the browser's rating keys come through `AppDelegate`'s key monitor by key code.
 - `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right; `HistogramView`, a port of
   RawBoy's, clicking it toggles clipping), `ActionMenu` (left),
   `BrowserStrip` (top: breadcrumb + filmstrip from `ThumbnailStore`). Scrolling goes through `PanelScroll`, because
@@ -50,7 +54,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     RawBoy Browser's `PhotoGroups.ts`: RAW + JPEG = one photo, the raw is main), `ZoomMath`, `PrefetchPlan`,
     `LRUCache`, `ViewerCommand`, `ByteSource`/`FileSource` (block-cached random reads), `EmbeddedPreviews` and
     `CaptureDate` (ports of RawBoy's `EmbeddedPreview.ts` / `CaptureDate.ts`, with its tests; JPEG XL previews not
-    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `Histogram` + `ClipWarning` (ports of RawBoy's
+    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `Rating` / `FlagFilter` and `XmpSidecar` (ports of
+    RawBoy Browser's rating rules and `XmpSidecar.ts`, with its tests), `Histogram` + `ClipWarning` (ports of RawBoy's
     Histogram and its shader's `clipWarning`: 64 bins, a channel at 255 = highlight, all ≤ 1 = shadow; keep in step), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
     passed in, so tested without timers), `BottomBand`, `Rect2D` (y down); later the XMP sidecar, embedded-preview parser, capture dates and the edge-zone state
     machine. It is meant to move into the RawBoy repo and serve RawBoy desktop and the Windows port.
@@ -60,7 +65,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     decodes, sequential prefetch), `PhotoMetadata` (ImageIO properties → the details panel's fields), `ImageAnalysis` (histogram from a 512 px
     nearest-neighbour copy, as RawBoy; clip overlay up to 4096 px), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
     path + size + mtime + pixels, 1 GB → made: a raw's embedded JPEG when ≥ 400 px, else ImageIO), `Thumbnailer`.
-  - `ViewerFiles`: `FolderScanner` (photos with size, date and `isOnlineOnly`; sidecar names; subfolders without
+  - `ViewerFiles`: `FileMoves` (bin with one suffix per photo, Trash, move back), `SidecarFiles` (read; atomic
+    writes into every sidecar a photo has; rating from the first one that has it), `FolderScanner` (photos with size, date and `isOnlineOnly`; sidecar names; subfolders without
     packages or `_bin`), `CloudStatus` (ubiquitous status or `SF_DATALESS`). Scanning reads directory entries only,
     never file contents: photo folders are often cloud sync folders where reading a placeholder downloads it. Nothing
     reads an online-only file except opening it in the viewer (and prefetching its direct neighbours).
@@ -109,6 +115,11 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - `ImageRenderer` draws native text fields as a yellow placeholder: not a bug in the view.
 - `RAWBOY_SAMPLES=<folder> swift test --package-path Packages --filter SampleFiles` runs the parsers over real raws.
   Phone DNGs have no embedded JPEG, Adobe's JPEG XL DNGs only a 256 px one: both fall back to ImageIO.
+- **Never wait for main-actor work in `applicationShouldTerminate` with `.terminateLater`**: AppKit then spins its
+  own loop where main-actor tasks don't run, and quitting hung. Pending sidecars are written synchronously there.
+- `CULL=1 tools/smoke.sh <folder of copies> 0` rates three photos, prints the sidecars, moves the reject to `_bin` and
+  undoes it. It changes files: only ever on copies. Smoke runs also change the app's last folder: back up and restore
+  the preferences around them (see above).
 - SwiftUI's `Edge` clashes with ours in the app target: ours is `PanelEdge`.
 - A horizontal `ScrollView` takes all the height it's offered: give it a height (the browser strip's breadcrumb hid the
   filmstrip this way).

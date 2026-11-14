@@ -9,10 +9,23 @@ import ViewerFiles
 final class AppModel {
     static let shared = AppModel()
 
-    let browser = BrowserModel()
-    let viewer = ViewerSession()
+    let culling = CullingStore()
+    let browser: BrowserModel
+    let viewer: ViewerSession
 
     init() {
+        browser = BrowserModel(culling: culling)
+        viewer = ViewerSession(culling: culling)
+        culling.onRatingsChanged = { [weak self] in
+            self?.browser.ratingsChanged()
+            self?.viewer.ratingsChanged()
+        }
+        culling.onFilesChanged = { [weak self] in
+            guard let self else { return }
+            browser.reload()
+            // The viewer keeps going on the photos that are left (or are back).
+            if viewer.isOpen { viewer.replace(groups: browser.visible.map(\.group)) }
+        }
         viewer.onClose = { [weak self] current in
             // Back in the browser on the photo the viewer showed last.
             if let current { self?.browser.select(current) }
@@ -29,38 +42,7 @@ final class AppModel {
         if isDirectory.boolValue {
             browse(url)
             #if DEBUG
-                // tools/smoke.sh opens a folder and wants the viewer.
-                if ProcessInfo.processInfo.environment["RAWBOY_AUTOPLAY"] != nil {
-                    Task {
-                        // Dates first, so the grid is in its final order.
-                        try? await Task.sleep(for: .milliseconds(300))
-                        Snapshot.write(BrowserView(app: self), size: CGSize(width: 1280, height: 820), name: "browser")
-                        // Real cells with their thumbnails (the grid's load after the snapshot).
-                        var cells: [(BrowsePhoto, CGImage?)] = []
-                        for photo in browser.visible.prefix(4) {
-                            let thumb = await browser.thumbnails.thumbnail(
-                                photo.url, size: photo.size, modified: photo.modified)
-                            cells.append((photo, thumb?.cgImage))
-                        }
-                        let size = browser.thumbnailSize
-                        let store = browser.thumbnails
-                        Snapshot.write(
-                            HStack(spacing: 10) {
-                                ForEach(cells, id: \.0.id) { photo, image in
-                                    PhotoCell(
-                                        photo: photo, size: size, isSelected: false, store: store,
-                                        image: image)
-                                }
-                            }.padding(10),
-                            size: CGSize(width: 4 * (size + 10) + 20, height: size * 0.75 + 50), name: "cells")
-                        Trace.log("browser: \(browser.items.map(\.id).joined(separator: ", "))")
-                        if let first = browser.visible.first {
-                            openViewer(at: first.id)
-                        } else {
-                            NSApp.terminate(nil)
-                        }
-                    }
-                }
+                autoplayBrowserIfAsked()
             #endif
         } else {
             browser.load(url.deletingLastPathComponent(), select: url.lastPathComponent)
@@ -82,6 +64,54 @@ final class AppModel {
         viewer.show(folder: folder, groups: browser.visible.map(\.group), at: index)
     }
 
+    // MARK: Culling (menus and keys, wherever the focus is)
+
+    /// The viewer when it is the key window, else the browser.
+    private var viewerIsKey: Bool { viewer.isOpen && NSApp.keyWindow is ViewerWindow }
+
+    /// ⌘Z: text editing in a text field, else the last rating or file move.
+    func undo() {
+        if NSApp.keyWindow?.firstResponder is NSTextView {
+            NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+            return
+        }
+        if viewerIsKey {
+            viewer.handle(.undo)
+        } else if let id = culling.undo() {
+            browser.select(id)
+        }
+    }
+
+    /// ⌘⌫: the photo in the viewer, else the browser's selection.
+    func moveToTrash() {
+        if NSApp.keyWindow?.firstResponder is NSTextView {
+            NSApp.sendAction(#selector(NSResponder.deleteToBeginningOfLine(_:)), to: nil, from: nil)
+            return
+        }
+        if viewerIsKey {
+            viewer.handle(.moveToTrash)
+        } else {
+            let ids = browser.ratingTargets
+            Task { await culling.moveToTrash(ids) }
+        }
+    }
+
+    /// The browser's rating keys (by physical key, as the viewer's): 1–5, 0, P, X, U on the selection.
+    func browserKey(_ event: NSEvent) -> Bool {
+        guard !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+            !(NSApp.keyWindow?.firstResponder is NSTextView), let command = ViewerKeys.command(for: event)
+        else { return false }
+        let ids = browser.ratingTargets
+        guard !ids.isEmpty else { return false }
+        switch command {
+        case .setStars(let n): culling.setStars(ids, n)
+        case .toggleFlag(let flag): culling.toggleFlag(ids, flag)
+        case .unflag: culling.clearFlag(ids)
+        default: return false
+        }
+        return true
+    }
+
     func openFolderPanel() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -93,3 +123,44 @@ final class AppModel {
         open(url)
     }
 }
+
+#if DEBUG
+    extension AppModel {
+        /// tools/smoke.sh opens a folder and wants the viewer: snapshots of the browser and real cells first.
+        fileprivate func autoplayBrowserIfAsked() {
+            if ProcessInfo.processInfo.environment["RAWBOY_AUTOPLAY"] != nil {
+                Task {
+                    // Dates first, so the grid is in its final order.
+                    try? await Task.sleep(for: .milliseconds(300))
+                    Snapshot.write(BrowserView(app: self), size: CGSize(width: 1280, height: 820), name: "browser")
+                    // Real cells with their thumbnails (the grid's load after the snapshot).
+                    var cells: [(BrowsePhoto, CGImage?)] = []
+                    for photo in browser.visible.prefix(4) {
+                        let thumb = await browser.thumbnails.thumbnail(
+                            photo.url, size: photo.size, modified: photo.modified)
+                        cells.append((photo, thumb?.cgImage))
+                    }
+                    let size = browser.thumbnailSize
+                    let store = browser.thumbnails
+                    let culling = culling
+                    Snapshot.write(
+                        HStack(spacing: 10) {
+                            ForEach(cells, id: \.0.id) { photo, image in
+                                PhotoCell(
+                                    photo: photo, size: size, isSelected: false, rating: culling.rating(photo.id),
+                                    hasSidecar: culling.hasSidecar(photo.id), store: store,
+                                    image: image)
+                            }
+                        }.padding(10),
+                        size: CGSize(width: 4 * (size + 10) + 20, height: size * 0.75 + 50), name: "cells")
+                    Trace.log("browser: \(browser.items.map(\.id).joined(separator: ", "))")
+                    if let first = browser.visible.first {
+                        openViewer(at: first.id)
+                    } else {
+                        NSApp.terminate(nil)
+                    }
+                }
+            }
+        }
+    }
+#endif

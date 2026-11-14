@@ -55,6 +55,16 @@ final class BrowserModel {
     var filter = "" {
         didSet { reorder() }
     }
+    /// Picks, unflagged or rejects only (RawBoy Browser's filter).
+    var flagFilter: FlagFilter = .all {
+        didSet { reorder() }
+    }
+    /// At least this many stars.
+    var minStars = 0 {
+        didSet { reorder() }
+    }
+    var isRatingFiltered: Bool { flagFilter != .all || minStars > 0 }
+    let culling: CullingStore
     /// Subfolders (and the parent) as tiles before the photos. Off by default.
     var showFolders: Bool = UserDefaults.standard.bool(forKey: Keys.showFolders) {
         didSet {
@@ -86,6 +96,23 @@ final class BrowserModel {
 
     let thumbnails = ThumbnailStore(pixelSize: 480)
     private var generation = 0
+
+    init(culling: CullingStore) {
+        self.culling = culling
+    }
+
+    /// Ratings changed: a rating filter may show other photos now.
+    func ratingsChanged() {
+        if isRatingFiltered { reorder() }
+    }
+
+    /// The photos a rating key acts on: the selected ones in grid order, else the one at the anchor.
+    var ratingTargets: [String] {
+        let photos = visible.map(\.id)
+        let selected = photos.filter { selection.contains($0) }
+        if !selected.isEmpty { return selected }
+        return anchor.flatMap { a in photos.contains(a) ? [a] : nil } ?? []
+    }
 
     enum Keys {
         static let sort = "browser.sort"
@@ -128,6 +155,7 @@ final class BrowserModel {
         let selected = selectID ?? wanted.flatMap { w in photos.first { $0.group.stem.lowercased() == w }?.id }
         selection = selected.map { [$0] } ?? []
         anchor = selected ?? photos.first?.id
+        culling.load(folder: folder, groups: photos.map(\.group))
         reorder()
         scrollRequest += 1
         remember(folder)
@@ -180,7 +208,12 @@ final class BrowserModel {
 
     private func reorder() {
         let needle = filter.trimmingCharacters(in: .whitespaces).lowercased()
-        let matching = needle.isEmpty ? photos : photos.filter { $0.name.lowercased().contains(needle) }
+        let culling = culling
+        let (flagFilter, minStars) = (flagFilter, minStars)
+        let matching = photos.filter {
+            (needle.isEmpty || $0.name.lowercased().contains(needle))
+                && flagFilter.passes(culling.rating($0.id), minStars: minStars)
+        }
         let sort = sort
         visible = matching.sorted { PhotoOrder.inOrder(sort, ($0.date, $0.name), ($1.date, $1.name)) }
         var entries: [GridEntry] = []

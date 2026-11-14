@@ -26,6 +26,14 @@ final class ViewerModel {
     var isScreenFilling = true
 
     let thumbnails = ThumbnailStore()
+    let culling: CullingStore
+
+    init(culling: CullingStore) {
+        self.culling = culling
+    }
+
+    /// The current photo's rating.
+    var rating: Rating { current.map { culling.rating($0.main) } ?? .none }
     /// Set by the session.
     var send: (ViewerCommand) -> Void = { _ in }
     var openFolder: (URL) -> Void = { _ in }

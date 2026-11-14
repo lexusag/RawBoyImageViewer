@@ -70,6 +70,17 @@ public enum PhotoGroups {
         return groups.sorted { $0.main.localizedStandardCompare($1.main) == .orderedAscending }
     }
 
+    /// [name] with [suffix] after the photo's [stem] ("IMG_1.CR2.xmp", stem "IMG_1", "-2" → "IMG_1-2.CR2.xmp"), so a
+    /// photo moved under another name keeps its sidecars matched.
+    public static func withSuffix(_ name: String, stem: String, suffix: String) -> String {
+        if name.lowercased().hasPrefix(stem.lowercased()) {
+            let i = name.index(name.startIndex, offsetBy: stem.count)
+            return String(name[..<i]) + suffix + String(name[i...])
+        }
+        let own = self.stem(of: name)
+        return own + suffix + String(name.dropFirst(own.count))
+    }
+
     /// darktable's duplicate naming: the photo's stem, "_" and the version number, then its extension.
     /// "IMG_1_01.CR2" → ("IMG_1", ".CR2").
     static func duplicateParts(_ name: String) -> (String, String)? {

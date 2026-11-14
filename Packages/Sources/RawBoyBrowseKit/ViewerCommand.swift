@@ -21,6 +21,16 @@ public enum ViewerCommand: Equatable, Sendable {
     case toggleChrome
     /// J (or a click on the histogram): show clipped highlights red and crushed shadows blue, as RawBoy does.
     case toggleClipping
+    /// 1–5 (0: none): stars; the same number again clears them.
+    case setStars(Int)
+    /// P / X: pick or reject; the same key again unflags.
+    case toggleFlag(Flag)
+    /// U.
+    case unflag
+    /// ⌘Z: the last rating, move to the bin or to the Trash.
+    case undo
+    /// ⌘⌫.
+    case moveToTrash
     /// Show the photo's file in the file manager.
     case revealFile
     /// Open the photo in the external editor.

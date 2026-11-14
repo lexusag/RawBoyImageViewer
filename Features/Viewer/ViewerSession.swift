@@ -8,7 +8,8 @@ import ViewerImaging
 /// pointer and panels.
 @MainActor
 final class ViewerSession {
-    let model = ViewerModel()
+    let model: ViewerModel
+    private let culling: CullingStore
     /// Each photo's main file (the raw of a RAW + JPEG pair), in name order.
     private(set) var photos: [URL] = []
     private var index: Int {
@@ -34,7 +35,9 @@ final class ViewerSession {
     /// A folder in the breadcrumb was clicked: the browser shows it.
     var onBrowse: ((URL) -> Void)?
 
-    init() {
+    init(culling: CullingStore) {
+        self.culling = culling
+        model = ViewerModel(culling: culling)
         model.send = { [weak self] command in
             self?.handle(command)
             self?.controller?.focusCanvas()
@@ -69,6 +72,7 @@ final class ViewerSession {
                     handle(.next)
                     try? await Task.sleep(for: .milliseconds(700))
                 }
+                if ProcessInfo.processInfo.environment["RAWBOY_CULL"] != nil { await cullTest() }
                 for edge in PanelEdge.allCases {
                     handle(.togglePanel(edge))
                     try? await Task.sleep(for: .milliseconds(500))
@@ -89,6 +93,33 @@ final class ViewerSession {
                 Trace.log("autoplay done at photo \(index + 1) of \(photos.count)")
                 NSApp.terminate(nil)
             }
+        }
+
+        /// RAWBOY_CULL=1: rates the photo on screen and the next two (3 stars, pick, reject, auto-advancing), prints
+        /// the sidecars written, moves the reject to the bin and undoes that. Only for copies of photos.
+        private func cullTest() async {
+            let start = index
+            handle(.setStars(3))
+            try? await Task.sleep(for: .milliseconds(300))
+            handle(.toggleFlag(.pick))
+            try? await Task.sleep(for: .milliseconds(300))
+            handle(.toggleFlag(.reject))
+            await culling.finishWrites()
+            Trace.log("cull: advanced from \(start + 1) to \(index + 1)")
+            for group in model.groups[start..<min(start + 3, model.groups.count)] {
+                let names = culling.sidecars[group.main] ?? []
+                let text = names.first.flatMap { SidecarFiles.read(model.folder!.appendingPathComponent($0)) } ?? ""
+                let fields = text.split(separator: "\n").filter {
+                    $0.contains("xmp:Rating") || $0.contains("rawboy:Pick") || $0.contains("crs:")
+                }
+                Trace.log("cull: \(group.main) → \(names) \(fields.map { $0.trimmingCharacters(in: .whitespaces) })")
+            }
+            await culling.moveRejectsToBin(model.groups)
+            try? await Task.sleep(for: .milliseconds(300))
+            Trace.log("cull: \(culling.message ?? "") · bin \(culling.binCount) · viewer has \(photos.count)")
+            handle(.undo)
+            try? await Task.sleep(for: .milliseconds(300))
+            Trace.log("cull: \(culling.message ?? "") · bin \(culling.binCount) · viewer has \(photos.count)")
         }
 
         private func snapshot(_ edge: PanelEdge) {
@@ -150,11 +181,68 @@ final class ViewerSession {
         case .toggleClipping:
             model.showClipping.toggle()
             updateClipOverlay()
+        case .setStars(let n): rateCurrent { self.culling.setStars($0, n) }
+        case .toggleFlag(let flag): rateCurrent { self.culling.toggleFlag($0, flag) }
+        case .unflag: rateCurrent { self.culling.clearFlag($0) }
+        case .undo:
+            if let id = culling.undo(), let i = model.groups.firstIndex(where: { $0.main == id }) {
+                go(to: i)
+                controller?.canvas.flash("Undone")
+            }
+            updateRatingBadge()
+        case .moveToTrash:
+            guard let id = model.current?.main else { return }
+            Task { await culling.moveToTrash([id]) }
         case .revealFile:
             if let url = model.currentURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         case .openInEditor:
             openInEditor()
         }
+    }
+
+    /// Rates the photo on screen, says so, and goes on to the next one when auto-advance is on (RawBoy Browser does).
+    private func rateCurrent(_ rate: ([String]) -> Void) {
+        guard let id = model.current?.main else { return }
+        rate([id])
+        let label = Self.ratingText(culling.rating(id))
+        controller?.canvas.flash(label.isEmpty ? "Not rated" : label)
+        updateRatingBadge()
+        if culling.autoAdvance, index < photos.count - 1 { go(to: index + 1) }
+    }
+
+    /// "★★★", "★★ · Pick", "Rejected", or "" when unrated.
+    static func ratingText(_ rating: Rating) -> String {
+        if rating.flag == .reject { return "Rejected" }
+        let stars = String(repeating: "★", count: rating.stars)
+        let pick = rating.flag == .pick ? "Pick" : ""
+        return [stars, pick].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Ratings changed (another photo's, or the folder's were read).
+    func ratingsChanged() {
+        updateRatingBadge()
+    }
+
+    private func updateRatingBadge() {
+        let text = Self.ratingText(model.rating)
+        controller?.canvas.ratingText = text
+        controller?.canvas.counterText = "\(index + 1) / \(photos.count)" + (text.isEmpty ? "" : "  ·  \(text)")
+    }
+
+    /// The photos changed on disk (moved to the bin or the Trash, or back): goes on with [groups], on the same photo
+    /// when it is still there, else the one now in its place.
+    func replace(groups: [PhotoGroup]) {
+        guard let folder = model.folder else { return }
+        guard !groups.isEmpty else {
+            close()
+            return
+        }
+        let current = model.current?.main
+        model.groups = groups
+        photos = groups.map { folder.appendingPathComponent($0.main) }
+        index = groups.firstIndex { $0.main == current } ?? min(index, groups.count - 1)
+        shownURL = nil
+        showCurrent()
     }
 
     private func openInEditor() {
@@ -182,7 +270,7 @@ final class ViewerSession {
         let generation = generation
         loadingFull = false
         controller.setTitle("\(url.lastPathComponent)  ·  \(index + 1) / \(photos.count)")
-        controller.canvas.counterText = "\(index + 1) / \(photos.count)"
+        updateRatingBadge()
         // Metadata only: never reads the file, so an online-only file in a cloud folder isn't downloaded.
         let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
         model.fileSize = values?.fileSize.map(Int64.init)

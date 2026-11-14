@@ -188,8 +188,11 @@ Same rules as RawBoy Browser, so that both apps show the same picture for the sa
 
 ## 5. Sidecars (the same format as RawBoy Browser)
 
-- **File name `NAME.xmp`**, next to the raw. This is what RawBoy Browser, Lightroom and Capture One use.
-  darktable's own `NAME.RAF.xmp` is **read** for display and never written: darktable owns that file and rewrites it.
+- **File name `NAME.xmp`**, next to the raw, when a photo has no sidecar yet. This is what RawBoy Browser, Lightroom
+  and Capture One use.
+- **A photo that already has sidecars gets the rating in every one of them**, darktable's `NAME.RAF.xmp` and its
+  duplicates included, as RawBoy Browser does (changed in M5 from "never write darktable's": consistency with RawBoy
+  wins, and only the rating fields change, in place). The rating is read from the first sidecar, by name, that has one.
 - `xmp:Rating` 0–5, and **reject = −1**.
 - **Pick = `rawboy:Pick="1"`** in RawBoy's namespace `http://ns.rawboy.app/1.0/`.
 - **Only RawBoy's fields are edited, in place. Everything else is kept byte for byte**, including `rawboy:Develop` and `rawboy:Auto`
@@ -257,7 +260,7 @@ RawBoyImageViewer/
 | M2 ✅ | Edge zones | Zone state machine (unit-tested), panels with pin, bottom prev/next band, keys I/M/B/Tab/Esc. Panels hold what exists so far (details without EXIF, view/go/file actions, breadcrumb + filmstrip); touch swipe-in waits for the Windows port (commands exist) |
 | M3 ✅ | Browser | Sidebar (recent, places, cloud storage, volumes, lazy tree), grid with sizes, RAW+JPEG grouping, sort by shoot date/name, name search, selection, disk thumbnail cache, embedded-preview and capture-date parsers (ported from RawBoy + its tests), cloud placeholders never downloaded by browsing. Moved on: rating bar and rating filter (M5), sibling-folder switcher in the top strip (later) |
 | M4 ✅ | Info panel | EXIF (exposure summary, camera, lens or why it is missing, mode, metering, flash, WB, colour profile, bit depth, GPS + Show in Maps, credits); RawBoy's histogram (same bins, colours and clipping rules) and clipping overlay (J, or click the histogram) |
-| M5 | Culling | Ratings/pick/reject in RawBoy's XMP format, auto-advance, undo, `_bin`, Trash. **Cross-check with RawBoy Web on the same folder** |
+| M5 ✅ | Culling | Stars, pick, reject in RawBoy's XMP format (ported with its tests; another app's sidecar kept byte for byte), auto-advance, undo, `_bin` and restore, Move to Trash (asks once in cloud sync folders), rating bar and filters in the browser. Not done: re-reading sidecars changed by other apps while a folder is open (FSEvents), cross-check on the same folder with RawBoy Web by hand |
 | M6 | Actions | Lossless rotate, crop (format agreed with RawBoy), export presets, external editor, copy/move |
 | M7 | Real preview + Compare | `CIRAWFilter` real preview, compare 2-up/4-up, slideshow |
 | M8 | Ship | Settings, Help sheet, accessibility (VoiceOver, reduced motion), notarization, Sparkle, viewer logo |

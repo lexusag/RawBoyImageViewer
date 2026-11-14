@@ -6,9 +6,15 @@ import AppKit
 /// and a viewer opened before then loses the key window to it, which brings back the menu bar and Dock.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var ready = false
+    private var keyMonitor: Any?
     private var pending: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The browser's rating keys, by physical key (SwiftUI's key presses are characters, Cyrillic on a Ukrainian
+        // layout).
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            MainActor.assumeIsolated { AppModel.shared.browserKey(event) } ? nil : event
+        }
         // `RawBoy Viewer <folder or photo>`: skip AppKit's own -Flag value pairs.
         var args = Array(CommandLine.arguments.dropFirst())
         while let arg = args.first {
@@ -42,6 +48,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Ratings still waiting to be written go to disk first. Synchronously: while termination waits
+    /// (`.terminateLater`) AppKit runs its own event loop, where main-actor tasks never run, and quitting hung.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MainActor.assumeIsolated { AppModel.shared.culling.writePendingNow() }
+        return .terminateNow
+    }
 
     /// Until a visible non-viewer window is key (at most a second).
     @MainActor

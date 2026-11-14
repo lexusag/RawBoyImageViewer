@@ -30,7 +30,8 @@ struct PhotoGrid: View {
                                 case .photo(let photo):
                                     PhotoCell(
                                         photo: photo, size: cell, isSelected: browser.selection.contains(entry.id),
-                                        store: browser.thumbnails)
+                                        rating: browser.culling.rating(photo.id),
+                                        hasSidecar: browser.culling.hasSidecar(photo.id), store: browser.thumbnails)
                                 case .folder(let url):
                                     FolderCell(
                                         title: url.lastPathComponent, icon: "folder.fill", size: cell,
@@ -107,13 +108,20 @@ struct PhotoCell: View {
     let photo: BrowsePhoto
     let size: Double
     let isSelected: Bool
+    var rating: Rating = .none
+    var hasSidecar = false
     let store: ThumbnailStore
     @State private var image: CGImage?
 
-    init(photo: BrowsePhoto, size: Double, isSelected: Bool, store: ThumbnailStore, image: CGImage? = nil) {
+    init(
+        photo: BrowsePhoto, size: Double, isSelected: Bool, rating: Rating = .none, hasSidecar: Bool = false,
+        store: ThumbnailStore, image: CGImage? = nil
+    ) {
         self.photo = photo
         self.size = size
         self.isSelected = isSelected
+        self.rating = rating
+        self.hasSidecar = hasSidecar
         self.store = store
         _image = State(initialValue: image)
     }
@@ -131,6 +139,8 @@ struct PhotoCell: View {
                         .padding(6)
                         // Centred: the stack aligns its badges bottom-right, and a portrait picture is narrower than the cell.
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // Rejects fade, as in Lightroom.
+                        .opacity(rating.flag == .reject ? 0.4 : 1)
                 } else if photo.isOnlineOnly {
                     Image(systemName: "icloud.and.arrow.down")
                         .font(.system(size: 22))
@@ -138,8 +148,11 @@ struct PhotoCell: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .help("Only in the cloud: opening it downloads it")
                 }
+                RatingBadge(rating: rating)
+                    .padding(6)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 HStack(spacing: 3) {
-                    if photo.group.sidecars.isEmpty == false { Badge(text: "XMP") }
+                    if hasSidecar { Badge(text: "XMP") }
                     if photo.isRaw { Badge(text: photo.group.companions.isEmpty ? "RAW" : "RAW+") }
                 }
                 .padding(6)

@@ -25,9 +25,18 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⌘A, Esc | Select all, clear |
 | ⌘F | Search names |
 | ⌘R | Reload the folder |
+| 1–5, 0 | Stars on the selection (the same number again clears them); no stars |
+| P, X, U | Pick, Reject (the same key again unflags), Unflag |
+| ⌘Z | Undo the last rating, move to `_bin` or to the Trash |
+| ⌘⌫ | Move to the Trash (with its JPEG and sidecars) |
 | ⌘↑ | Up a folder |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
 | Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar) |
+
+The bar under the grid rates the selection, filters by Picks / Unflagged / Rejects and stars, and moves the rejects
+(with their sidecars and JPEGs) into the folder's `_bin` subfolder: nothing is deleted, and **Bin** brings them back.
+Ratings are saved as you go in XMP sidecars next to the photos (`NAME.xmp`, or the ones a photo already has), in the
+format RawBoy Browser, Lightroom, Capture One and darktable read; other apps' settings in them are left as they are.
 
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
@@ -46,6 +55,8 @@ photo and the right half to the next (hold to keep going).
 | Pinch, wheel (zoomed in) | Zoom (once zoomed back out to fit, the wheel waits for a pause before changing photos) |
 | Drag, two-finger scroll (zoomed in) | Pan |
 | F | Screen-filling ↔ window |
+| 1–5, 0, P, X, U | Rate, as in the browser; then on to the next photo (Photo › Go to the Next Photo After Rating) |
+| ⌘Z, ⌘⌫ | Undo, Move to the Trash |
 | I / M / B | Details / actions / filmstrip panel |
 | J, click the histogram | Show clipped highlights red and crushed shadows blue, as RawBoy does |
 | Tab | Hide every panel, pinned ones too (again: bring the pinned back) |

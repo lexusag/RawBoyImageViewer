@@ -1,6 +1,7 @@
 import AppKit
 import RawBoyBrowseKit
 import SwiftUI
+import ViewerFiles
 import ViewerImaging
 
 /// The start screen: places and folders on the left, the folder's photos on the right.
@@ -17,6 +18,10 @@ struct BrowserView: View {
                 BrowserToolbar(app: app)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
                 content
+                if browser.folder != nil, !browser.photos.isEmpty {
+                    Rectangle().fill(Theme.hairline).frame(height: 1)
+                    RatingBar(app: app)
+                }
             }
         }
         .background(Theme.inkBlack)
@@ -41,6 +46,16 @@ struct BrowserView: View {
                 detail: count == 0
                     ? "Folders are on the left." : "It has \(count) subfolder\(count == 1 ? "" : "s").",
                 action: count == 0 ? nil : ("Show folders", { browser.showFolders = true }))
+        } else if browser.items.isEmpty, browser.isRatingFiltered {
+            EmptyState(
+                title: "No photos match the rating filter", detail: nil,
+                action: (
+                    "Show all",
+                    {
+                        browser.flagFilter = .all
+                        browser.minStars = 0
+                    }
+                ))
         } else if browser.items.isEmpty {
             EmptyState(title: "Nothing matches “\(browser.filter)”", detail: nil, action: nil)
         } else {
@@ -147,6 +162,66 @@ private struct BrowserToolbar: View {
         if browser.selection.count > 1 { parts.append("\(browser.selection.count) selected") }
         if browser.isLoading { parts.append("reading dates…") }
         return parts.joined(separator: " · ")
+    }
+}
+
+/// Under the grid: rate the selection, filter by rating, move rejects to the bin (RawBoy Browser's bar).
+private struct RatingBar: View {
+    let app: AppModel
+
+    var body: some View {
+        let browser = app.browser
+        let culling = app.culling
+        let targets = browser.ratingTargets
+        let shown = targets.count == 1 ? culling.rating(targets[0]) : Rating.none
+        HStack(spacing: DesignTokens.Spacing.md) {
+            RatingControl(
+                rating: shown, compact: true, onStars: { culling.setStars(browser.ratingTargets, $0) },
+                onFlag: { culling.toggleFlag(browser.ratingTargets, $0) }
+            )
+            .disabled(targets.isEmpty)
+            .opacity(targets.isEmpty ? 0.5 : 1)
+            if let message = culling.message {
+                Text(message)
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.ashMuted)
+                    .lineLimit(1)
+                    .transition(.opacity)
+            }
+            Spacer(minLength: DesignTokens.Spacing.sm)
+            Segmented(
+                options: [
+                    (FlagFilter.all, "All"), (.picks, "Picks"), (.unflagged, "Unflagged"), (.rejects, "Rejects"),
+                ], selection: Bindable(browser).flagFilter)
+            Menu {
+                ForEach(0...5, id: \.self) { n in
+                    Button(n == 0 ? "Any stars" : "\(String(repeating: "★", count: n)) or more") {
+                        browser.minStars = n
+                    }
+                }
+            } label: {
+                Text(browser.minStars == 0 ? "Any ★" : "\(browser.minStars)★+")
+                    .font(Theme.label)
+                    .foregroundStyle(browser.minStars > 0 ? Theme.amber : Theme.paperWhite)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            Button("Move rejects to \(FolderScanner.binFolderName)") {
+                let order = browser.photos.map(\.group)
+                Task { await culling.moveRejectsToBin(order) }
+            }
+            .buttonStyle(.rawBoy)
+            .help("Moves the rejects, their sidecars and JPEGs into the folder's _bin. Nothing is deleted.")
+            if culling.binCount > 0 {
+                Button("Bin (\(culling.binCount))") { culling.restoreBin() }
+                    .buttonStyle(.rawBoy)
+                    .help("Moves everything in _bin back into the folder")
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .frame(height: 44)
+        .background(Theme.graphiteSurface)
+        .animation(.easeOut(duration: 0.2), value: culling.message)
     }
 }
 

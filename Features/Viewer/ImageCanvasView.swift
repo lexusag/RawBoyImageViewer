@@ -36,6 +36,18 @@ final class ImageCanvasView: NSView {
     private let clipLayer = CALayer()
     private let zoomLabel = ImageCanvasView.pill()
     private let counterLabel = ImageCanvasView.pill()
+    private let ratingLabel = ImageCanvasView.pill()
+    private var ratingLeading: NSLayoutConstraint?
+
+    /// The photo's rating ("★★★ · Pick"), in the photo area's bottom-left corner while it has one.
+    var ratingText = "" {
+        didSet {
+            ratingLabel.stringValue = "  \(ratingText)  "
+            ratingLabel.isHidden = ratingText.isEmpty
+            ratingLabel.textColor = NSColor(
+                hex: ratingText == "Rejected" ? DesignTokens.Colour.warningRed : DesignTokens.Colour.paperWhite)
+        }
+    }
     private let messageLabel = NSTextField(labelWithString: "")
     private let spinner = NSProgressIndicator()
     private var counterConstraint: NSLayoutConstraint?
@@ -73,6 +85,7 @@ final class ImageCanvasView: NSView {
 
         zoomLabel.alphaValue = 0
         counterLabel.alphaValue = 0
+        ratingLabel.isHidden = true
 
         messageLabel.font = .systemFont(ofSize: DesignTokens.FontSize.body)
         messageLabel.textColor = NSColor(hex: DesignTokens.Colour.warningRed)
@@ -82,16 +95,20 @@ final class ImageCanvasView: NSView {
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
 
-        for view in [zoomLabel, counterLabel, messageLabel, spinner] as [NSView] {
+        for view in [zoomLabel, counterLabel, ratingLabel, messageLabel, spinner] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
         let counterX = counterLabel.centerXAnchor.constraint(equalTo: leadingAnchor)
         counterConstraint = counterX
+        let ratingX = ratingLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: DesignTokens.Spacing.lg)
+        ratingLeading = ratingX
         NSLayoutConstraint.activate([
             zoomLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
             zoomLabel.topAnchor.constraint(equalTo: topAnchor, constant: DesignTokens.Spacing.xl),
             counterX,
+            ratingX,
+            ratingLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -DesignTokens.Spacing.lg),
             counterLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -DesignTokens.Spacing.lg),
             messageLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
             messageLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -204,6 +221,7 @@ final class ImageCanvasView: NSView {
     override func layout() {
         super.layout()
         counterConstraint?.constant = imageArea.midX
+        ratingLeading?.constant = imageArea.minX + DesignTokens.Spacing.lg
         guard let math else { return }
         setZoom(fitted ? math.fit : math.clamped(zoom), showLabel: false)
     }

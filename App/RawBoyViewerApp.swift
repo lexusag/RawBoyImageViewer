@@ -18,6 +18,18 @@ struct RawBoyViewerApp: App {
                 Button("Open…") { AppModel.shared.openFolderPanel() }
                     .keyboardShortcut("o")
             }
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo") { AppModel.shared.undo() }
+                    .keyboardShortcut("z")
+            }
+            CommandGroup(after: .pasteboard) {
+                Divider()
+                Button("Move to Trash") { AppModel.shared.moveToTrash() }
+                    .keyboardShortcut(.delete, modifiers: .command)
+            }
+            CommandMenu("Photo") {
+                Toggle("Go to the Next Photo After Rating", isOn: Bindable(AppModel.shared.culling).autoAdvance)
+            }
             CommandGroup(after: .toolbar) {
                 Button("Reload Folder") { AppModel.shared.browser.reload() }
                     .keyboardShortcut("r")

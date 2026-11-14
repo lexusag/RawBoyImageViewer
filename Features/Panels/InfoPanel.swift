@@ -17,7 +17,11 @@ struct InfoPanel: View {
                             model.send(.toggleClipping)
                         }
                         .frame(height: 84)
-                        .padding(.bottom, 6)
+                        RatingControl(
+                            rating: model.rating, onStars: { model.send(.setStars($0)) },
+                            onFlag: { model.send(.toggleFlag($0)) }
+                        )
+                        .padding(.vertical, 4)
                         let m = model.metadata
                         if let summary = m?.exposureSummary {
                             Text(summary)
@@ -38,10 +42,11 @@ struct InfoPanel: View {
                         location(m)
                         credits(m)
                         PanelSection(title: "Sidecars")
-                        if group.sidecars.isEmpty {
-                            InfoRow(label: "None yet", value: "Ratings will be saved next to the photo.")
+                        let sidecars = model.culling.sidecars[group.main] ?? group.sidecars
+                        if sidecars.isEmpty {
+                            InfoRow(label: "None yet", value: "A rating creates \(group.stem).xmp next to the photo.")
                         } else {
-                            InfoRow(label: "XMP", value: group.sidecars.joined(separator: "\n"))
+                            InfoRow(label: "XMP", value: sidecars.joined(separator: "\n"))
                         }
                     }
                 }

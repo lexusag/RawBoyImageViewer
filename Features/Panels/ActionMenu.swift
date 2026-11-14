@@ -10,6 +10,21 @@ struct ActionMenu: View {
         PanelCard(title: "Actions", edge: .left, model: model) {
             PanelScroll {
                 VStack(alignment: .leading, spacing: 2) {
+                    PanelSection(title: "Cull").padding(.horizontal, DesignTokens.Spacing.sm)
+                    RatingControl(
+                        rating: model.rating, onStars: { model.send(.setStars($0)) },
+                        onFlag: { model.send(.toggleFlag($0)) }
+                    )
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.vertical, 4)
+                    ActionRow(icon: "flag.slash", title: "Unflag", key: "U") { model.send(.unflag) }
+                    ActionRow(
+                        icon: model.culling.autoAdvance ? "checkmark.square" : "square",
+                        title: "Next photo after rating", key: nil
+                    ) { model.culling.autoAdvance.toggle() }
+                    ActionRow(icon: "arrow.uturn.backward", title: "Undo", key: "⌘Z") { model.send(.undo) }
+                        .disabled(!model.culling.canUndo)
+
                     PanelSection(title: "View").padding(.horizontal, DesignTokens.Spacing.sm)
                     ActionRow(
                         icon: model.isFit ? "plus.magnifyingglass" : "arrow.down.right.and.arrow.up.left",
@@ -34,6 +49,7 @@ struct ActionMenu: View {
                         model.send(.openInEditor)
                     }
                     ActionRow(icon: "folder", title: "Show in Finder", key: nil) { model.send(.revealFile) }
+                    ActionRow(icon: "trash", title: "Move to Trash", key: "⌘⌫") { model.send(.moveToTrash) }
 
                     PanelSection(title: "Viewer").padding(.horizontal, DesignTokens.Spacing.sm)
                     ActionRow(icon: "xmark", title: "Close the viewer", key: "Esc") { model.send(.close) }

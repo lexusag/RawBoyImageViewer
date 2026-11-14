@@ -5,6 +5,11 @@ import RawBoyBrowseKit
 /// (RawBoy's `shortcutKey()` does the same on the web). See PLAN.md §2 for the full table.
 enum ViewerKeys {
     // Virtual key codes of the ANSI layout's positions.
+    private static let x: UInt16 = 7
+    private static let u: UInt16 = 32
+    private static let p: UInt16 = 35
+    /// The digit row: 0–5.
+    static let digits: [UInt16: Int] = [29: 0, 18: 1, 19: 2, 20: 3, 21: 4, 23: 5]
     private static let f: UInt16 = 3
     private static let g: UInt16 = 5
     private static let z: UInt16 = 6
@@ -29,7 +34,11 @@ enum ViewerKeys {
     static func command(for event: NSEvent) -> ViewerCommand? {
         // Leave ⌘ and ⌃ shortcuts to the menus (⌘⌫ will be Move to Trash).
         if !event.modifierFlags.intersection([.command, .control, .option]).isEmpty { return nil }
+        if let stars = digits[event.keyCode] { return .setStars(stars) }
         switch event.keyCode {
+        case p: return .toggleFlag(.pick)
+        case x: return .toggleFlag(.reject)
+        case u: return .unflag
         case right, down, space: return .next
         case left, up, delete: return .previous
         case home: return .first
