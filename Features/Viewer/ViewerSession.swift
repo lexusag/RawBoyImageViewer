@@ -26,6 +26,11 @@ final class ViewerSession {
     /// The picture on screen (preview or full resolution), for the histogram and the clipping overlay.
     private var shownImage: LoadedImage?
     private var loadingFull = false
+    private var slideshow: Task<Void, Never>?
+    /// Seconds per photo in a slideshow.
+    static let slideshowSeconds = 4.0
+    /// Compare [ids] (2–4), in the browser's order: the app opens the compare view.
+    var onCompare: (([String]) -> Void)?
     /// The long edge previews are decoded to, for the viewer's screen.
     private var previewPixelSize = 3840
 
@@ -75,6 +80,11 @@ final class ViewerSession {
                     try? await Task.sleep(for: .milliseconds(700))
                 }
                 if ProcessInfo.processInfo.environment["RAWBOY_CULL"] != nil { await cullTest() }
+                if ProcessInfo.processInfo.environment["RAWBOY_M7"] != nil {
+                    await m7Test()
+                    NSApp.terminate(nil)
+                    return
+                }
                 for edge in PanelEdge.allCases {
                     handle(.togglePanel(edge))
                     try? await Task.sleep(for: .milliseconds(500))
@@ -153,6 +163,44 @@ final class ViewerSession {
             await culling.finishWrites()
         }
 
+        /// RAWBOY_M7=1: real preview on and off, one slide of a slideshow, and Compare (choose, step, rate, close).
+        private func m7Test() async {
+            let wasReal = model.realPreview
+            if !wasReal { handle(.toggleRealPreview) }
+            try? await Task.sleep(for: .milliseconds(1500))
+            Trace.log("real preview: \(model.realPreview), \(model.current?.main ?? "")")
+            if !wasReal { handle(.toggleRealPreview) }
+            try? await Task.sleep(for: .milliseconds(500))
+            let start = index
+            handle(.toggleSlideshow)
+            try? await Task.sleep(for: .seconds(Self.slideshowSeconds + 1))
+            Trace.log("slideshow: \(start + 1) → \(index + 1), running \(model.isSlideshow)")
+            handle(.toggleSlideshow)
+            handle(.compare)
+            try? await Task.sleep(for: .milliseconds(1500))
+            let compare = AppModel.shared.compare
+            Trace.log("compare open \(compare.isOpen), viewer open \(isOpen): \(compare.debugState)")
+            compare.debugChoose(1)
+            try? await Task.sleep(for: .milliseconds(800))
+            Trace.log("compare after choosing the right one: \(compare.debugState)")
+            compare.debugStep(true)
+            try? await Task.sleep(for: .milliseconds(800))
+            Trace.log("compare after →: \(compare.debugState)")
+            let zooms = compare.debugZoomFirst()
+            Trace.log(
+                "compare zoom: "
+                    + zooms.map { "×\(String(format: "%.2f", $0.factor)) at \(String(format: "%.3f", $0.centre.x))" }
+                    .joined(separator: " | "))
+            compare.debugKey(.setStars(4))
+            try? await Task.sleep(for: .milliseconds(300))
+            Trace.log("compare rated: \(compare.debugState)")
+            compare.debugKey(.setStars(4))
+            await culling.finishWrites()
+            compare.close()
+            try? await Task.sleep(for: .milliseconds(500))
+            Trace.log("compare closed \(!compare.isOpen); browser selection \(AppModel.shared.browser.anchor ?? "")")
+        }
+
         private func snapshot(_ edge: PanelEdge) {
             guard let frame = controller?.root.frame(for: edge) else { return }
             let view: AnyView =
@@ -175,6 +223,7 @@ final class ViewerSession {
     var canvasView: NSView? { controller?.canvas }
 
     func close() {
+        stopSlideshow()
         controller?.close()
     }
 
@@ -212,7 +261,12 @@ final class ViewerSession {
         case .last: go(to: photos.count - 1)
         case .go(let target): go(to: target)
         case .toggleZoom: controller?.canvas.toggleZoom()
-        case .dismiss: if controller?.closePanels() == false { close() }
+        case .dismiss:
+            if model.isSlideshow {
+                stopSlideshow()
+            } else if controller?.closePanels() == false {
+                close()
+            }
         case .close: close()
         case .toggleFullScreen: controller?.toggleScreenFilling()
         case .togglePanel(let edge): controller?.togglePanel(edge)
@@ -224,6 +278,21 @@ final class ViewerSession {
         case .setStars(let n): rateCurrent { self.culling.setStars($0, n) }
         case .toggleFlag(let flag): rateCurrent { self.culling.toggleFlag($0, flag) }
         case .unflag: rateCurrent { self.culling.clearFlag($0) }
+        case .toggleRealPreview:
+            model.realPreview.toggle()
+            controller?.canvas.flash(model.realPreview ? "Raws developed by macOS (R)" : "Camera previews (R)")
+            shownURL = nil
+            showCurrent()
+        case .toggleSlideshow:
+            model.isSlideshow ? stopSlideshow() : startSlideshow()
+        case .compare:
+            // The photo on screen and the next ones, up to four.
+            let ids = model.groups[index..<min(index + 2, model.groups.count)].map(\.main)
+            if ids.count >= 2 {
+                onCompare?(ids)
+            } else {
+                controller?.canvas.flash("Nothing after this photo to compare")
+            }
         case .rotate(let clockwise):
             guard let id = model.current?.main else { return }
             culling.rotate([id], clockwise: clockwise)
@@ -243,6 +312,40 @@ final class ViewerSession {
             if let url = model.currentURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         case .openInEditor:
             openInEditor()
+        }
+    }
+
+    // MARK: Slideshow
+
+    /// From the photo on screen, one every [slideshowSeconds], crossfading, panels hidden; stops at the end, on S or
+    /// Esc. Moving by hand starts the wait again.
+    func startSlideshow() {
+        guard controller != nil, photos.count > 1 else { return }
+        model.isSlideshow = true
+        _ = controller?.closePanels()
+        controller?.canvas.flash("Slideshow · S or Esc to stop")
+        scheduleSlide()
+    }
+
+    func stopSlideshow() {
+        slideshow?.cancel()
+        slideshow = nil
+        guard model.isSlideshow else { return }
+        model.isSlideshow = false
+        controller?.canvas.flash("Slideshow stopped")
+    }
+
+    private func scheduleSlide() {
+        slideshow?.cancel()
+        slideshow = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.slideshowSeconds))
+            guard let self, !Task.isCancelled, model.isSlideshow else { return }
+            if index < photos.count - 1 {
+                go(to: index + 1)
+            } else {
+                stopSlideshow()
+                controller?.canvas.flash("End of the slideshow")
+            }
         }
     }
 
@@ -314,6 +417,13 @@ final class ViewerSession {
         forward = clamped > index
         index = clamped
         showCurrent()
+        if model.isSlideshow { scheduleSlide() }
+    }
+
+    /// Which picture to load for [url]: a raw developed by macOS when real preview is on, else the camera's.
+    private func kind(_ url: URL, full: Bool) -> ImageStore.Kind {
+        let developed = model.realPreview && PhotoFileType(fileName: url.lastPathComponent) == .raw
+        return developed ? (full ? .developedFull : .developed) : (full ? .full : .preview)
     }
 
     private func showCurrent() {
@@ -344,7 +454,8 @@ final class ViewerSession {
             let started = Date()
             // In this task, before any load, so a size change can't drop previews prefetched for the new size.
             await store.setPreviewPixelSize(previewPixelSize)
-            var image = await store.cached(url, .preview, orientation: orientation)
+            let kind = kind(url, full: false)
+            var image = await store.cached(url, kind, orientation: orientation)
             if image == nil {
                 // While a key is held, photos fly past: only decode the one the keys stop on.
                 try? await Task.sleep(for: .milliseconds(40))
@@ -353,12 +464,12 @@ final class ViewerSession {
                     try? await Task.sleep(for: .milliseconds(150))
                     if !Task.isCancelled, generation == self.generation { controller.canvas.setLoading(true) }
                 }
-                image = await store.image(url, .preview, orientation: orientation)
+                image = await store.image(url, kind, orientation: orientation)
                 spinner.cancel()
             }
             guard generation == self.generation else { return }
             if let image {
-                controller.canvas.show(image, samePhoto: shownURL == url)
+                controller.canvas.show(image, samePhoto: shownURL == url, fade: model.isSlideshow)
                 shownURL = url
                 shown(image, generation)
                 model.fullSize = image.fullSize
@@ -376,7 +487,8 @@ final class ViewerSession {
             let order = PrefetchPlan.order(current: index, count: photos.count, forward: forward).filter {
                 abs($0 - index) == 1 || !CloudStatus.isOnlineOnly(photos[$0])
             }
-            await store.prefetch(order.map { (photos[$0], culling.orientation(photos[$0].lastPathComponent)) })
+            await store.prefetch(
+                order.map { (photos[$0], culling.orientation(photos[$0].lastPathComponent)) }, kind: kind)
         }
     }
 
@@ -422,7 +534,8 @@ final class ViewerSession {
         Task {
             let started = Date()
             controller.canvas.setLoading(true)
-            let image = await store.image(url, .full, orientation: culling.orientation(url.lastPathComponent))
+            let image = await store.image(
+                url, kind(url, full: true), orientation: culling.orientation(url.lastPathComponent))
             guard generation == self.generation else { return }
             controller.canvas.setLoading(false)
             if let image {

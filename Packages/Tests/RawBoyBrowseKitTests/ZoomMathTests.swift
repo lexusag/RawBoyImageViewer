@@ -53,3 +53,28 @@ struct ZoomMathTests {
         #expect(math.toggled(zoomed, around: .zero) == math.fit)
     }
 }
+
+struct SharedZoomTests {
+    @Test func roundTripsOnTheSamePhoto() {
+        let math = ZoomMath(
+            imageSize: Size2D(width: 6000, height: 4000), viewSize: Size2D(width: 1200, height: 800), backingScale: 2)
+        let state = math.panned(ZoomState(scale: 0.5), by: Point2D(x: 300, y: -200))
+        let back = math.state(math.shared(state))
+        #expect(abs(back.scale - state.scale) < 1e-9)
+        #expect(abs(back.offset.x - state.offset.x) < 1e-9)
+        #expect(abs(back.offset.y - state.offset.y) < 1e-9)
+    }
+
+    @Test func anotherPhotoShowsTheSameSpot() {
+        let a = ZoomMath(
+            imageSize: Size2D(width: 6000, height: 4000), viewSize: Size2D(width: 600, height: 800), backingScale: 2)
+        let b = ZoomMath(
+            imageSize: Size2D(width: 3000, height: 2000), viewSize: Size2D(width: 600, height: 800), backingScale: 2)
+        // A quarter of the way to the right of the centre, three times fit.
+        let shared = SharedZoom(factor: 3, centre: Point2D(x: 0.25, y: 0))
+        let state = b.state(shared)
+        #expect(abs(state.scale - 3 * b.fitScale) < 1e-9)
+        #expect(abs(b.shared(state).centre.x - 0.25) < 1e-9)
+        #expect(a.state(.fit) == a.fit)
+    }
+}

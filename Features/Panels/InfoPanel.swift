@@ -98,6 +98,11 @@ struct InfoPanel: View {
     @ViewBuilder private func image(_ m: PhotoMetadata?) -> some View {
         PanelSection(title: "Image")
         row("Size", model.fullSize.map(Self.dimensions))
+        if PhotoFileType(fileName: model.current?.main ?? "") == .raw {
+            InfoRow(
+                label: "Shown from",
+                value: model.realPreview ? "The raw, developed by macOS (R)" : "The camera's embedded JPEG (R)")
+        }
         row("Colour profile", m?.colourProfile)
         row("Bit depth", m?.bitDepth.map { "\($0) bits per channel" })
     }

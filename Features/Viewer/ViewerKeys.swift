@@ -6,6 +6,9 @@ import RawBoyBrowseKit
 enum ViewerKeys {
     // Virtual key codes of the ANSI layout's positions.
     private static let x: UInt16 = 7
+    private static let s: UInt16 = 1
+    private static let c: UInt16 = 8
+    private static let r: UInt16 = 15
     private static let leftBracket: UInt16 = 33
     private static let rightBracket: UInt16 = 30
     private static let u: UInt16 = 32
@@ -40,6 +43,9 @@ enum ViewerKeys {
         switch event.keyCode {
         case leftBracket: return .rotate(clockwise: false)
         case rightBracket: return .rotate(clockwise: true)
+        case r: return .toggleRealPreview
+        case s: return .toggleSlideshow
+        case c: return .compare
         case p: return .toggleFlag(.pick)
         case x: return .toggleFlag(.reject)
         case u: return .unflag

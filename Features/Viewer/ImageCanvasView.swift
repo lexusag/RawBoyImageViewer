@@ -16,6 +16,27 @@ final class ImageCanvasView: NSView {
     var onNeedsFullResolution: (() -> Void)?
     /// Fit ↔ zoomed.
     var onFitChanged: ((Bool) -> Void)?
+    /// The person zoomed or panned (Compare passes it on to the other panes).
+    var onZoomChanged: ((SharedZoom) -> Void)?
+    /// A quick click (not a hold, not a double-click): Compare chooses the pane.
+    var onClick: (() -> Void)?
+    /// The bottom band, the wheel and swipes change photos. Off in Compare, which has its own keys.
+    var navigationEnabled = true
+    /// A pane's name, in its top-left corner (Compare).
+    var captionText = "" {
+        didSet {
+            captionLabel.stringValue = "  \(captionText)  "
+            captionLabel.isHidden = captionText.isEmpty
+        }
+    }
+    /// Compare's chosen pane: an amber frame.
+    var isHighlighted = false {
+        didSet {
+            layer?.borderColor = NSColor(hex: DesignTokens.Colour.safelightAmber).cgColor
+            layer?.borderWidth = isHighlighted ? 2 : 0
+        }
+    }
+    private let captionLabel = ImageCanvasView.pill()
 
     /// Room taken by pinned panels: the photo fits in what is left.
     var contentInsets = NSEdgeInsets() {
@@ -70,6 +91,8 @@ final class ImageCanvasView: NSView {
     private var peekTimer: Timer?
     private var peekAnchor: Point2D?
     private var isPeeking = false
+    /// The mouse moved with the button down since it went down (a drag, not a click).
+    private var didDrag = false
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -86,6 +109,7 @@ final class ImageCanvasView: NSView {
         zoomLabel.alphaValue = 0
         counterLabel.alphaValue = 0
         ratingLabel.isHidden = true
+        captionLabel.isHidden = true
 
         messageLabel.font = .systemFont(ofSize: DesignTokens.FontSize.body)
         messageLabel.textColor = NSColor(hex: DesignTokens.Colour.warningRed)
@@ -95,7 +119,7 @@ final class ImageCanvasView: NSView {
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
 
-        for view in [zoomLabel, counterLabel, ratingLabel, messageLabel, spinner] as [NSView] {
+        for view in [zoomLabel, counterLabel, ratingLabel, captionLabel, messageLabel, spinner] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
@@ -108,6 +132,8 @@ final class ImageCanvasView: NSView {
             zoomLabel.topAnchor.constraint(equalTo: topAnchor, constant: DesignTokens.Spacing.xl),
             counterX,
             ratingX,
+            captionLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: DesignTokens.Spacing.md),
+            captionLabel.topAnchor.constraint(equalTo: topAnchor, constant: DesignTokens.Spacing.md),
             ratingLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -DesignTokens.Spacing.lg),
             counterLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -DesignTokens.Spacing.lg),
             messageLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
@@ -141,8 +167,15 @@ final class ImageCanvasView: NSView {
     // MARK: Showing photos
 
     /// Shows [image]. A new photo starts at fit; the full-resolution version of the photo already shown keeps the zoom.
-    func show(_ image: LoadedImage, samePhoto: Bool) {
+    func show(_ image: LoadedImage, samePhoto: Bool, fade: Bool = false) {
         let keepZoom = samePhoto && self.image != nil
+        if fade {
+            // A slideshow's crossfade.
+            let transition = CATransition()
+            transition.type = .fade
+            transition.duration = 0.6
+            imageLayer.add(transition, forKey: "fade")
+        }
         self.image = image
         messageLabel.isHidden = true
         setLoading(false)
@@ -152,7 +185,7 @@ final class ImageCanvasView: NSView {
         imageLayer.isHidden = false
         CATransaction.commit()
         if let math {
-            setZoom(keepZoom ? math.clamped(zoom) : math.fit, showLabel: false)
+            setZoom(keepZoom ? math.clamped(zoom) : math.fit, showLabel: false, notify: false)
         }
     }
 
@@ -223,7 +256,7 @@ final class ImageCanvasView: NSView {
         counterConstraint?.constant = imageArea.midX
         ratingLeading?.constant = imageArea.minX + DesignTokens.Spacing.lg
         guard let math else { return }
-        setZoom(fitted ? math.fit : math.clamped(zoom), showLabel: false)
+        setZoom(fitted ? math.fit : math.clamped(zoom), showLabel: false, notify: false)
     }
 
     override func viewDidChangeBackingProperties() {
@@ -231,11 +264,22 @@ final class ImageCanvasView: NSView {
         needsLayout = true
     }
 
-    private func setZoom(_ state: ZoomState, showLabel: Bool = true) {
+    private func setZoom(_ state: ZoomState, showLabel: Bool = true, notify: Bool = true) {
+        let changed = state != zoom
         zoom = state
         fitted = math?.isFit(state) ?? true
         applyZoom(showLabel: showLabel)
+        if notify, changed, let math { onZoomChanged?(math.shared(state)) }
     }
+
+    /// Takes on another pane's zoom, without passing it on.
+    func applyShared(_ shared: SharedZoom) {
+        guard let math else { return }
+        setZoom(math.state(shared), showLabel: false, notify: false)
+    }
+
+    /// The zoom as other photos can take it on.
+    var sharedZoom: SharedZoom { math.map { $0.shared(zoom) } ?? .fit }
 
     private func applyZoom(showLabel: Bool) {
         guard let image, let math else { return }
@@ -292,7 +336,7 @@ final class ImageCanvasView: NSView {
     }
 
     private func bandCommand(at p: CGPoint) -> ViewerCommand? {
-        guard fitted, image != nil else { return nil }
+        guard navigationEnabled, fitted, image != nil else { return nil }
         let area = imageArea
         // To the band's coordinates: y down.
         let areaDown = Rect2D(
@@ -370,6 +414,7 @@ final class ImageCanvasView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        didDrag = false
         if let command = bandCommand(event) {
             // One step per click; double-clicks in the band are two steps, not a zoom.
             onCommand?(command)
@@ -412,6 +457,7 @@ final class ImageCanvasView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         stopRepeating()
+        if !didDrag, !isPeeking, event.clickCount == 1 { onClick?() }
         cancelPeek()
         if isPeeking, let math {
             isPeeking = false
@@ -421,6 +467,7 @@ final class ImageCanvasView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        didDrag = true
         if peekTimer != nil { startPeek() }
         guard let math, !math.isFit(zoom) else { return }
         setZoom(math.panned(zoom, by: Point2D(x: event.deltaX, y: -event.deltaY)), showLabel: false)
@@ -446,6 +493,7 @@ final class ImageCanvasView: NSView {
                 math.panned(zoom, by: Point2D(x: event.scrollingDeltaX, y: -event.scrollingDeltaY)), showLabel: false)
             return
         }
+        guard navigationEnabled else { return }
         // Fitted: one swipe = one photo. Momentum after the fingers lift is ignored, and so is a scroll that was
         // panning a moment ago.
         guard event.momentumPhase.isEmpty, !swipeFired, event.timestamp - lastZoomInput > Self.navigationPause else {
@@ -465,6 +513,7 @@ final class ImageCanvasView: NSView {
         let delta = event.scrollingDeltaY
         guard delta != 0 else { return }
         if math.isFit(zoom) {
+            guard navigationEnabled else { return }
             // Still the wheel that zoomed out to fit: wait for a pause before changing photos.
             if event.timestamp - lastZoomInput < Self.navigationPause {
                 lastZoomInput = event.timestamp

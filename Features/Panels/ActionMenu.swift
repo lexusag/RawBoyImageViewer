@@ -38,6 +38,18 @@ struct ActionMenu: View {
                         icon: "exclamationmark.triangle",
                         title: model.showClipping ? "Hide clipping" : "Show clipping", key: "J"
                     ) { model.send(.toggleClipping) }
+                    ActionRow(
+                        icon: model.realPreview ? "checkmark.square" : "square", title: "Develop raws (real preview)",
+                        key: "R"
+                    ) { model.send(.toggleRealPreview) }
+                    ActionRow(
+                        icon: "play.rectangle", title: model.isSlideshow ? "Stop slideshow" : "Slideshow", key: "S"
+                    ) {
+                        model.send(.toggleSlideshow)
+                    }
+                    ActionRow(icon: "rectangle.split.2x1", title: "Compare with the next", key: "C") {
+                        model.send(.compare)
+                    }
                     ActionRow(icon: "eye.slash", title: "Hide panels", key: "Tab") { model.send(.toggleChrome) }
 
                     PanelSection(title: "Go to").padding(.horizontal, DesignTokens.Spacing.sm)

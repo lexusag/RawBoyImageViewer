@@ -262,7 +262,7 @@ RawBoyImageViewer/
 | M4 ✅ | Info panel | EXIF (exposure summary, camera, lens or why it is missing, mode, metering, flash, WB, colour profile, bit depth, GPS + Show in Maps, credits); RawBoy's histogram (same bins, colours and clipping rules) and clipping overlay (J, or click the histogram) |
 | M5 ✅ | Culling | Stars, pick, reject in RawBoy's XMP format (ported with its tests; another app's sidecar kept byte for byte), auto-advance, undo, `_bin` and restore, Move to Trash (asks once in cloud sync folders), rating bar and filters in the browser. Not done: re-reading sidecars changed by other apps while a folder is open (FSEvents), cross-check on the same folder with RawBoy Web by hand |
 | M6 ✅ (no crop) | Actions | Lossless rotate (`tiff:Orientation` in the sidecar, undoable), export (JPEG/HEIC, sizes, quality, location), Copy to / Move to with recent folders (moves undo), copy, Share, right-click menu. **Crop waits** for the sidecar format to be agreed with RawBoy (§9), so RawBoy can read it |
-| M7 | Real preview + Compare | `CIRAWFilter` real preview, compare 2-up/4-up, slideshow |
+| M7 ✅ | Real preview + Compare | Real preview (R: CIRAWFilter as shot, screen size and 1:1, remembered), Compare 2–4 with synced zoom and the two-photo challenger flow, slideshow (S, crossfade) |
 | M8 | Ship | Settings, Help sheet, accessibility (VoiceOver, reduced motion), notarization, Sparkle, viewer logo |
 | Later | RawBoy desktop | Move RawBoyBrowseKit into the RawBoy repo; real preview through RawBoy's engine; Open in / Send to Auto |
 | Later | Windows | Port the UI. RawBoyBrowseKit serves as the portable spec |

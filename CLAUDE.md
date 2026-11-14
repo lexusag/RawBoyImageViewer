@@ -46,6 +46,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   after a change through one serial chain, undo stack of ratings and file moves, `_bin` and Trash, synced-folder
   Trash notice, `autoAdvance`), `RatingControl` / `RatingBadge`. `AppModel` routes ⌘Z / ⌘⌫ (menus) to the viewer or
   the browser, and the browser's rating keys come through `AppDelegate`'s key monitor by key code.
+- `Features/Compare/`: `CompareSession` (2–4 panes; with two, choosing one brings the next challenger in the
+  other; zoom shared through `SharedZoom`; rating keys on the chosen pane), `CompareWindowController` (screen-filling
+  like the viewer, `ViewerWindow`, panes side by side or 2 × 2). Canvases there have `navigationEnabled = false`.
 - `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right; `HistogramView`, a port of
   RawBoy's, clicking it toggles clipping), `ActionMenu` (left),
   `BrowserStrip` (top: breadcrumb + filmstrip from `ThumbnailStore`). Scrolling goes through `PanelScroll`, because
@@ -56,7 +59,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     RawBoy Browser's `PhotoGroups.ts`: RAW + JPEG = one photo, the raw is main), `ZoomMath`, `PrefetchPlan`,
     `LRUCache`, `ViewerCommand`, `ByteSource`/`FileSource` (block-cached random reads), `EmbeddedPreviews` and
     `CaptureDate` (ports of RawBoy's `EmbeddedPreview.ts` / `CaptureDate.ts`, with its tests; JPEG XL previews not
-    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `Rating` / `FlagFilter` and `XmpSidecar` (ports of
+    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `SharedZoom` (zoom over fit + centre as fractions
+    of the photo, so another photo shows the same spot), `Rating` / `FlagFilter` and `XmpSidecar` (ports of
     RawBoy Browser's rating rules and `XmpSidecar.ts`, with its tests; plus `tiff:Orientation`), `Orientation` (EXIF
     1-8 as mirror + quarter turns: compose, inverse), `Histogram` + `ClipWarning` (ports of RawBoy's
     Histogram and its shader's `clipWarning`: 64 bins, a channel at 255 = highlight, all ≤ 1 = shadow; keep in step), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
@@ -66,7 +70,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     ≥ 2560 px, else ImageIO's embedded one, else decoded;
     full resolution for 1:1; `displayReady` redraws to 8-bit BGRA), `ImageStore` (actor: LRU 1.5 GB, shared in-flight
     decodes, sequential prefetch), `PhotoMetadata` (ImageIO properties → the details panel's fields), `Orienting` (apply an `Orientation`,
-    checked against ImageIO for all 8; `delta` from the file's own to a sidecar's), `Exporter` (JPEG/HEIC, size,
+    checked against ImageIO for all 8; `delta` from the file's own to a sidecar's), `RawDeveloper` (CIRAWFilter as shot, at a scale; raws only: the filter opens PNGs too), `Exporter`
+    (JPEG/HEIC, size,
     sidecar rotation, metadata kept, GPS optional, never overwrites), `ImageAnalysis` (histogram from a 512 px
     nearest-neighbour copy, as RawBoy; clip overlay up to 4096 px), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
     path + size + mtime + pixels, 1 GB → made: a raw's embedded JPEG when ≥ 400 px, else ImageIO), `Thumbnailer`.
@@ -124,7 +129,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   own loop where main-actor tasks don't run, and quitting hung. Pending sidecars are written synchronously there.
 - `CULL=1 tools/smoke.sh <folder of copies> 0` rates three photos, prints the sidecars, moves the reject to `_bin` and
   undoes it. It changes files: only ever on copies. Smoke runs also change the app's last folder: back up and restore
-  the preferences around them (see above).
+  the preferences around them (see above). `M7=1` toggles real preview, runs one slide and drives Compare (choose,
+  step, synced zoom, rate, close), printing each state.
 - SwiftUI's `Edge` clashes with ours in the app target: ours is `PanelEdge`.
 - A horizontal `ScrollView` takes all the height it's offered: give it a height (the browser strip's breadcrumb hid the
   filmstrip this way).

@@ -7,6 +7,10 @@ public actor ImageStore {
     public enum Kind: Hashable, Sendable {
         case preview
         case full
+        /// A raw developed by macOS at screen size ("real preview").
+        case developed
+        /// The same at full size (1:1).
+        case developedFull
     }
 
     private struct Key: Hashable {
@@ -49,6 +53,8 @@ public actor ImageStore {
             switch kind {
             case .preview: ImageLoader.preview(of: url, maxPixelSize: size, orientation: orientation)
             case .full: ImageLoader.fullResolution(of: url, orientation: orientation)
+            case .developed: RawDeveloper.develop(url, maxPixelSize: size, orientation: orientation)
+            case .developedFull: RawDeveloper.develop(url, maxPixelSize: nil, orientation: orientation)
             }
         }
         inFlight[key] = task
@@ -61,12 +67,12 @@ public actor ImageStore {
     }
 
     /// Loads previews of [items] in order, one at a time, replacing any earlier prefetch.
-    public func prefetch(_ items: [(url: URL, orientation: Int?)]) {
+    public func prefetch(_ items: [(url: URL, orientation: Int?)], kind: Kind = .preview) {
         prefetchTask?.cancel()
         prefetchTask = Task(priority: .utility) {
             for item in items {
                 if Task.isCancelled { return }
-                _ = await image(item.url, .preview, orientation: item.orientation)
+                _ = await image(item.url, kind, orientation: item.orientation)
             }
         }
     }

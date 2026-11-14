@@ -47,6 +47,15 @@ struct RawBoyViewerApp: App {
                         }
                     }
                 }
+                Button("Compare (C)") { AppModel.shared.openCompare(AppModel.shared.browser.ratingTargets) }
+                Button("Slideshow (S)") {
+                    let app = AppModel.shared
+                    if let first = app.browser.ratingTargets.first ?? app.browser.visible.first?.id {
+                        app.openViewer(at: first)
+                        app.viewer.startSlideshow()
+                    }
+                }
+                Divider()
                 Button("Copy Photo") { AppModel.shared.perform(.clipboard) }
                     .keyboardShortcut("c", modifiers: [.command, .option])
                 Button("Share…") { AppModel.shared.perform(.share) }

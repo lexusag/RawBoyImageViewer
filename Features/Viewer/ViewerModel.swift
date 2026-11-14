@@ -20,6 +20,12 @@ final class ViewerModel {
     var histogram: Histogram?
     /// The clipping warning is over the photo (J). Stays on from photo to photo.
     var showClipping = false
+    /// Raws developed by macOS instead of the camera's JPEG (R). Off at first, as in RawBoy Browser; remembered.
+    var realPreview: Bool = UserDefaults.standard.bool(forKey: "viewer.realPreview") {
+        didSet { UserDefaults.standard.set(realPreview, forKey: "viewer.realPreview") }
+    }
+    /// A slideshow is running.
+    var isSlideshow = false
     var modified: Date?
     var pinned: Set<PanelEdge> = []
     var isFit = true

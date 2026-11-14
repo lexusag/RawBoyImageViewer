@@ -12,15 +12,26 @@ final class AppModel {
     let culling = CullingStore()
     let browser: BrowserModel
     let viewer: ViewerSession
+    let compare: CompareSession
 
     init() {
         browser = BrowserModel(culling: culling)
         viewer = ViewerSession(culling: culling)
+        compare = CompareSession(culling: culling)
+        compare.onClose = { [weak self] chosen in
+            if let chosen { self?.browser.select(chosen) }
+            NSApp.windows.first { !($0 is ViewerWindow) && $0.isVisible }?.makeKeyAndOrderFront(nil)
+        }
+        viewer.onCompare = { [weak self] ids in self?.openCompare(ids) }
         culling.onRatingsChanged = { [weak self] in
             self?.browser.ratingsChanged()
             self?.viewer.ratingsChanged()
+            self?.compare.ratingsChanged()
         }
-        culling.onOrientationsChanged = { [weak self] ids in self?.viewer.orientationsChanged(ids) }
+        culling.onOrientationsChanged = { [weak self] ids in
+            self?.viewer.orientationsChanged(ids)
+            self?.compare.orientationsChanged(ids)
+        }
         viewer.onFileAction = { [weak self] action, ids in self?.perform(action, ids) }
         culling.onFilesChanged = { [weak self] in
             guard let self else { return }
@@ -68,8 +79,22 @@ final class AppModel {
 
     // MARK: Culling (menus and keys, wherever the focus is)
 
-    /// The viewer when it is the key window, else the browser.
-    private var viewerIsKey: Bool { viewer.isOpen && NSApp.keyWindow is ViewerWindow }
+    /// The viewer (or Compare) when it is the key window, else the browser.
+    private var viewerIsKey: Bool { (viewer.isOpen || compare.isOpen) && NSApp.keyWindow is ViewerWindow }
+
+    /// Compare [ids] (2–4); one photo is compared with the one after it in the browser.
+    func openCompare(_ ids: [String]) {
+        guard let folder = browser.folder else { return }
+        var ids = ids
+        if ids.count == 1, let i = browser.visible.firstIndex(where: { $0.id == ids[0] }),
+            browser.visible.indices.contains(i + 1)
+        {
+            ids.append(browser.visible[i + 1].id)
+        }
+        guard ids.count >= 2 else { return }
+        if viewer.isOpen { viewer.close() }
+        compare.show(folder: folder, ids: ids, order: browser.visible.map(\.group))
+    }
 
     /// ⌘Z: text editing in a text field, else the last rating or file move.
     func undo() {
@@ -119,6 +144,10 @@ final class AppModel {
         case .toggleFlag(let flag): culling.toggleFlag(ids, flag)
         case .unflag: culling.clearFlag(ids)
         case .rotate(let clockwise): culling.rotate(ids, clockwise: clockwise)
+        case .compare: openCompare(ids)
+        case .toggleSlideshow:
+            openViewer(at: ids[0])
+            viewer.startSlideshow()
         default: return false
         }
         return true

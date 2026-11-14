@@ -34,6 +34,8 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⌥⌘C | Copy the photo (its file) |
 | Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share |
 | ⌘↑ | Up a folder |
+| C | Compare the selection (2–4 photos; one photo is compared with the next) |
+| S | Slideshow from the selection |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
 | Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar) |
 
@@ -41,6 +43,10 @@ The bar under the grid rates the selection, filters by Picks / Unflagged / Rejec
 (with their sidecars and JPEGs) into the folder's `_bin` subfolder: nothing is deleted, and **Bin** brings them back.
 Ratings are saved as you go in XMP sidecars next to the photos (`NAME.xmp`, or the ones a photo already has), in the
 format RawBoy Browser, Lightroom, Capture One and darktable read; other apps' settings in them are left as they are.
+
+**Compare** shows two to four photos side by side, zoomed and panned together. With two, click the better one: the
+next photo of the folder takes the other place (← → step through them instead), and the rating keys rate the one
+you chose. Esc, G or Return go back to the browser on it.
 
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
@@ -62,6 +68,9 @@ photo and the right half to the next (hold to keep going).
 | 1–5, 0, P, X, U | Rate, as in the browser; then on to the next photo (Photo › Go to the Next Photo After Rating) |
 | ⌘Z, ⌘⌫ | Undo, Move to the Trash |
 | [ / ] | Rotate left / right |
+| R | Raws developed by macOS instead of the camera's embedded JPEG ("real preview"; not RawBoy's look) |
+| S | Slideshow from this photo (4 s each, crossfading; S or Esc stops) |
+| C | Compare this photo with the next |
 | I / M / B | Details / actions / filmstrip panel |
 | J, click the histogram | Show clipped highlights red and crushed shadows blue, as RawBoy does |
 | Tab | Hide every panel, pinned ones too (again: bring the pinned back) |

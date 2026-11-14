@@ -34,6 +34,12 @@ public enum ViewerCommand: Equatable, Sendable {
     case unflag
     /// [ / ]: a quarter turn, lossless (kept in the sidecar).
     case rotate(clockwise: Bool)
+    /// R: raws developed by macOS instead of the camera's embedded JPEG (RawBoy Browser's "real previews").
+    case toggleRealPreview
+    /// S: a slideshow from the photo on screen.
+    case toggleSlideshow
+    /// C: compare the photo on screen with the next ones.
+    case compare
     /// ⌘Z: the last rating, move to the bin or to the Trash.
     case undo
     /// ⌘⌫.

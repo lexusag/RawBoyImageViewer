@@ -48,7 +48,7 @@ public enum ImageLoader {
     }
 
     /// [image] turned from the file's own orientation to [orientation].
-    static func oriented(_ image: LoadedImage?, url: URL, orientation: Int?) -> LoadedImage? {
+    public static func oriented(_ image: LoadedImage?, url: URL, orientation: Int?) -> LoadedImage? {
         guard let image, let orientation else { return image }
         let delta = Orienting.delta(from: fileOrientation(of: url), to: orientation)
         guard delta != .up else { return image }

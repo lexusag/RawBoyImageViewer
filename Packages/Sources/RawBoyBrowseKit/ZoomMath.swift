@@ -11,6 +11,21 @@ public struct ZoomState: Equatable, Sendable {
     }
 }
 
+/// A zoom any photo can take on: how far past fit, and which point of the photo (as fractions of its size, from its
+/// centre) is in the middle of the view. Compare passes it from pane to pane.
+public struct SharedZoom: Equatable, Sendable {
+    /// Scale over the fit scale (1 = fit).
+    public var factor: Double
+    public var centre: Point2D
+
+    public init(factor: Double, centre: Point2D = .zero) {
+        self.factor = factor
+        self.centre = centre
+    }
+
+    public static let fit = SharedZoom(factor: 1)
+}
+
 /// Fit, 1:1, zooming at a point and panning limits for one image in one view.
 ///
 /// Sizes are the full-resolution image in pixels and the view in points; points are relative to the view centre.
@@ -84,5 +99,25 @@ public struct ZoomMath: Equatable, Sendable {
     /// Fit ↔ 1:1, at [anchor] when zooming in. An image that fits at 1:1 already stays at fit.
     public func toggled(_ state: ZoomState, around anchor: Point2D) -> ZoomState {
         isFit(state) ? zoomed(state, to: oneToOneScale, around: anchor) : fit
+    }
+
+    /// [state] as a zoom other photos can take on.
+    public func shared(_ state: ZoomState) -> SharedZoom {
+        guard imageSize.width > 0, imageSize.height > 0, state.scale > 0 else { return .fit }
+        return SharedZoom(
+            factor: state.scale / fitScale,
+            centre: Point2D(
+                x: -state.offset.x / state.scale / imageSize.width,
+                y: -state.offset.y / state.scale / imageSize.height))
+    }
+
+    /// [shared] on this photo, within its limits.
+    public func state(_ shared: SharedZoom) -> ZoomState {
+        let scale = shared.factor * fitScale
+        return clamped(
+            ZoomState(
+                scale: scale,
+                offset: Point2D(
+                    x: -shared.centre.x * imageSize.width * scale, y: -shared.centre.y * imageSize.height * scale)))
     }
 }
