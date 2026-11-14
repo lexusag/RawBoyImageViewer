@@ -81,7 +81,7 @@ photo and the right half to the next (hold to keep going).
 | 1–5, 0, P, X, U | Rate, as in the browser; then on to the next photo (Photo › Go to the Next Photo After Rating) |
 | ⌘Z, ⌘⌫ · ⌦ | Undo, Move to the Trash |
 | [ / ] | Rotate left / right |
-| K | Crop: drag corners and edges (RawBoy's aspect ratios), Return applies, Esc cancels, "Save copy" applies and saves the cropped photo to the export folder |
+| K | Crop: drag corners and edges (RawBoy's aspect ratios), Return applies, Esc cancels, "Save copy" applies and saves the cropped photo next to the original as NAME_crop, "Save as…" lets you choose |
 | R | Raws developed by macOS instead of the camera's embedded JPEG ("real preview"; not RawBoy's look) |
 | S | Slideshow from this photo (4 s each, crossfading; S or Esc stops) |
 | C | Compare this photo with the next |

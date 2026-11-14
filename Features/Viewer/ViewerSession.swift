@@ -463,25 +463,23 @@ final class ViewerSession {
             controller.canvas.crop = culling.crop(id)
             controller.canvas.flash(crop.isFull ? "Not cropped" : "Cropped (RawBoy reads it too)")
         }
-        state.onSaveCopy = { [weak self] crop in
-            guard let self, let folder = model.folder else { return }
+        /// Applies the crop and writes the cropped photo (the last export format and quality, full size).
+        func saveCopy(_ crop: CropRect, to destination: URL, stem: String?, suffix: String) {
+            guard let folder = model.folder else { return }
             controller.endCrop()
             controller.canvas.navigationEnabled = true
             culling.setCrop(id, crop)
             controller.canvas.crop = culling.crop(id)
             let source = folder.appendingPathComponent(id)
             let orientation = culling.orientation(id)
-            let destination = AppModel.exportFolder
-            // The last export format and quality, at full size.
             var options = AppModel.exportOptions
             options.longEdge = nil
             controller.canvas.flash("Saving cropped copy…")
             Task.detached(priority: .userInitiated) {
                 let result = Result {
-                    try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-                    return try Exporter.export(
+                    try Exporter.export(
                         source, orientation: orientation, crop: crop.isFull ? nil : crop, to: destination,
-                        options: options)
+                        options: options, stem: stem, suffix: suffix)
                 }
                 await MainActor.run {
                     switch result {
@@ -492,6 +490,26 @@ final class ViewerSession {
                     }
                 }
             }
+        }
+        // Next to the original, with _crop added to its name.
+        state.onSaveCopy = { [weak self] crop in
+            guard let folder = self?.model.folder else { return }
+            saveCopy(crop, to: folder, stem: nil, suffix: "_crop")
+        }
+        // A name and folder of the person's choosing; the crop tool stays open if they cancel.
+        state.onSaveCopyAs = { [weak self] crop in
+            guard let folder = self?.model.folder else { return }
+            let format = AppModel.exportOptions.format
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [format == .jpeg ? .jpeg : .heic]
+            panel.canCreateDirectories = true
+            panel.directoryURL = folder
+            panel.nameFieldStringValue = "\(PhotoGroups.stem(of: id))_crop.\(format.fileExtension)"
+            panel.message = "Save the cropped photo as:"
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            saveCopy(
+                crop, to: url.deletingLastPathComponent(), stem: url.deletingPathExtension().lastPathComponent,
+                suffix: "")
         }
         state.onCancel = { [weak self] in
             guard let self else { return }

@@ -46,9 +46,11 @@ public enum Exporter {
         }
     }
 
-    /// Exports [url] into [folder]; returns the new file.
+    /// Exports [url] into [folder]; returns the new file. The name is [stem] (the photo's own by default) plus
+    /// [suffix].
     public static func export(
-        _ url: URL, orientation: Int?, crop: CropRect? = nil, to folder: URL, options: ExportOptions
+        _ url: URL, orientation: Int?, crop: CropRect? = nil, to folder: URL, options: ExportOptions,
+        stem: String? = nil, suffix: String = ""
     ) throws -> URL {
         let name = url.lastPathComponent
         guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
@@ -81,7 +83,8 @@ public enum Exporter {
         }
         image = Orienting.crop(image, crop)
 
-        let out = freeURL(in: folder, stem: PhotoGroups.stem(of: name), extension: options.format.fileExtension)
+        let out = freeURL(
+            in: folder, stem: (stem ?? PhotoGroups.stem(of: name)) + suffix, extension: options.format.fileExtension)
         guard
             let dest = CGImageDestinationCreateWithURL(out as CFURL, options.format.type.identifier as CFString, 1, nil)
         else { throw ExportError.unwritable(out.lastPathComponent) }

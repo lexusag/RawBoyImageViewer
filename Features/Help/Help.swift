@@ -55,7 +55,7 @@ enum HelpContent {
                     keys: "K",
                     text:
                         "Crop (kept in the sidecar the way RawBoy keeps it; Return applies, Esc cancels; "
-                        + "Save copy also saves the cropped photo to the export folder)"),
+                        + "Save copy writes NAME_crop beside the photo, Save as… lets you choose)"),
                 Item(keys: "R", text: "Raws developed by macOS instead of the camera's JPEG"),
                 Item(keys: "J", text: "Show clipped highlights red, crushed shadows blue"),
                 Item(keys: "S", text: "Slideshow (S or Esc stops)"),
