@@ -36,9 +36,15 @@ enum SendToApps {
 
     /// Opens [urls] (photos or a folder) in [app].
     static func send(_ urls: [URL], to app: URL, completion: @escaping @MainActor (Error?) -> Void) {
-        NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) {
-            _, error in
-            Task { @MainActor in completion(error) }
+        // The async variant, not a completion handler: this type is @MainActor, so a closure written here is too, and
+        // LaunchServices calls handlers on its own queue, where Swift's isolation check traps (macOS 27).
+        Task { @MainActor in
+            do {
+                _ = try await NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                completion(nil)
+            } catch {
+                completion(error)
+            }
         }
     }
 
