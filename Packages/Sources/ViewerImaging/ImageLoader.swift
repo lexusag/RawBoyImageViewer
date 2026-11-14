@@ -28,12 +28,20 @@ public enum ImageLoader {
     }
 
     /// A screen-size image: its long edge is at most [maxPixelSize], and at least [minEmbeddedPreview] or the
-    /// photo's size when an embedded preview is used.
+    /// photo's size when an embedded preview is used. Raws use the camera's JPEG that RawBoy's parser finds
+    /// (`EmbeddedPreviews`, so RawBoy Browser and the viewer show the same picture), else ImageIO's.
     public static func preview(of url: URL, maxPixelSize: Int) -> LoadedImage? {
         guard let source = makeSource(url), let size = fullSize(of: source) else { return nil }
         let longEdge = Int(max(size.width, size.height))
         let target = min(maxPixelSize, longEdge)
         let wanted = min(target, minEmbeddedPreview)
+
+        if PhotoFileType(fileName: url.lastPathComponent) == .raw, let bytes = FileSource(url: url),
+            let embedded = EmbeddedPreviews.find(in: bytes), max(embedded.width, embedded.height) >= wanted,
+            let image = EmbeddedJPEG.decode(embedded.jpeg(from: bytes), maxPixelSize: target)
+        {
+            return LoadedImage(cgImage: displayReady(image), fullSize: size, isFullResolution: isFull(image, size))
+        }
 
         if let embedded = thumbnail(source, maxPixelSize: target, always: false),
             max(embedded.width, embedded.height) >= wanted

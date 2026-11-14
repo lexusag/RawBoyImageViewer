@@ -255,7 +255,7 @@ RawBoyImageViewer/
 | M0 | Repo setup | XcodeGen project, packages, Theme tokens, SwiftLint, GitHub Actions (build + tests), CLAUDE.md, README, license |
 | M1 ✅ | Core viewer | Open a folder or file (including "Open With" from Finder), fit/1:1, pan, keys, prefetch. **Fullscreen menu-bar/Dock spike**: works on one display (menu bar + Dock hidden while the viewer is key); multi-display untested |
 | M2 ✅ | Edge zones | Zone state machine (unit-tested), panels with pin, bottom prev/next band, keys I/M/B/Tab/Esc. Panels hold what exists so far (details without EXIF, view/go/file actions, breadcrumb + filmstrip); touch swipe-in waits for the Windows port (commands exist) |
-| M3 | Browser | Grid, RAW+JPEG grouping, sort, selection, thumbnail cache, embedded-preview parser (ported + tested), cloud placeholders |
+| M3 ✅ | Browser | Sidebar (recent, places, cloud storage, volumes, lazy tree), grid with sizes, RAW+JPEG grouping, sort by shoot date/name, name search, selection, disk thumbnail cache, embedded-preview and capture-date parsers (ported from RawBoy + its tests), cloud placeholders never downloaded by browsing. Moved on: rating bar and rating filter (M5), sibling-folder switcher in the top strip (later) |
 | M4 | Info panel | EXIF, histogram + clipping, sidecar status |
 | M5 | Culling | Ratings/pick/reject in RawBoy's XMP format, auto-advance, undo, `_bin`, Trash. **Cross-check with RawBoy Web on the same folder** |
 | M6 | Actions | Lossless rotate, crop (format agreed with RawBoy), export presets, external editor, copy/move |

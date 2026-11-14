@@ -21,9 +21,14 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 
 - `project.yml`: XcodeGen spec. Run `xcodegen` after adding or removing files; the `.xcodeproj` is git-ignored.
 - `App/`: entry point (`RawBoyViewerApp`, one `Window` scene so opening files never spawns windows), `AppDelegate`
-  (Finder "Open With", Dock drops, a path on the command line), `AppModel` (shared state), `Trace` (dev log).
-- `Features/Browser/`: the start screen (until the M3 browser). `Theme/`: tokens as SwiftUI/AppKit colours, RawBoy
-  button styles.
+  (Finder "Open With", Dock drops, a path on the command line, the last folder at launch; all held until the browser
+  window is key), `AppModel` (the browser and the viewer, and what opens where), `Trace` (dev log).
+- `Features/Browser/`: `BrowserModel` (folder → `BrowsePhoto`s via `FolderScanner` + `PhotoGroups`, capture dates read
+  in the background then one reorder, sort/filter/size/recent/last folder in UserDefaults `browser.*`, selection as in
+  RawBoy Browser), `BrowserView` (toolbar, `Segmented`), `PhotoGrid` (LazyVGrid, keys, `ThumbnailStore` at 480 px),
+  `Sidebar` (recent, places incl. ~/Library/CloudStorage and volumes, lazy folder tree). The viewer gets the browser's
+  order (`AppModel.openViewer`) and hands back the photo it ended on. `Theme/`: tokens as SwiftUI/AppKit colours,
+  RawBoy button styles.
 - `Features/Viewer/`: `ViewerSession` (open folder, photo list from `PhotoGroups`, every `ViewerCommand`, load +
   prefetch through `ImageStore`, full resolution on zoom), `ViewerModel` (@Observable state the panels show and their
   `send`), `ViewerWindowController` (screen-filling borderless window ↔ titled window; owns `EdgeZones`, feeds it the
@@ -39,14 +44,20 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   - `RawBoyBrowseKit`: pure Swift, **no AppKit/SwiftUI/CoreGraphics/ImageIO** (own `Point2D`/`Size2D`: Foundation's
     `CGPoint` lacks `.zero` and `Equatable` without CoreGraphics). Design tokens, file types, `PhotoGroups` (port of
     RawBoy Browser's `PhotoGroups.ts`: RAW + JPEG = one photo, the raw is main), `ZoomMath`, `PrefetchPlan`,
-    `LRUCache`, `ViewerCommand`, `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
+    `LRUCache`, `ViewerCommand`, `ByteSource`/`FileSource` (block-cached random reads), `EmbeddedPreviews` and
+    `CaptureDate` (ports of RawBoy's `EmbeddedPreview.ts` / `CaptureDate.ts`, with its tests; JPEG XL previews not
+    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
     passed in, so tested without timers), `BottomBand`, `Rect2D` (y down); later the XMP sidecar, embedded-preview parser, capture dates and the edge-zone state
     machine. It is meant to move into the RawBoy repo and serve RawBoy desktop and the Windows port.
-  - `ViewerImaging`: `ImageLoader` (ImageIO: screen-size preview, embedded one when ≥ 2560 px, else decoded;
+  - `ViewerImaging`: `ImageLoader` (screen-size preview: a raw's embedded JPEG from `EmbeddedPreviews` when
+    ≥ 2560 px, else ImageIO's embedded one, else decoded;
     full resolution for 1:1; `displayReady` redraws to 8-bit BGRA), `ImageStore` (actor: LRU 1.5 GB, shared in-flight
-    decodes, sequential prefetch), `ThumbnailStore` (actor: filmstrip thumbnails, 256 MB), `Thumbnailer`.
-  - `ViewerFiles`: folder scanning, file operations. Scanning reads directory entries only, never file contents:
-    photo folders are often cloud sync folders where reading a placeholder downloads it.
+    decodes, sequential prefetch), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
+    path + size + mtime + pixels, 1 GB → made: a raw's embedded JPEG when ≥ 400 px, else ImageIO), `Thumbnailer`.
+  - `ViewerFiles`: `FolderScanner` (photos with size, date and `isOnlineOnly`; sidecar names; subfolders without
+    packages or `_bin`), `CloudStatus` (ubiquitous status or `SF_DATALESS`). Scanning reads directory entries only,
+    never file contents: photo folders are often cloud sync folders where reading a placeholder downloads it. Nothing
+    reads an online-only file except opening it in the viewer (and prefetching its direct neighbours).
 
 ## Testing
 
@@ -58,9 +69,10 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 
 - `tools/smoke.sh <folder> [steps]`: opens a folder in the debug build through LaunchServices, steps through photos
   (`RAWBOY_AUTOPLAY`), zooms to 1:1, quits, and prints the trace (`RAWBOY_TRACE=1`): load times and presentation options
-  (10 = menu bar + Dock hidden), and opens each panel. `SNAPSHOT=<folder>` also draws each panel into
+  (10 = menu bar + Dock hidden), and opens each panel. Given a folder it opens the browser, then the viewer on its
+  first photo. `SNAPSHOT=<folder>` also draws each panel into
   `<folder>/panel-*.png` (`ImageRenderer`; thumbnails stay empty, they load later) so panels can be looked at without
-  screen recording. Test folders: `~/_claude/photos` (Pixel DNG + JPEG), `../RawBoy/.raw` (Sony JXL DNGs).
+  screen recording; the browser too (`browser.png`, 1280 × 820). Test folders: `~/_claude/photos` (Pixel DNG + JPEG), `../RawBoy/.raw` (Sony JXL DNGs).
 
 ## Traps found
 
@@ -74,6 +86,11 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - Previews are sized to the screen's long edge in pixels, set on the store in the same task as the first load: a
   separate task could clear the cache after prefetching had begun.
 
+- **The browser window steals the key window from a viewer opened at launch** (SwiftUI shows it after
+  `applicationDidFinishLaunching`), and with it go the hidden menu bar and Dock. `AppDelegate` waits for it first.
+- `ImageRenderer` draws native text fields as a yellow placeholder: not a bug in the view.
+- `RAWBOY_SAMPLES=<folder> swift test --package-path Packages --filter SampleFiles` runs the parsers over real raws.
+  Phone DNGs have no embedded JPEG, Adobe's JPEG XL DNGs only a 256 px one: both fall back to ImageIO.
 - SwiftUI's `Edge` clashes with ours in the app target: ours is `PanelEdge`.
 - A horizontal `ScrollView` takes all the height it's offered: give it a height (the browser strip's breadcrumb hid the
   filmstrip this way).

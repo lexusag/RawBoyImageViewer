@@ -158,8 +158,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             "presentation options: \(NSApp.currentSystemPresentationOptions.rawValue) (asked \(options.rawValue))")
     }
 
-    func windowDidBecomeKey(_ notification: Notification) { updatePresentation() }
+    func windowDidBecomeKey(_ notification: Notification) {
+        Trace.log("viewer became key")
+        updatePresentation()
+    }
+
     func windowDidResignKey(_ notification: Notification) {
+        Trace.log("viewer resigned key to \(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "none")")
         updatePresentation()
         pointerMoved(nil)
     }

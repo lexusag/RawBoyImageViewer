@@ -108,12 +108,31 @@ struct ThumbnailStoreTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
         defer { try? FileManager.default.removeItem(at: url) }
         try TestImages.writePNG(width: 2000, height: 1000, to: url)
-        let store = ThumbnailStore(pixelSize: 320)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let disk = DiskThumbnailCache(folder: folder)
+        let store = ThumbnailStore(pixelSize: 320, disk: disk)
 
-        let first = try #require(await store.thumbnail(url))
-        let second = try #require(await store.thumbnail(url))
+        let first = try #require(await store.thumbnail(url, size: 1, modified: nil))
+        let second = try #require(await store.thumbnail(url, size: 1, modified: nil))
 
         #expect(first.cgImage.width == 320)
         #expect(first.cgImage === second.cgImage)
+        // A new store (another launch) finds it on disk.
+        try FileManager.default.removeItem(at: url)
+        let again = await ThumbnailStore(pixelSize: 320, disk: disk).thumbnail(url, size: 1, modified: nil)
+        #expect(again?.cgImage.width == 320)
+    }
+
+    @Test func diskCacheTrimsOldestFirst() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let disk = DiskThumbnailCache(folder: folder, limit: 1)
+        for name in ["a", "b"] {
+            FileManager.default.createFile(
+                atPath: folder.appendingPathComponent(name + ".jpg").path, contents: Data([1]))
+        }
+        disk.trim()
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).count == 1)
     }
 }

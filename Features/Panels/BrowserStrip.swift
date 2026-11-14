@@ -1,5 +1,6 @@
 import RawBoyBrowseKit
 import SwiftUI
+import ViewerFiles
 import ViewerImaging
 
 /// Top edge: where the photo is (the folder path, each part opens that folder) and the folder's filmstrip.
@@ -133,7 +134,8 @@ private struct FilmstripCell: View {
         )
         .contentShape(Rectangle())
         .task(id: url) {
-            guard let url else { return }
+            // A cloud placeholder would download to make its thumbnail.
+            guard let url, !CloudStatus.isOnlineOnly(url) else { return }
             image = await store.thumbnail(url)?.cgImage
         }
     }

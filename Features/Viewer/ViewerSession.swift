@@ -27,47 +27,26 @@ final class ViewerSession {
     private var previewPixelSize = 3840
 
     var isOpen: Bool { controller != nil }
-    var onClose: (() -> Void)?
-
-    enum OpenError: LocalizedError {
-        case noPhotos(String)
-
-        var errorDescription: String? {
-            switch self {
-            case .noPhotos(let name): "No photos in \(name)."
-            }
-        }
-    }
+    /// The viewer closed, on this photo (its main file name).
+    var onClose: ((String?) -> Void)?
+    /// A folder in the breadcrumb was clicked: the browser shows it.
+    var onBrowse: ((URL) -> Void)?
 
     init() {
         model.send = { [weak self] command in
             self?.handle(command)
             self?.controller?.focusCanvas()
         }
-        model.openFolder = { [weak self] url in
-            guard let self else { return }
-            do {
-                try open(folder: url)
-            } catch {
-                controller?.canvas.flash(error.localizedDescription)
-            }
-        }
+        model.openFolder = { [weak self] url in self?.onBrowse?(url) }
     }
 
-    /// Opens [folder] at [fileName] (its first photo when nil or not a photo there).
-    func open(folder: URL, at fileName: String? = nil) throws {
-        let names = try FolderScanner.photos(in: folder).map(\.url.lastPathComponent)
-        // Sidecars aren't photos, so the scanner skips them; the groups need them too.
-        let sidecars =
-            (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?
-            .filter { $0.lowercased().hasSuffix(".xmp") } ?? []
-        let groups = PhotoGroups.group(names + sidecars)
-        guard !groups.isEmpty else { throw OpenError.noPhotos(folder.lastPathComponent) }
+    /// Shows [groups] of [folder] (the browser's order) at [index].
+    func show(folder: URL, groups: [PhotoGroup], at index: Int) {
+        guard !groups.isEmpty else { return }
         model.folder = folder
         model.groups = groups
         photos = groups.map { folder.appendingPathComponent($0.main) }
-        let wanted = fileName.map { PhotoGroups.stem(of: $0).lowercased() }
-        index = groups.firstIndex { $0.stem.lowercased() == wanted } ?? 0
+        self.index = min(max(index, 0), groups.count - 1)
         forward = true
         shownURL = nil
         presentWindow()
@@ -102,42 +81,17 @@ final class ViewerSession {
             }
         }
 
-        /// RAWBOY_SNAPSHOT=<folder>: draws [edge]'s panel into <folder>/panel-<edge>.png, to look at without a screen
-        /// recording permission.
         private func snapshot(_ edge: PanelEdge) {
-            guard let folder = ProcessInfo.processInfo.environment["RAWBOY_SNAPSHOT"],
-                let frame = controller?.root.frame(for: edge)
-            else { return }
+            guard let frame = controller?.root.frame(for: edge) else { return }
             let view: AnyView =
                 switch edge {
                 case .left: AnyView(ActionMenu(model: model))
                 case .right: AnyView(InfoPanel(model: model))
                 case .top: AnyView(BrowserStrip(model: model))
                 }
-            let renderer = ImageRenderer(
-                content: view.frame(width: frame.width, height: frame.height).padding(16)
-                    .background(Theme.inkBlack).environment(\.colorScheme, .dark).environment(\.isSnapshot, true))
-            renderer.scale = 2
-            guard let image = renderer.cgImage else { return }
-            let url = URL(fileURLWithPath: folder).appendingPathComponent("panel-\(edge.rawValue).png")
-            guard let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else {
-                return
-            }
-            CGImageDestinationAddImage(dest, image, nil)
-            CGImageDestinationFinalize(dest)
+            Snapshot.write(view.padding(16), size: frame.size, name: "panel-\(edge.rawValue)")
         }
     #endif
-
-    /// Opens what Finder (or the command line) handed over: a folder, or a photo in its folder.
-    func open(_ url: URL) throws {
-        var isDirectory: ObjCBool = false
-        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
-        if isDirectory.boolValue {
-            try open(folder: url)
-        } else {
-            try open(folder: url.deletingLastPathComponent(), at: url.lastPathComponent)
-        }
-    }
 
     func close() {
         controller?.close()
@@ -152,8 +106,9 @@ final class ViewerSession {
             controller.canvas.onNeedsFullResolution = { [weak self] in self?.loadFullResolution() }
             controller.canvas.onFitChanged = { [weak self] in self?.model.isFit = $0 }
             controller.onClose = { [weak self] in
-                self?.controller = nil
-                self?.onClose?()
+                guard let self else { return }
+                self.controller = nil
+                self.onClose?(model.current?.main)
             }
             self.controller = controller
             model.isScreenFilling = controller.isScreenFilling
@@ -251,7 +206,12 @@ final class ViewerSession {
                 controller.canvas.showMessage("Can't open \(url.lastPathComponent).")
                 shownURL = nil
             }
-            let order = PrefetchPlan.order(current: index, count: photos.count, forward: forward)
+            // Neighbours further than the next one are only loaded when they are on this Mac: prefetching must not
+            // download a cloud folder.
+            let index = index
+            let order = PrefetchPlan.order(current: index, count: photos.count, forward: forward).filter {
+                abs($0 - index) == 1 || !CloudStatus.isOnlineOnly(photos[$0])
+            }
             await store.prefetch(order.map { photos[$0] })
         }
     }
