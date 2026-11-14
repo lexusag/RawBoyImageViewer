@@ -5,7 +5,8 @@ import RawBoyBrowseKit
 /// A raw developed from its sensor data by macOS (Core Image's RAW filter, as shot), instead of the camera's embedded
 /// JPEG: what "real preview" shows. Not RawBoy's look: that needs RawBoy's own engine (PLAN.md §4, phase 2).
 public enum RawDeveloper {
-    private static let context = CIContext(options: [.cacheIntermediates: false])
+    /// CIContext is thread-safe (Apple's documentation); older SDKs just don't mark it Sendable.
+    nonisolated(unsafe) private static let context = CIContext(options: [.cacheIntermediates: false])
 
     /// The raw at [url] developed as shot, its long edge at most [maxPixelSize] (nil: full size), turned as
     /// [orientation] says when a sidecar sets one. Nil when it isn't a raw Core Image can develop.
