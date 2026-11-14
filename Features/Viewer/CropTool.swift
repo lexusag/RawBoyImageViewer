@@ -113,7 +113,7 @@ final class CropOverlayView: NSView {
 
     private func fractions(_ p: CGPoint) -> (Double, Double) {
         let r = imageRect()
-        return ((p.x - r.minX) / max(r.width, 1), (p.y - r.minY) / max(r.height, 1))
+        return (Double((p.x - r.minX) / max(r.width, 1)), Double((p.y - r.minY) / max(r.height, 1)))
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -122,7 +122,7 @@ final class CropOverlayView: NSView {
         let (x, y) = fractions(p)
         let r = imageRect()
         dragHandle = CropMath.handle(
-            at: state.crop, x: x, y: y, tolX: 14 / max(r.width, 1), tolY: 14 / max(r.height, 1))
+            at: state.crop, x: x, y: y, tolX: Double(14 / max(r.width, 1)), tolY: Double(14 / max(r.height, 1)))
         dragStart = (p, state.crop)
     }
 
