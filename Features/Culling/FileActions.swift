@@ -526,7 +526,11 @@ struct ExportSheet: View {
         let name = presetName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, let chosen else { return }
         let preset = ExportPreset(name: name, options: options, destination: chosen.stored)
-        if let i = presets.firstIndex(where: { $0.name == name }) { presets[i] = preset } else { presets.append(preset) }
+        if let i = presets.firstIndex(where: { $0.name == name }) {
+            presets[i] = preset
+        } else {
+            presets.append(preset)
+        }
         AppModel.exportPresets = presets
         presetName = ""
         namingPreset = false
