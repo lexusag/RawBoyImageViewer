@@ -94,6 +94,12 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - Checking UI states in snapshots that need preferences: `defaults export app.rawboy.viewer <file>` first, then
   `defaults import` it back **and** `defaults delete` every key you added (import doesn't remove them). The owner's
   own last folder and recent folders live there.
+- **Cameras' EXIF thumbnails are 160 × 120, letterboxed for portrait photos.** ImageIO's
+  `CreateThumbnailFromImageIfAbsent` returns them as they are, so `Thumbnailer.fits` (size and aspect) decides
+  whether an embedded thumbnail may be used. The disk cache key has a version (`v2|`) to drop thumbnails made the
+  wrong way: bump it when how thumbnails are made changes.
+- A horizontal SwiftUI `ScrollView` ignores a mouse wheel's vertical turn: `ViewerWindowController.filmstripWheel`
+  rewrites wheel events over the filmstrip into horizontal ones (axis 1 → axis 2) in a local event monitor.
 - `ImageRenderer` draws native text fields as a yellow placeholder: not a bug in the view.
 - `RAWBOY_SAMPLES=<folder> swift test --package-path Packages --filter SampleFiles` runs the parsers over real raws.
   Phone DNGs have no embedded JPEG, Adobe's JPEG XL DNGs only a 256 px one: both fall back to ImageIO.

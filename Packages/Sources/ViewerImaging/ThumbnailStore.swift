@@ -107,7 +107,8 @@ public final class DiskThumbnailCache: Sendable {
     }
 
     public func key(url: URL, size: Int64?, modified: Date?, pixels: Int) -> String {
-        let text = "\(url.standardizedFileURL.path)|\(size ?? -1)|\(modified?.timeIntervalSince1970 ?? -1)|\(pixels)"
+        // v2: thumbnails made from letterboxed EXIF thumbnails before Thumbnailer.fits are never read again.
+        let text = "v2|\(url.standardizedFileURL.path)|\(size ?? -1)|\(modified?.timeIntervalSince1970 ?? -1)|\(pixels)"
         return SHA256.hash(data: Data(text.utf8)).prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 

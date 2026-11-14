@@ -44,7 +44,7 @@ public enum ImageLoader {
         }
 
         if let embedded = thumbnail(source, maxPixelSize: target, always: false),
-            max(embedded.width, embedded.height) >= wanted
+            Thumbnailer.fits(embedded, size: (size.width, size.height), maxPixelSize: wanted, fraction: 1)
         {
             return LoadedImage(
                 cgImage: displayReady(embedded), fullSize: size, isFullResolution: isFull(embedded, size))

@@ -23,6 +23,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     private var pointer: Point2D?
     private var deadline: DispatchWorkItem?
     private var moveMonitor: Any?
+    private var wheelMonitor: Any?
 
     private static let pinnedKey = "viewer.pinnedEdges"
 
@@ -48,8 +49,36 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             if event.window === self?.window { self?.root.report(event) }
             return event
         }
+        // A mouse wheel turns vertically, the filmstrip scrolls sideways: over the filmstrip, up/down becomes
+        // left/right (a trackpad already scrolls it sideways).
+        wheelMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { [weak self] event in
+            self?.filmstripWheel(event) ?? event
+        }
         model.pinned = zones.pinned
         applyZones()
+    }
+
+    /// How far one wheel step moves the filmstrip, in its own lines (about a third of a thumbnail each).
+    private static let filmstripWheelFactor = 4.0
+
+    private func filmstripWheel(_ event: NSEvent) -> NSEvent {
+        guard event.window === window, !event.hasPreciseScrollingDeltas, event.scrollingDeltaY != 0,
+            event.scrollingDeltaX == 0, let strip = root.panels[.top], !strip.isHidden,
+            strip.frame.contains(root.convert(event.locationInWindow, from: nil)),
+            let cg = event.cgEvent?.copy()
+        else { return event }
+        let f = Self.filmstripWheelFactor
+        let fields: [(CGEventField, CGEventField)] = [
+            (.scrollWheelEventDeltaAxis1, .scrollWheelEventDeltaAxis2),
+            (.scrollWheelEventPointDeltaAxis1, .scrollWheelEventPointDeltaAxis2),
+            (.scrollWheelEventFixedPtDeltaAxis1, .scrollWheelEventFixedPtDeltaAxis2),
+        ]
+        for (vertical, horizontal) in fields {
+            let value = cg.getDoubleValueField(vertical)
+            cg.setDoubleValueField(horizontal, value: value * f)
+            cg.setDoubleValueField(vertical, value: 0)
+        }
+        return NSEvent(cgEvent: cg) ?? event
     }
 
     @available(*, unavailable)
@@ -177,7 +206,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         deadline?.cancel()
         if let moveMonitor { NSEvent.removeMonitor(moveMonitor) }
+        if let wheelMonitor { NSEvent.removeMonitor(wheelMonitor) }
         moveMonitor = nil
+        wheelMonitor = nil
         NSApp.presentationOptions = []
         onClose?()
     }

@@ -181,3 +181,22 @@ struct PhotoMetadataTests {
         #expect(m.taken != nil)
     }
 }
+
+struct ThumbnailFitTests {
+    func image(_ w: Int, _ h: Int) throws -> CGImage {
+        let context = try #require(
+            CGContext(
+                data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        return try #require(context.makeImage())
+    }
+
+    @Test func rejectsSmallOrLetterboxedEmbeddedThumbnails() throws {
+        let portrait = (width: 4500.0, height: 6000.0)
+        // A camera's 160 × 120 thumbnail of a portrait photo: too small and the wrong shape.
+        #expect(!Thumbnailer.fits(try image(160, 120), size: portrait, maxPixelSize: 480))
+        // Big enough but landscape (black bars).
+        #expect(!Thumbnailer.fits(try image(480, 360), size: portrait, maxPixelSize: 480))
+        #expect(Thumbnailer.fits(try image(360, 480), size: portrait, maxPixelSize: 480))
+    }
+}
