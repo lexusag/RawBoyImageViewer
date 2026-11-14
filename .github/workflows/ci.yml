@@ -10,7 +10,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides whether the app changed. A skipped `build` job counts as passing for required checks,
+  # so pull requests that only touch docs still merge without waiting for a macOS runner.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.diff.outputs.app }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Did the app change?
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # Not the app: docs, licence, the Sparkle feed (the release workflow pushes it), branding sources.
+          # Anything else (Swift, project.yml, resources, Package files, tools/, workflows) builds.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "No usable base commit: building."
+            echo "app=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          files=$(git diff --name-only "$BASE" "$HEAD")
+          echo "Changed files:"; echo "$files"
+          if echo "$files" | grep -Evq '^(docs/|branding/|.*\.md$|LICENSE$|appcast\.xml$|\.gitignore$)'; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Only docs and similar changed: skipping the build."
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
