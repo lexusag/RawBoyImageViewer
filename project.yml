@@ -1,0 +1,57 @@
+# RawBoy Viewer (macOS). Generate the Xcode project with `xcodegen` in this folder (the .xcodeproj is git-ignored).
+# Shared code lives in the local Swift package Packages/ (`swift test --package-path Packages`).
+name: RawBoyViewer
+options:
+  bundleIdPrefix: app.rawboy
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+packages:
+  RawBoyViewerPackages:
+    path: Packages
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+targets:
+  RawBoyViewer:
+    type: application
+    platform: macOS
+    sources:
+      - App
+      - Features
+      - Theme
+    dependencies:
+      - package: RawBoyViewerPackages
+        product: RawBoyBrowseKit
+      - package: RawBoyViewerPackages
+        product: ViewerFiles
+      - package: RawBoyViewerPackages
+        product: ViewerImaging
+    info:
+      path: build/generated/Info.plist
+      properties:
+        CFBundleDisplayName: RawBoy Viewer
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        LSApplicationCategoryType: public.app-category.photography
+        LSMinimumSystemVersion: "15.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.viewer
+        PRODUCT_NAME: RawBoy Viewer
+        PRODUCT_MODULE_NAME: RawBoyViewer
+        # Direct download, not the App Store: no sandbox, so sidecars can be written next to photos.
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        # Signed to run locally until a Developer ID is set up for notarization (M8).
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        COMBINE_HIDPI_IMAGES: YES
+schemes:
+  RawBoyViewer:
+    build:
+      targets:
+        RawBoyViewer: all
+    run:
+      config: Debug

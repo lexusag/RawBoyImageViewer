@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint
+        run: swift format lint --strict -r App Features Theme Packages/Sources Packages/Tests Packages/Package.swift
+
+      - name: Package tests
+        run: swift test --package-path Packages
+
+      - name: Generate project
+        run: brew install xcodegen && xcodegen
+
+      - name: Build app
+        run: >
+          xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer -configuration Debug
+          -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
