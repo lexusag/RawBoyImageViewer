@@ -40,7 +40,8 @@ enum SendToApps {
         // LaunchServices calls handlers on its own queue, where Swift's isolation check traps (macOS 27).
         Task { @MainActor in
             do {
-                _ = try await NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                let configuration = NSWorkspace.OpenConfiguration()
+                _ = try await NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: configuration)
                 completion(nil)
             } catch {
                 completion(error)
