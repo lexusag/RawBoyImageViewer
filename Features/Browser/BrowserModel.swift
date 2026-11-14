@@ -159,12 +159,21 @@ final class BrowserModel {
         reorder()
         scrollRequest += 1
         remember(folder)
+        onLoad?(folder)
         readDates(generation)
     }
 
+    /// Reads the folder again, keeping the selection (what is still there of it) and the scroll position's photo.
     func reload() {
-        if let folder { load(folder, select: anchor) }
+        guard let folder else { return }
+        let kept = selection
+        load(folder, selectID: anchor)
+        let ids = Set(items.map(\.id))
+        selection = kept.intersection(ids).isEmpty ? selection : kept.intersection(ids)
     }
+
+    /// A folder was loaded (the app watches it).
+    var onLoad: ((URL) -> Void)?
 
     private func remember(_ folder: URL) {
         UserDefaults.standard.set(folder.path, forKey: Keys.last)

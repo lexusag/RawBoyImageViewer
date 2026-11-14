@@ -183,7 +183,8 @@ struct PhotoCell: View {
                 .joined(separator: ", ")
         )
         .accessibilityAddTraits(isSelected ? [.isSelected, .isImage] : .isImage)
-        .task(id: "\(photo.id)|\(orientation ?? 0)") {
+        // Made again when the file changes (its modified date) or is turned.
+        .task(id: "\(photo.id)|\(orientation ?? 0)|\(photo.modified?.timeIntervalSince1970 ?? 0)") {
             guard !photo.isOnlineOnly else { return }
             image =
                 await store.thumbnail(photo.url, size: photo.size, modified: photo.modified, orientation: orientation)?

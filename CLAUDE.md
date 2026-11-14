@@ -80,7 +80,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     sidecar rotation, metadata kept, GPS optional, never overwrites), `ImageAnalysis` (histogram from a 512 px
     nearest-neighbour copy, as RawBoy; clip overlay up to 4096 px), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
     path + size + mtime + pixels, 1 GB → made: a raw's embedded JPEG when ≥ 400 px, else ImageIO), `Thumbnailer`.
-  - `ViewerFiles`: `FileMoves` (bin with one suffix per photo, Trash, move back), `SidecarFiles` (read; atomic
+  - `ViewerFiles`: `FolderWatcher` (FSEvents on the open folder only: structural vs modified names, hidden files
+    left out), `FileMoves` (bin with one suffix per photo, Trash, move back), `SidecarFiles` (read; atomic
     writes into every sidecar a photo has; rating from the first one that has it), `FolderScanner` (photos with size, date and `isOnlineOnly`; sidecar names; subfolders without
     packages or `_bin`), `CloudStatus` (ubiquitous status or `SF_DATALESS`). Scanning reads directory entries only,
     never file contents: photo folders are often cloud sync folders where reading a placeholder downloads it. Nothing
@@ -140,6 +141,10 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - A horizontal `ScrollView` takes all the height it's offered: give it a height (the browser strip's breadcrumb hid the
   filmstrip this way).
 
+- **Folder watching sees the app's own work too.** `CullingStore` notes the names it writes or moves
+  (`isOwnChange`, 2 s) and never lets a reread overwrite a photo with a write pending (`isBusy`). Foundation's atomic
+  writes use a visible temporary file (`NAME.xmp.sb-…`), so `AppModel.folderChanged` only reacts to photos, sidecars
+  and folders. `WATCH=1 tools/smoke.sh <copies> 0` checks all of it.
 - Rotations never touch the files: `tiff:Orientation` in the sidecar is the photo's whole orientation (as
   Lightroom keeps it), and the image, thumbnail and disk caches are keyed by it.
 - The packages build with `-O` even in Debug (`Package.swift`): unoptimised pixel loops made the clipping overlay

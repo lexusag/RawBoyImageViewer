@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import RawBoyBrowseKit
 import SwiftUI
 import ViewerFiles
 
@@ -13,6 +14,7 @@ final class AppModel {
     let browser: BrowserModel
     let viewer: ViewerSession
     let compare: CompareSession
+    @ObservationIgnored private var watcher: FolderWatcher?
 
     init() {
         browser = BrowserModel(culling: culling)
@@ -33,12 +35,8 @@ final class AppModel {
             self?.compare.orientationsChanged(ids)
         }
         viewer.onFileAction = { [weak self] action, ids in self?.perform(action, ids) }
-        culling.onFilesChanged = { [weak self] in
-            guard let self else { return }
-            browser.reload()
-            // The viewer keeps going on the photos that are left (or are back).
-            if viewer.isOpen { viewer.replace(groups: browser.visible.map(\.group)) }
-        }
+        culling.onFilesChanged = { [weak self] in self?.folderContentsChanged() }
+        browser.onLoad = { [weak self] folder in self?.watch(folder) }
         viewer.onClose = { [weak self] current in
             // Back in the browser on the photo the viewer showed last.
             if let current { self?.browser.select(current) }
@@ -75,6 +73,49 @@ final class AppModel {
             return
         }
         viewer.show(folder: folder, groups: browser.visible.map(\.group), at: index)
+    }
+
+    // MARK: Watching the folder
+
+    /// Files appeared, went, or were moved: the browser reads the folder again and the viewer goes on with what is
+    /// left (or is back).
+    func folderContentsChanged() {
+        browser.reload()
+        if viewer.isOpen { viewer.replace(groups: browser.visible.map(\.group)) }
+    }
+
+    /// Watches the open folder, so changes made elsewhere (new photos, darktable or RawBoy Web rating) show up here.
+    private func watch(_ folder: URL) {
+        guard watcher?.folder != folder.standardizedFileURL else { return }
+        watcher = FolderWatcher(folder: folder) { [weak self] change in self?.folderChanged(change) }
+    }
+
+    private func folderChanged(_ change: FolderWatcher.Change) {
+        // Only photos, sidecars and folders matter: atomic writes' temporary files ("NAME.xmp.sb-…") don't. Our own
+        // sidecar writes and moves come back as events too: they are already accounted for.
+        guard let folder = browser.folder else { return }
+        func relevant(_ name: String) -> Bool {
+            if PhotoFileType(fileName: name) != nil || name.lowercased().hasSuffix(".xmp") { return true }
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent(name).path, isDirectory: &isDirectory) && isDirectory.boolValue
+        }
+        let structural = change.structural.filter { relevant($0) && !culling.isOwnChange($0) }
+        let modified = change.modified.filter { !culling.isOwnChange($0) }
+        let photos = modified.filter { PhotoFileType(fileName: $0) != nil }
+        if !photos.isEmpty { viewer.forget(photos) }
+        if !structural.isEmpty || !photos.isEmpty {
+            Trace.log("folder changed: \(structural.union(photos).sorted().joined(separator: ", "))")
+            folderContentsChanged()
+            return
+        }
+        let sidecars = modified.filter { $0.lowercased().hasSuffix(".xmp") }
+        guard !sidecars.isEmpty else { return }
+        let ids = browser.photos.filter { photo in
+            (culling.sidecars[photo.id] ?? photo.group.sidecars).contains { sidecars.contains($0) }
+        }.map(\.id)
+        Trace.log("sidecars changed: \(sidecars.sorted().joined(separator: ", "))")
+        culling.refresh(ids)
     }
 
     // MARK: Culling (menus and keys, wherever the focus is)

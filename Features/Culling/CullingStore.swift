@@ -35,6 +35,10 @@ final class CullingStore {
     private var groups: [String: PhotoGroup] = [:]
     private var undoStack: [Undo] = []
     private var writeTimers: [String: DispatchWorkItem] = [:]
+    /// Sidecar writes under way, by photo id.
+    private var inFlight: [String: Int] = [:]
+    /// Files this app wrote or moved just now, by name: the folder watcher's events for them aren't someone else's.
+    private var ownChanges: [String: Date] = [:]
     private var writes: Task<Void, Never>?
     private var generation = 0
 
@@ -73,6 +77,23 @@ final class CullingStore {
             message = nil
         }
         binCount = FileMoves.binPhotoCount(of: folder)
+        readSidecars(of: groups, in: folder, generation: generation)
+    }
+
+    /// Reads [groups]' ratings and orientations again: their sidecars changed outside this app.
+    func refresh(_ ids: [String]) {
+        guard let folder else { return }
+        readSidecars(of: ids.compactMap { groups[$0] }, in: folder, generation: generation)
+    }
+
+    /// Reads the sidecars of [groups] in the background and takes what they say, except for photos rated or turned
+    /// here a moment ago (their writes are still to come, and win).
+    private func readSidecars(of groups: [PhotoGroup], in folder: URL, generation: Int) {
+        let groups = groups.map { group in
+            PhotoGroup(
+                stem: group.stem, main: group.main, companions: group.companions,
+                sidecars: sidecars[group.main] ?? group.sidecars)
+        }
         Task.detached(priority: .userInitiated) {
             var read: [String: Rating] = [:]
             var turned: [String: Int] = [:]
@@ -83,14 +104,47 @@ final class CullingStore {
             }
             await MainActor.run {
                 guard generation == self.generation else { return }
-                // Changes made while reading win over what was read.
-                self.ratings = read.merging(self.ratings) { _, mine in mine }
-                let before = self.orientations
-                self.orientations = turned.merging(self.orientations) { _, mine in mine }
-                if self.orientations != before { self.onOrientationsChanged?(Array(self.orientations.keys)) }
-                self.onRatingsChanged?()
+                var turnedIDs: [String] = []
+                var rated = false
+                for group in groups where !self.isBusy(group.main) {
+                    let id = group.main
+                    if self.ratings[id] != read[id] {
+                        self.ratings[id] = read[id]
+                        rated = true
+                    }
+                    if self.orientations[id] != turned[id] {
+                        self.orientations[id] = turned[id]
+                        turnedIDs.append(id)
+                    }
+                }
+                if !turnedIDs.isEmpty { self.onOrientationsChanged?(turnedIDs) }
+                if rated || generation != self.lastNotified {
+                    self.lastNotified = generation
+                    self.onRatingsChanged?()
+                }
             }
         }
+    }
+
+    private var lastNotified = -1
+
+    /// A rating or rotation of [id] is waiting to be written, or being written.
+    func isBusy(_ id: String) -> Bool { writeTimers[id] != nil || (inFlight[id] ?? 0) > 0 }
+
+    /// This app wrote or moved [name] in the last two seconds.
+    func isOwnChange(_ name: String) -> Bool {
+        guard let at = ownChanges[name] else { return false }
+        return Date().timeIntervalSince(at) < 2
+    }
+
+    private func noteOwnChanges(_ names: [String]) {
+        let now = Date()
+        ownChanges = ownChanges.filter { now.timeIntervalSince($0.value) < 10 }
+        for name in names { ownChanges[name] = now }
+    }
+
+    private func noteOwnChanges(_ moves: [FileMove]) {
+        noteOwnChanges(moves.flatMap { [$0.from.lastPathComponent, $0.to.lastPathComponent] })
     }
 
     // MARK: Rating
@@ -162,6 +216,7 @@ final class CullingStore {
             onOrientationsChanged?(previous.map(\.id))
             return previous.count == 1 ? previous[0].id : nil
         case .moves(let moves, let what):
+            noteOwnChanges(moves)
             let failed = FileMoves.moveBack(moves)
             message = failed == 0 ? "\(what) undone" : "\(failed) file\(failed == 1 ? "" : "s") couldn't be moved back"
             filesChanged()
@@ -191,8 +246,15 @@ final class CullingStore {
         let orientation = orientations[id]
         let names = (sidecars[id] ?? []).isEmpty ? ["\(group.stem).xmp"] : sidecars[id]!
         let previous = writes
+        inFlight[id, default: 0] += 1
+        noteOwnChanges(names)
         writes = Task {
             await previous?.value
+            defer {
+                self.inFlight[id, default: 1] -= 1
+                if self.inFlight[id] == 0 { self.inFlight[id] = nil }
+                self.noteOwnChanges(names)
+            }
             let result = await Task.detached {
                 Result {
                     try SidecarFiles.write(rating, orientation: orientation, names: names, in: folder)
@@ -226,6 +288,7 @@ final class CullingStore {
             timer.cancel()
             guard let group = groups[id] else { continue }
             let names = (sidecars[id] ?? []).isEmpty ? ["\(group.stem).xmp"] : sidecars[id]!
+            noteOwnChanges(names)
             _ = try? SidecarFiles.write(rating(id), orientation: orientations[id], names: names, in: folder)
         }
         writeTimers = [:]
@@ -254,6 +317,7 @@ final class CullingStore {
             let current = PhotoGroup(
                 stem: group.stem, main: group.main, companions: group.companions, sidecars: sidecars[group.main] ?? [])
             do { moves += try FileMoves.moveToBin(current, in: folder) } catch { failed += 1 }
+            noteOwnChanges(moves)
         }
         let moved = rejects.count - failed
         if !moves.isEmpty { push(.moves(moves, what: "Move to \(FolderScanner.binFolderName)")) }
@@ -269,6 +333,7 @@ final class CullingStore {
         guard let folder else { return }
         let moves = FileMoves.binContents(of: folder)
         guard !moves.isEmpty else { return }
+        noteOwnChanges(moves)
         let failed = FileMoves.moveBack(moves)
         let photos = moves.filter { PhotoFileType(fileName: $0.from.lastPathComponent) != nil }.count
         message =
@@ -290,6 +355,7 @@ final class CullingStore {
             let current = PhotoGroup(
                 stem: group.stem, main: group.main, companions: group.companions, sidecars: sidecars[id] ?? [])
             do { moves += try FileMoves.trash(current, in: folder) } catch { failed += 1 }
+            noteOwnChanges(moves)
         }
         let moved = ids.count - failed
         if !moves.isEmpty { push(.moves(moves, what: "Move to Trash")) }
@@ -303,6 +369,7 @@ final class CullingStore {
     /// Files moved elsewhere (Move to…): undoable like the bin.
     func recordMoves(_ moves: [FileMove], what: String) {
         guard !moves.isEmpty else { return }
+        noteOwnChanges(moves)
         push(.moves(moves, what: what))
         filesChanged()
     }

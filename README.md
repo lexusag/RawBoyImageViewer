@@ -48,6 +48,9 @@ format RawBoy Browser, Lightroom, Capture One and darktable read; other apps' se
 next photo of the folder takes the other place (← → step through them instead), and the rating keys rate the one
 you chose. Esc, G or Return go back to the browser on it.
 
+The open folder is watched: photos added or removed by other apps, and ratings changed in darktable or RawBoy Web,
+show up by themselves (⌘R reloads by hand).
+
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
 **⌘/ or ?** shows every key. **Settings** (⌘,): open the last folder at launch, what the mouse wheel does, slideshow

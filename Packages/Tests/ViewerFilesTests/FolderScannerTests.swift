@@ -85,3 +85,33 @@ struct CullingFilesTests {
         #expect(SidecarFiles.rating(of: group, in: dir) == .none)
     }
 }
+
+@MainActor
+struct FolderWatcherTests {
+    @Test func reportsNewAndChangedFilesOfTheFolderOnly() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(
+            at: dir.appendingPathComponent("sub"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("IMG_1.xmp").path, contents: Data("a".utf8))
+        var changes: [FolderWatcher.Change] = []
+        let watcher = try #require(FolderWatcher(folder: dir, latency: 0.1) { changes.append($0) })
+        try await Task.sleep(for: .milliseconds(300))
+
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("IMG_2.RAF").path, contents: Data())
+        FileManager.default.createFile(atPath: dir.appendingPathComponent(".hidden").path, contents: Data())
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("sub/IMG_3.RAF").path, contents: Data())
+        try Data("b".utf8).write(to: dir.appendingPathComponent("IMG_1.xmp"))
+        for _ in 0..<40 where !changes.contains(where: { $0.structural.contains("IMG_2.RAF") }) {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        try await Task.sleep(for: .milliseconds(300))
+
+        let all = changes.reduce(into: Set<String>()) { $0.formUnion($1.structural.union($1.modified)) }
+        #expect(all.contains("IMG_2.RAF"))
+        #expect(all.contains("IMG_1.xmp"))
+        #expect(!all.contains(".hidden"))
+        #expect(!all.contains("IMG_3.RAF"))
+        _ = watcher
+    }
+}

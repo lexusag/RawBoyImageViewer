@@ -80,6 +80,11 @@ final class ViewerSession {
                     try? await Task.sleep(for: .milliseconds(700))
                 }
                 if ProcessInfo.processInfo.environment["RAWBOY_CULL"] != nil { await cullTest() }
+                if ProcessInfo.processInfo.environment["RAWBOY_WATCH"] != nil {
+                    await watchTest()
+                    NSApp.terminate(nil)
+                    return
+                }
                 if ProcessInfo.processInfo.environment["RAWBOY_M7"] != nil {
                     await m7Test()
                     NSApp.terminate(nil)
@@ -161,6 +166,38 @@ final class ViewerSession {
             handle(.rotate(clockwise: false))
             try? await Task.sleep(for: .milliseconds(300))
             await culling.finishWrites()
+        }
+
+        /// RAWBOY_WATCH=1 (on copies): a rating made here causes no reload; a sidecar written from outside is read
+        /// again; a photo copied in, then removed, shows up and goes.
+        private func watchTest() async {
+            guard let folder = model.folder, model.groups.count >= 2 else { return }
+            let own = model.groups[0].main
+            let other = model.groups[1]
+            culling.autoAdvance = false
+            handle(.setStars(2))
+            await culling.finishWrites()
+            try? await Task.sleep(for: .seconds(1.5))
+            Trace.log("watch: rated \(own) here (no reload expected above)")
+            let sidecar = folder.appendingPathComponent(other.stem + ".xmp")
+            let text = SidecarFiles.read(sidecar)
+            // Written in place (as some apps do), or created when the photo had no sidecar.
+            let stars = XmpSidecar.read(text ?? "").stars == 5 ? 4 : 5
+            let outside = try? XmpSidecar.write(text, Rating(stars: stars))
+            await Task.detached { try? Data((outside ?? "").utf8).write(to: sidecar) }.value
+            try? await Task.sleep(for: .seconds(1.5))
+            Trace.log("watch: \(other.main) after an outside write: \(culling.rating(other.main).stars) stars")
+            let copy = folder.appendingPathComponent("ZZ_copy.dng")
+            try? FileManager.default.copyItem(at: folder.appendingPathComponent(own), to: copy)
+            try? await Task.sleep(for: .seconds(1.5))
+            Trace.log(
+                "watch: after copying a photo in: browser \(AppModel.shared.browser.photos.count), viewer \(photos.count)"
+            )
+            try? FileManager.default.removeItem(at: copy)
+            try? await Task.sleep(for: .seconds(1.5))
+            Trace.log(
+                "watch: after removing it: browser \(AppModel.shared.browser.photos.count), viewer \(photos.count)")
+            culling.autoAdvance = true
         }
 
         /// RAWBOY_M7=1: real preview on and off, one slide of a slideshow, and Compare (choose, step, rate, close).
@@ -396,6 +433,14 @@ final class ViewerSession {
         }
         controller?.canvas.ratingText = text
         controller?.canvas.counterText = "\(index + 1) / \(photos.count)" + (text.isEmpty ? "" : "  ·  \(text)")
+    }
+
+    /// These files changed in place (edited elsewhere): their pictures are made again.
+    func forget(_ names: Set<String>) {
+        guard let folder = model.folder else { return }
+        Task {
+            for name in names { await store.forget(folder.appendingPathComponent(name)) }
+        }
     }
 
     /// The photos changed on disk (moved to the bin or the Trash, or back): goes on with [groups], on the same photo

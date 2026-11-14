@@ -66,6 +66,15 @@ public actor ImageStore {
         return image
     }
 
+    /// Drops every cached picture of [url] (the file changed).
+    public func forget(_ url: URL) {
+        for kind in [Kind.preview, .full, .developed, .developedFull] {
+            for orientation in [nil] + (1...8).map(Optional.some) {
+                cache.remove(Key(url: url, kind: kind, orientation: orientation))
+            }
+        }
+    }
+
     /// Loads previews of [items] in order, one at a time, replacing any earlier prefetch.
     public func prefetch(_ items: [(url: URL, orientation: Int?)], kind: Kind = .preview) {
         prefetchTask?.cancel()
