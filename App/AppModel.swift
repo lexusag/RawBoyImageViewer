@@ -159,7 +159,7 @@ final class AppModel {
         }
     }
 
-    /// ⌘⌫: the photo in the viewer, else the browser's selection.
+    /// ⌘⌫ and ⌦: the photo in the viewer, else the browser's selection.
     func moveToTrash() {
         if NSApp.keyWindow?.firstResponder is NSTextView {
             NSApp.sendAction(#selector(NSResponder.deleteToBeginningOfLine(_:)), to: nil, from: nil)
@@ -168,6 +168,8 @@ final class AppModel {
         if viewerIsKey {
             viewer.handle(.moveToTrash)
         } else {
+            // Only what is selected: with nothing selected, the anchor isn't something to delete.
+            guard !browser.selection.isEmpty else { return }
             let ids = browser.ratingTargets
             Task { await culling.moveToTrash(ids) }
         }

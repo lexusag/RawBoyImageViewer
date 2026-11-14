@@ -7,38 +7,76 @@ import ViewerFiles
 struct Sidebar: View {
     let app: AppModel
 
+    @AppStorage("browser.pinFavourites") private var pinFavourites = true
+
+    /// A row is about 28 pt high; the pinned list stops growing at [pinnedMaxHeight] and scrolls inside itself.
+    private static let pinnedMaxHeight = 220.0
+
     var body: some View {
-        PanelScroll {
-            VStack(alignment: .leading, spacing: 2) {
-                SidebarHeading(title: "Favourites")
-                if app.browser.favourites.isEmpty {
-                    Text("Star a folder, or right-click one, to keep it here.")
-                        .font(Theme.label)
-                        .foregroundStyle(Theme.ashMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, DesignTokens.Spacing.sm)
-                } else {
-                    ForEach(app.browser.favourites, id: \.self) { url in
-                        FolderRow(url: url, title: url.lastPathComponent, icon: "star", depth: 0, app: app, tree: true)
-                    }
-                }
-                if !app.browser.recent.isEmpty {
-                    SidebarHeading(title: "Recent")
-                    ForEach(app.browser.recent.prefix(6), id: \.self) { url in
-                        FolderRow(
-                            url: url, title: url.lastPathComponent, icon: "clock", depth: 0, app: app, tree: false)
-                    }
-                }
-                SidebarHeading(title: "Places")
-                ForEach(Self.places(), id: \.url) { place in
-                    FolderRow(url: place.url, title: place.title, icon: place.icon, depth: 0, app: app, tree: true)
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            if pinFavourites {
+                let count = max(app.browser.favourites.count, 1)
+                PanelScroll { favourites }
+                    .frame(height: min(Double(count) * 28 + 44, Self.pinnedMaxHeight + 44))
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.top, 38)
+                Rectangle().fill(Theme.hairline).frame(height: 1)
             }
-            .padding(.horizontal, DesignTokens.Spacing.sm)
-            .padding(.top, 38)
-            .padding(.bottom, DesignTokens.Spacing.md)
+            PanelScroll {
+                VStack(alignment: .leading, spacing: 2) {
+                    if !pinFavourites { favourites }
+                    if !app.browser.recent.isEmpty {
+                        SidebarHeading(title: "Recent")
+                        ForEach(app.browser.recent.prefix(6), id: \.self) { url in
+                            FolderRow(
+                                url: url, title: url.lastPathComponent, icon: "clock", depth: 0, app: app,
+                                tree: false)
+                        }
+                    }
+                    SidebarHeading(title: "Places")
+                    ForEach(Self.places(), id: \.url) { place in
+                        FolderRow(
+                            url: place.url, title: place.title, icon: place.icon, depth: 0, app: app, tree: true,
+                            followsCurrent: true)
+                    }
+                }
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+                .padding(.top, pinFavourites ? 0 : 38)
+                .padding(.bottom, DesignTokens.Spacing.md)
+            }
         }
         .background(Theme.graphiteSurface)
+    }
+
+    private var favourites: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            SidebarHeading(title: "Favourites") {
+                Button {
+                    pinFavourites.toggle()
+                } label: {
+                    Image(systemName: pinFavourites ? "pin.fill" : "pin")
+                        .font(.system(size: 10))
+                        .foregroundStyle(pinFavourites ? Theme.amber : Theme.ashMuted)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(
+                    pinFavourites
+                        ? "Favourites stay in view while the rest scrolls: click to unpin" : "Keep favourites in view")
+            }
+            if app.browser.favourites.isEmpty {
+                Text("Star a folder, or right-click one, to keep it here.")
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.ashMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+            } else {
+                ForEach(app.browser.favourites, id: \.self) { url in
+                    FolderRow(url: url, title: url.lastPathComponent, icon: "star", depth: 0, app: app, tree: true)
+                }
+            }
+        }
     }
 
     struct Place {
@@ -77,17 +115,28 @@ struct Sidebar: View {
     }
 }
 
-private struct SidebarHeading: View {
+private struct SidebarHeading<Trailing: View>: View {
     let title: String
+    @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        Text(title.uppercased())
-            .font(.system(size: DesignTokens.FontSize.label, weight: .semibold))
-            .kerning(0.6)
-            .foregroundStyle(Theme.ashMuted)
-            .padding(.horizontal, DesignTokens.Spacing.sm)
-            .padding(.top, DesignTokens.Spacing.md)
-            .padding(.bottom, 4)
+        HStack {
+            Text(title.uppercased())
+                .font(.system(size: DesignTokens.FontSize.label, weight: .semibold))
+                .kerning(0.6)
+                .foregroundStyle(Theme.ashMuted)
+            Spacer(minLength: 0)
+            trailing
+        }
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.top, DesignTokens.Spacing.md)
+        .padding(.bottom, 4)
+    }
+}
+
+extension SidebarHeading where Trailing == EmptyView {
+    init(title: String) {
+        self.init(title: title) { EmptyView() }
     }
 }
 
@@ -99,6 +148,8 @@ private struct FolderRow: View {
     let depth: Int
     let app: AppModel
     let tree: Bool
+    /// Opens itself when the folder shown in the grid is inside it (the Places tree, so a favourite's folder is found).
+    var followsCurrent = false
     @State private var expanded = false
     @State private var children: [URL]?
     @State private var hovered = false
@@ -147,14 +198,25 @@ private struct FolderRow: View {
             .onHover { hovered = $0 }
             .contextMenu { FolderMenu(url: url, browser: app.browser) }
             .help(url.path)
+            .onAppear { expandIfCurrentIsInside() }
+            .onChange(of: app.browser.folder) { expandIfCurrentIsInside() }
 
             if expanded, let children {
                 ForEach(children, id: \.self) { child in
                     FolderRow(
                         url: child, title: child.lastPathComponent, icon: "folder", depth: depth + 1, app: app,
-                        tree: true)
+                        tree: true, followsCurrent: followsCurrent)
                 }
             }
         }
+    }
+
+    /// Expands towards the folder being shown, never collapsing what the person opened.
+    private func expandIfCurrentIsInside() {
+        guard followsCurrent, tree, !expanded, let current = app.browser.folder else { return }
+        let prefix = url.standardizedFileURL.path
+        guard current.standardizedFileURL.path.hasPrefix(prefix == "/" ? prefix : prefix + "/") else { return }
+        if children == nil { children = FolderScanner.subfolders(of: url) }
+        expanded = true
     }
 }

@@ -29,6 +29,7 @@ enum ViewerKeys {
     private static let enter: UInt16 = 76
     private static let space: UInt16 = 49
     private static let delete: UInt16 = 51
+    private static let forwardDelete: UInt16 = 117
     private static let escape: UInt16 = 53
     private static let home: UInt16 = 115
     private static let end: UInt16 = 119
@@ -53,6 +54,7 @@ enum ViewerKeys {
         case u: return .unflag
         case right, down, space: return .next
         case left, up, delete: return .previous
+        case forwardDelete: return .moveToTrash
         case home: return .first
         case end: return .last
         case z: return .toggleZoom
