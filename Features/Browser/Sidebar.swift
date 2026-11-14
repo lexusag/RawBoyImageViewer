@@ -24,6 +24,7 @@ struct Sidebar: View {
                 Rectangle().fill(Theme.hairline).frame(height: 1)
             }
             PanelScroll {
+                ScrollViewReader { proxy in
                 VStack(alignment: .leading, spacing: 2) {
                     if !pinFavourites { favourites }
                     if !app.browser.recent.isEmpty {
@@ -43,9 +44,24 @@ struct Sidebar: View {
                 }
                 .padding(.horizontal, DesignTokens.Spacing.sm)
                 .padding(.bottom, DesignTokens.Spacing.md)
+                .onChange(of: app.browser.folder) { scrollToCurrent(proxy) }
+                }
             }
         }
         .background(Theme.graphiteSurface)
+    }
+
+    /// Brings the shown folder's row in the Places tree into view. The tree expands towards it over a few layout
+    /// passes (each level opens when its row appears), so the scroll is tried again as rows arrive.
+    private func scrollToCurrent(_ proxy: ScrollViewProxy) {
+        guard let path = app.browser.folder?.standardizedFileURL.path else { return }
+        Task { @MainActor in
+            for delay in [0.15, 0.35, 0.6] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard app.browser.folder?.standardizedFileURL.path == path else { return }
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(FolderRow.scrollID(path), anchor: .center) }
+            }
+        }
     }
 
     private var favourites: some View {
@@ -215,6 +231,7 @@ private struct FolderRow: View {
                     .strokeBorder(dropTargeted ? Theme.amber : .clear, lineWidth: 1.5)
             )
             .contentShape(Rectangle())
+            .id(followsCurrent ? Self.scrollID(url.standardizedFileURL.path) : nil)
             .dropDestination(for: URL.self) { urls, _ in
                 app.dropOnPlace(urls, url)
             } isTargeted: { targeted in
@@ -236,6 +253,8 @@ private struct FolderRow: View {
             }
         }
     }
+
+    static func scrollID(_ path: String) -> String { "place:" + path }
 
     /// Expands towards the folder being shown, never collapsing what the person opened.
     private func expandIfCurrentIsInside() {
