@@ -113,30 +113,61 @@ final class ViewerRootView: NSView {
             let show = visible.contains(edge)
             guard show != shown.contains(edge) || (show && reservedChanged) else { continue }
             if show {
-                if !shown.contains(edge) {
-                    view.frame = hiddenFrame(for: edge)
-                    view.isHidden = false
-                }
+                let appearing = !shown.contains(edge)
                 shown.insert(edge)
+                let target = frame(for: edge)
+                if appearing {
+                    view.isHidden = false
+                    // Move the frame at once and slide the layer: animating an NSHostingView's frame makes SwiftUI
+                    // lay the panel out on every step, which showed as ghosted text and a half-transparent card.
+                    let from = hiddenFrame(for: edge)
+                    view.frame = target
+                    slide(view, dx: from.minX - target.minX, dy: from.minY - target.minY, duration: fade)
+                } else {
+                    view.frame = target
+                }
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = fade
                     context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                    view.animator().frame = frame(for: edge)
                     view.animator().alphaValue = 1
+                } completionHandler: { [weak self] in
+                    MainActor.assumeIsolated {
+                        // Never leave a panel part-way through a fade (an interrupted animation did).
+                        if self?.shown.contains(edge) == true { view.alphaValue = 1 }
+                    }
                 }
             } else {
                 shown.remove(edge)
+                let target = hiddenFrame(for: edge)
+                let now = frame(for: edge)
+                slide(view, dx: target.minX - now.minX, dy: target.minY - now.minY, duration: fade, toOffset: true)
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = fade
-                    view.animator().frame = hiddenFrame(for: edge)
                     view.animator().alphaValue = 0
                 } completionHandler: { [weak self] in
                     MainActor.assumeIsolated {
-                        if self?.shown.contains(edge) == false { view.isHidden = true }
+                        if self?.shown.contains(edge) == false {
+                            view.isHidden = true
+                            view.alphaValue = 0
+                            view.layer?.removeAllAnimations()
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// Slides a panel's layer by an offset (from it to rest, or from rest to it) without touching the view's frame.
+    private func slide(_ view: NSView, dx: Double, dy: Double, duration: Double, toOffset: Bool = false) {
+        guard let layer = view.layer, dx != 0 || dy != 0 else { return }
+        // The root is flipped (y down) but layers of its subviews follow the view's own geometry: y down too.
+        let offset = CATransform3DMakeTranslation(dx, dy, 0)
+        let animation = CABasicAnimation(keyPath: "transform")
+        animation.fromValue = toOffset ? CATransform3DIdentity : offset
+        animation.toValue = toOffset ? offset : CATransform3DIdentity
+        animation.duration = duration
+        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(animation, forKey: "slide")
     }
 
     // MARK: Pointer
