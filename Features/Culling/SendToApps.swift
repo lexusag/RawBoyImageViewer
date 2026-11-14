@@ -2,6 +2,7 @@ import AppKit
 
 /// The apps photos and folders can be sent to ("Send to ▸"): Reblum when it is installed, plus any app added in
 /// Settings. Sending opens the files in the app, as Finder's Open With does.
+@MainActor
 enum SendToApps {
     static let key = "files.sendToApps"
 
@@ -34,7 +35,6 @@ enum SendToApps {
     }
 
     /// Opens [urls] (photos or a folder) in [app].
-    @MainActor
     static func send(_ urls: [URL], to app: URL, completion: @escaping @MainActor (Error?) -> Void) {
         NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) {
             _, error in
