@@ -38,8 +38,8 @@ struct CaptureDateTests {
 
     /// A little-endian TIFF: IFD0 with DateTime [ifd0Date] and, when given, an EXIF IFD with DateTimeOriginal.
     static func tiff(_ ifd0Date: String, _ exifDate: String? = nil) -> [UInt8] {
-        let d0 = T.text(ifd0Date) + [0]
-        let d1 = exifDate.map { T.text($0) + [0] } ?? []
+        let d0: [UInt8] = T.text(ifd0Date) + [0]
+        let d1: [UInt8] = exifDate.map { (date: String) -> [UInt8] in T.text(date) + [0] } ?? []
         let n0 = exifDate != nil ? 2 : 1
         let ifd0At = 8
         let exifAt = ifd0At + 2 + n0 * 12 + 4
@@ -47,11 +47,16 @@ struct CaptureDateTests {
         let d0At = exifAt + exifSize
         let d1At = d0At + d0.count
         var out: [UInt8] = [0x49, 0x49, 42, 0] + T.le32(ifd0At) + T.le16(n0)
-        out += T.le16(0x0132) + T.le16(2) + T.le32(d0.count) + T.le32(d0At)
-        if exifDate != nil { out += T.le16(0x8769) + T.le16(4) + T.le32(1) + T.le32(exifAt) }
+        out += T.le16(0x0132) + T.le16(2)
+        out += T.le32(d0.count) + T.le32(d0At)
+        if exifDate != nil {
+            out += T.le16(0x8769) + T.le16(4)
+            out += T.le32(1) + T.le32(exifAt)
+        }
         out += T.le32(0)
         if exifDate != nil {
-            out += T.le16(1) + T.le16(0x9003) + T.le16(2) + T.le32(d1.count) + T.le32(d1At) + T.le32(0)
+            out += T.le16(1) + T.le16(0x9003) + T.le16(2)
+            out += T.le32(d1.count) + T.le32(d1At) + T.le32(0)
         }
         return out + d0 + d1
     }
@@ -84,9 +89,13 @@ struct CaptureDateTests {
         func cr3(_ cmt: [UInt8]) -> [UInt8] {
             T.box("ftyp", T.text("crx ")) + T.box("moov", T.box("uuid", cmt, uuid: "85c0b687820f11e08111f4ce462b6a48"))
         }
-        let exifIfd: [UInt8] =
-            [0x49, 0x49, 42, 0] + T.le32(8) + T.le16(1) + T.le16(0x9003) + T.le16(2) + T.le32(20) + T.le32(26)
-            + T.le32(0) + T.text("2026:05:05 05:05:05") + [0]
+        // Built in steps: older compilers time out type-checking it as one expression.
+        var exifIfd: [UInt8] = [0x49, 0x49, 42, 0]
+        exifIfd += T.le32(8) + T.le16(1)
+        exifIfd += T.le16(0x9003) + T.le16(2)
+        exifIfd += T.le32(20) + T.le32(26)
+        exifIfd += T.le32(0)
+        exifIfd += T.text("2026:05:05 05:05:05") + [0]
         #expect(
             date(cr3(T.box("CMT1", Self.tiff("2026:08:15 10:00:00")) + T.box("CMT2", exifIfd)))
                 == "2026:05:05 05:05:05")
