@@ -179,6 +179,15 @@ final class AppModel {
 
     /// The browser's rating keys (by physical key, as the viewer's): 1–5, 0, P, X, U on the selection.
     func browserKey(_ event: NSEvent) -> Bool {
+        // ⌦ (Fn-⌫ on a laptop) trashes the selection; plain ⌫ goes up a folder. Here rather than in the views, so it
+        // works whichever view (grid, list, preview) has the focus. ⌘⌫ is the menu's.
+        if !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+            event.keyCode == 51 || event.keyCode == 117, !(NSApp.keyWindow is NSPanel),
+            !(NSApp.keyWindow?.firstResponder is NSTextView), browser.folder != nil
+        {
+            if event.keyCode == 51 { browser.goUp() } else { moveToTrash() }
+            return true
+        }
         guard !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
             !(NSApp.keyWindow?.firstResponder is NSTextView), let command = ViewerKeys.command(for: event)
         else { return false }

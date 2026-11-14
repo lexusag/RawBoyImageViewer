@@ -111,6 +111,10 @@ private struct BrowserToolbar: View {
                 ToolbarIcon(icon: "arrow.up", help: "Up a folder (⌘↑)", isOn: false) { browser.goUp() }
                     .keyboardShortcut(.upArrow, modifiers: .command)
                     .disabled(browser.folder == nil)
+                ToolbarIcon(icon: "trash", help: "Move the selection to the Trash (⌘⌫, ⌦)", isOn: false) {
+                    app.moveToTrash()
+                }
+                .disabled(browser.selection.isEmpty)
                 ToolbarIcon(
                     icon: browser.showFolders ? "folder.fill" : "folder",
                     help: browser.showFolders ? "Hide folders in the grid" : "Show folders in the grid",
