@@ -6,7 +6,7 @@ import ViewerFiles
 /// Recent folders, then places (home folders, cloud storage, volumes) as folder trees that open as they are expanded.
 struct Sidebar: View {
     let app: AppModel
-
+    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
     @AppStorage("browser.pinFavourites") private var pinFavourites = true
 
     /// A row is about 28 pt high; the pinned list stops growing at [pinnedMaxHeight] and scrolls inside itself.
@@ -14,12 +14,13 @@ struct Sidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Fixed strip under the window's traffic lights (scaled back to real points), so nothing scrolls under them.
+            Color.clear.frame(height: 38 / min(max(uiScale, 0.5), 2))
             if pinFavourites {
                 let count = max(app.browser.favourites.count, 1)
                 PanelScroll { favourites }
                     .frame(height: min(Double(count) * 28 + 44, Self.pinnedMaxHeight + 44))
                     .padding(.horizontal, DesignTokens.Spacing.sm)
-                    .padding(.top, 38)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
             }
             PanelScroll {
@@ -41,7 +42,6 @@ struct Sidebar: View {
                     }
                 }
                 .padding(.horizontal, DesignTokens.Spacing.sm)
-                .padding(.top, pinFavourites ? 0 : 38)
                 .padding(.bottom, DesignTokens.Spacing.md)
             }
         }
