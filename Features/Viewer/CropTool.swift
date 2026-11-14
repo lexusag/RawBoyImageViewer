@@ -18,12 +18,16 @@ final class CropToolState {
     let frameSize: Size2D
     var onDone: (CropRect) -> Void = { _ in }
     var onCancel: () -> Void = {}
+    /// Applies the crop and also writes the cropped photo as a new file.
+    var onSaveCopy: (CropRect) -> Void = { _ in }
     var changed: () -> Void = {}
 
     init(crop: CropRect, frameSize: Size2D) {
         self.crop = crop
         self.frameSize = frameSize
         portrait = frameSize.height > frameSize.width
+        // A fresh crop starts at the photo's own proportions; an existing one is left as it is (free).
+        aspect = crop.isFull ? .original : .free
     }
 
     var ratio: Double? { aspect.ratio(frameWidth: frameSize.width, frameHeight: frameSize.height, portrait: portrait) }
@@ -34,7 +38,7 @@ final class CropToolState {
     }
 
     func reset() {
-        aspect = .free
+        aspect = .original
         crop = .full
         changed()
     }
@@ -186,6 +190,8 @@ struct CropToolbar: View {
             .disabled(state.aspect == .free || state.aspect == .square)
             Button("Reset") { state.reset() }.buttonStyle(.rawBoy)
             Button("Cancel") { state.onCancel() }.buttonStyle(.rawBoy)
+            Button("Save copy") { state.onSaveCopy(state.crop) }.buttonStyle(.rawBoy)
+                .help("Apply the crop and save the cropped photo as a new file in the export folder")
             Button("Done") { state.onDone(state.crop) }.buttonStyle(.rawBoyPrimary)
         }
         .padding(.horizontal, DesignTokens.Spacing.md)

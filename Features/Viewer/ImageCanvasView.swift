@@ -39,7 +39,13 @@ final class ImageCanvasView: NSView {
     /// A quick click (not a hold, not a double-click): Compare chooses the pane.
     var onClick: (() -> Void)?
     /// The bottom band, the wheel and swipes change photos. Off in Compare, which has its own keys.
-    var navigationEnabled = true
+    var navigationEnabled = true {
+        didSet {
+            guard navigationEnabled != oldValue else { return }
+            if !navigationEnabled { setBandSide(nil) }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     /// A pane's name, in its top-left corner (Compare).
     var captionText = "" {
         didSet {
@@ -577,7 +583,8 @@ final class ImageCanvasView: NSView {
 
     override func resetCursorRects() {
         if fitted {
-            if image != nil {
+            // No previous/next pointers where navigation is off (the crop tool's toolbar sits over the band).
+            if image != nil, navigationEnabled {
                 addCursorRect(bandRect(.previous), cursor: Cursors.previous)
                 addCursorRect(bandRect(.next), cursor: Cursors.next)
             }
