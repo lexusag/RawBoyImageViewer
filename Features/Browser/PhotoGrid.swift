@@ -1,6 +1,7 @@
 import AppKit
 import RawBoyBrowseKit
 import SwiftUI
+import ViewerFiles
 import ViewerImaging
 
 /// The folder's photos as thumbnails, after its subfolders when those are shown. Click selects, ⌘-click adds,
@@ -41,7 +42,8 @@ struct PhotoGrid: View {
                                 case .folder(let url):
                                     FolderCell(
                                         title: url.lastPathComponent, icon: "folder.fill", size: cell,
-                                        isSelected: browser.selection.contains(entry.id)
+                                        isSelected: browser.selection.contains(entry.id),
+                                        url: url, store: browser.thumbnails
                                     )
                                     .contextMenu { FolderMenu(url: url, browser: browser) }
                                 case .parent:
@@ -206,16 +208,32 @@ private struct FolderCell: View {
     let icon: String
     let size: Double
     let isSelected: Bool
+    /// The folder itself and a store for the pictures inside it (the "show what is inside" setting); nil for "up".
+    var url: URL?
+    var store: ThumbnailStore?
+    @AppStorage(SettingsKeys.folderContents) private var showContents = false
     @State private var hovered = false
+    @State private var inside: [CGImage] = []
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
                     .fill(isSelected || hovered ? Theme.graphiteRaised : Theme.graphiteSurface)
-                Image(systemName: icon)
-                    .font(.system(size: size * 0.22))
-                    .foregroundStyle(Theme.ashMuted)
+                if showContents, !inside.isEmpty {
+                    contents
+                    Image(systemName: icon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.paperWhite)
+                        .padding(4)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(Theme.graphiteSurface.opacity(0.92)))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .padding(6)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: size * 0.22))
+                        .foregroundStyle(Theme.ashMuted)
+                }
             }
             .frame(width: size, height: size * 0.75)
             .overlay(
@@ -233,6 +251,57 @@ private struct FolderCell: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Folder \(title)")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+        .task(id: "\(url?.path ?? "")|\(showContents)") {
+            guard showContents, let url, let store else {
+                inside = []
+                return
+            }
+            inside = await Self.pictures(in: url, store: store)
+        }
+    }
+
+    /// Up to four of the folder's pictures, two by two.
+    private var contents: some View {
+        let gap = 3.0
+        let width = (size - 12 - gap) / 2
+        let height = (size * 0.75 - 12 - gap) / 2
+        let shown = Array(inside.prefix(4))
+        return VStack(spacing: gap) {
+            ForEach(Array(stride(from: 0, to: shown.count, by: 2)), id: \.self) { row in
+                HStack(spacing: gap) {
+                    ForEach(row..<min(row + 2, shown.count), id: \.self) { i in
+                        Image(decorative: shown[i], scale: 2)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: width, height: height)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+                }
+            }
+        }
+    }
+
+    /// Reads the directory entries, then the thumbnails of the first four photos (never cloud placeholders).
+    static func pictures(in folder: URL, store: ThumbnailStore) async -> [CGImage] {
+        let files = await Task.detached(priority: .utility) { () -> [PhotoFile] in
+            var seen = Set<String>()
+            return ((try? FolderScanner.photos(in: folder)) ?? [])
+                .filter { !$0.isOnlineOnly }
+                .sorted {
+                    $0.url.lastPathComponent.localizedStandardCompare($1.url.lastPathComponent) == .orderedAscending
+                }
+                .filter { seen.insert($0.url.deletingPathExtension().lastPathComponent.lowercased()).inserted }
+                .prefix(4).map { $0 }
+        }.value
+        var out: [CGImage] = []
+        for file in files {
+            if Task.isCancelled { return [] }
+            if let image = await store.thumbnail(file.url, size: file.size, modified: file.modified)?.cgImage {
+                out.append(image)
+            }
+        }
+        return out
     }
 }
 

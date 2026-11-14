@@ -37,6 +37,9 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | C | Compare the selection (2–4 photos; one photo is compared with the next) |
 | S | Slideshow from the selection |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
+| List button | Show the folder as a list (thumbnail, name, shoot date, kind, size, rating) instead of thumbnails; drag the lines between column titles to resize them |
+| Preview button | A pane on the right with the selected photo, large (off at first); drag its edge to resize it, and the sidebar's edge too |
+| Settings › Browser | "Show what is inside folder tiles": folder tiles show up to four of their photos (off at first; needs the Folder button on) |
 | Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar) |
 
 The bar under the grid rates the selection, filters by Picks / Unflagged / Rejects and stars, and moves the rejects
