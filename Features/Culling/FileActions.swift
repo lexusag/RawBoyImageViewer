@@ -10,6 +10,7 @@ extension AppModel {
         static let exportOptions = "export.options"
         static let exportFolder = "export.folder"
         static let exportDestination = "export.destination"
+        static let exportPresets = "export.presets"
         static let recentDestinations = "files.recentDestinations"
     }
 
@@ -74,10 +75,18 @@ extension AppModel {
         }
     }
 
+    static var exportPresets: [ExportPreset] {
+        get {
+            UserDefaults.standard.data(forKey: FileKeys.exportPresets)
+                .flatMap { try? JSONDecoder().decode([ExportPreset].self, from: $0) } ?? []
+        }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: FileKeys.exportPresets) }
+    }
+
     private func showExportSheet(_ ids: [String], _ folder: URL) {
         guard let parent = NSApp.keyWindow ?? NSApp.mainWindow else { return }
         let sheet = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 390), styleMask: [.titled],
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 430), styleMask: [.titled],
             backing: .buffered, defer: false)
         let view = ExportSheet(
             count: ids.count, options: Self.exportOptions, current: folder,
@@ -309,6 +318,15 @@ extension AppModel {
     }
 }
 
+/// A named export: size, format, quality, location and where it goes (a subfolder is kept by name).
+struct ExportPreset: Codable, Equatable, Identifiable {
+    var name: String
+    var options: ExportOptions
+    var destination: String
+
+    var id: String { name }
+}
+
 /// Where an export goes: the open folder, a subfolder of it (made on export if it isn't there), or any folder.
 enum ExportDestination: Equatable {
     case same
@@ -359,6 +377,9 @@ struct ExportSheet: View {
     let current: URL
     let subfolders: [URL]
     @State var destination: ExportDestination
+    @State private var presets = AppModel.exportPresets
+    @State private var namingPreset = false
+    @State private var presetName = ""
     @State private var makingNew = false
     @State private var newName = ""
     let onCancel: () -> Void
@@ -382,6 +403,38 @@ struct ExportSheet: View {
             Text("Export \(count) photo\(count == 1 ? "" : "s")")
                 .font(Theme.title)
                 .foregroundStyle(Theme.paperWhite)
+            row("Preset") {
+                HStack {
+                    Menu {
+                        ForEach(presets) { preset in
+                            Button(preset.name) { apply(preset) }
+                        }
+                        if !presets.isEmpty { Divider() }
+                        Button("Save these settings as preset…") { namingPreset = true }
+                        if !presets.isEmpty {
+                            Menu("Delete preset") {
+                                ForEach(presets) { preset in
+                                    Button(preset.name) { delete(preset) }
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(currentPreset?.name ?? "None")
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.rawBoy)
+                    .fixedSize()
+                    if namingPreset {
+                        TextField("Preset name", text: $presetName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 140)
+                            .onSubmit(savePreset)
+                        Button("Save", action: savePreset)
+                            .buttonStyle(.rawBoy)
+                            .disabled(presetName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
             row("Long edge") {
                 Segmented(
                     options: ExportOptions.sizes.map { ($0, $0.map { "\($0) px" } ?? "Full size") },
@@ -455,6 +508,33 @@ struct ExportSheet: View {
         .padding(DesignTokens.Spacing.xl)
         .frame(width: 520)
         .background(Theme.graphiteSurface)
+    }
+
+    /// The preset whose settings and destination are what the sheet shows now.
+    private var currentPreset: ExportPreset? {
+        guard let chosen else { return nil }
+        return presets.first { $0.options == options && $0.destination == chosen.stored }
+    }
+
+    private func apply(_ preset: ExportPreset) {
+        options = preset.options
+        pick(ExportDestination(stored: preset.destination) ?? .same)
+        namingPreset = false
+    }
+
+    private func savePreset() {
+        let name = presetName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, let chosen else { return }
+        let preset = ExportPreset(name: name, options: options, destination: chosen.stored)
+        if let i = presets.firstIndex(where: { $0.name == name }) { presets[i] = preset } else { presets.append(preset) }
+        AppModel.exportPresets = presets
+        presetName = ""
+        namingPreset = false
+    }
+
+    private func delete(_ preset: ExportPreset) {
+        presets.removeAll { $0.name == preset.name }
+        AppModel.exportPresets = presets
     }
 
     private func pick(_ choice: ExportDestination) {
