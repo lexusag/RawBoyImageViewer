@@ -9,6 +9,9 @@
 # Without DEVELOPER_ID the app is signed as Config/ says: Config/Signing.local.xcconfig's certificate (a free
 # Personal Team's "Apple Development" works) or ad hoc. Either way others open it with right-click › Open.
 #
+# CI (.github/workflows/release.yml) sets SPARKLE_KEY_FILE (the Sparkle private key, instead of the keychain) and
+# SKIP_APPCAST=1 (when it has no key: the DMG is built but the feed is left alone).
+#
 # Updates: the DMG is signed with Sparkle's key (in the login keychain) and added to appcast.xml. With PUBLISH=1 the
 # script also creates the GitHub release v<version> (PRERELEASE=1: marked pre-release) with docs/releases/v<version>.md
 # as its notes, then commits and pushes appcast.xml, which the app's SUFeedURL reads.
@@ -61,6 +64,9 @@ else
 fi
 shasum -a 256 "$DMG"
 
+if [ -n "$SKIP_APPCAST" ]; then
+    echo "SKIP_APPCAST set: appcast.xml left alone."
+else
 # Sparkle: the update feed. generate_appcast signs the DMG with the key in the keychain and adds it to the feed
 # (entries for earlier versions stay).
 SPARKLE=build/SourcePackages/artifacts/sparkle/Sparkle/bin
@@ -71,10 +77,11 @@ cp "$DMG" "$FEED/"
 [ -f appcast.xml ] && cp appcast.xml "$FEED/appcast.xml"
 NOTES="docs/releases/v$VERSION.md"
 [ -f "$NOTES" ] && cp "$NOTES" "$FEED/RawBoy-Viewer-$VERSION.md"
-"$SPARKLE/generate_appcast" --download-url-prefix "https://github.com/$REPO/releases/download/v$VERSION/" \
+"$SPARKLE/generate_appcast" ${SPARKLE_KEY_FILE:+--ed-key-file "$SPARKLE_KEY_FILE"} --download-url-prefix "https://github.com/$REPO/releases/download/v$VERSION/" \
     --embed-release-notes --link "https://github.com/$REPO" "$FEED" >/dev/null
 cp "$FEED/appcast.xml" appcast.xml
 echo "appcast.xml now lists $(grep -c '<item>' appcast.xml) release(s)"
+fi
 
 if [ -n "$PUBLISH" ]; then
     [ -f "$NOTES" ] || { echo "Write $NOTES first: it is the release's notes." >&2; exit 1; }
