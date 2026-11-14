@@ -10,6 +10,18 @@ struct Sidebar: View {
     var body: some View {
         PanelScroll {
             VStack(alignment: .leading, spacing: 2) {
+                SidebarHeading(title: "Favourites")
+                if app.browser.favourites.isEmpty {
+                    Text("Star a folder, or right-click one, to keep it here.")
+                        .font(Theme.label)
+                        .foregroundStyle(Theme.ashMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, DesignTokens.Spacing.sm)
+                } else {
+                    ForEach(app.browser.favourites, id: \.self) { url in
+                        FolderRow(url: url, title: url.lastPathComponent, icon: "star", depth: 0, app: app, tree: true)
+                    }
+                }
                 if !app.browser.recent.isEmpty {
                     SidebarHeading(title: "Recent")
                     ForEach(app.browser.recent.prefix(6), id: \.self) { url in
@@ -133,6 +145,7 @@ private struct FolderRow: View {
             .contentShape(Rectangle())
             .onTapGesture { app.browse(url) }
             .onHover { hovered = $0 }
+            .contextMenu { FolderMenu(url: url, browser: app.browser) }
             .help(url.path)
 
             if expanded, let children {

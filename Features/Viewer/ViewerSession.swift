@@ -175,6 +175,13 @@ final class ViewerSession {
         model.fileSize = values?.fileSize.map(Int64.init)
         model.modified = values?.contentModificationDate
         model.fullSize = nil
+        model.metadata = nil
+        Task.detached(priority: .userInitiated) {
+            let metadata = PhotoMetadata.read(url)
+            await MainActor.run {
+                if generation == self.generation { self.model.metadata = metadata }
+            }
+        }
 
         let previewPixelSize = previewPixelSize
         Task {

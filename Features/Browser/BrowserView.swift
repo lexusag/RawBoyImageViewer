@@ -34,9 +34,14 @@ struct BrowserView: View {
                 action: ("Open…", { app.openFolderPanel() }))
         } else if let error = browser.loadError {
             EmptyState(title: error, detail: nil, action: nil)
-        } else if browser.photos.isEmpty {
-            EmptyState(title: "No photos here", detail: "Subfolders are on the left.", action: nil)
-        } else if browser.visible.isEmpty {
+        } else if browser.items.isEmpty && browser.filter.isEmpty {
+            let count = browser.subfolders.count
+            EmptyState(
+                title: "No photos here",
+                detail: count == 0
+                    ? "Folders are on the left." : "It has \(count) subfolder\(count == 1 ? "" : "s").",
+                action: count == 0 ? nil : ("Show folders", { browser.showFolders = true }))
+        } else if browser.items.isEmpty {
             EmptyState(title: "Nothing matches “\(browser.filter)”", detail: nil, action: nil)
         } else {
             PhotoGrid(app: app)
@@ -78,6 +83,23 @@ private struct BrowserToolbar: View {
                     .foregroundStyle(Theme.ashMuted)
             }
             Spacer(minLength: DesignTokens.Spacing.md)
+            HStack(spacing: 4) {
+                ToolbarIcon(icon: "arrow.up", help: "Up a folder (⌘↑)", isOn: false) { browser.goUp() }
+                    .keyboardShortcut(.upArrow, modifiers: .command)
+                    .disabled(browser.folder == nil)
+                ToolbarIcon(
+                    icon: browser.showFolders ? "folder.fill" : "folder",
+                    help: browser.showFolders ? "Hide folders in the grid" : "Show folders in the grid",
+                    isOn: browser.showFolders
+                ) { browser.showFolders.toggle() }
+                if let folder = browser.folder {
+                    let favourite = browser.isFavourite(folder)
+                    ToolbarIcon(
+                        icon: favourite ? "star.fill" : "star",
+                        help: favourite ? "Remove from Favourites" : "Add to Favourites", isOn: favourite
+                    ) { browser.toggleFavourite(folder) }
+                }
+            }
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.ashMuted)
                 TextField("Search names", text: Bindable(browser).filter)
@@ -119,9 +141,39 @@ private struct BrowserToolbar: View {
         guard browser.folder != nil else { return "No folder open" }
         let count = browser.photos.count
         var parts = ["\(count) photo\(count == 1 ? "" : "s")"]
+        if browser.showFolders, !browser.subfolders.isEmpty {
+            parts.insert("\(browser.subfolders.count) folder\(browser.subfolders.count == 1 ? "" : "s")", at: 0)
+        }
         if browser.selection.count > 1 { parts.append("\(browser.selection.count) selected") }
         if browser.isLoading { parts.append("reading dates…") }
         return parts.joined(separator: " · ")
+    }
+}
+
+/// A toolbar button: an icon, amber when its option is on.
+private struct ToolbarIcon: View {
+    let icon: String
+    let help: String
+    let isOn: Bool
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(isOn ? Theme.amber : Theme.paperWhite)
+                .frame(width: 30, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+                        .fill(hovered ? Theme.graphiteRaised : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
+        .onHover { hovered = $0 }
     }
 }
 

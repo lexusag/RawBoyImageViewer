@@ -26,7 +26,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - `Features/Browser/`: `BrowserModel` (folder → `BrowsePhoto`s via `FolderScanner` + `PhotoGroups`, capture dates read
   in the background then one reorder, sort/filter/size/recent/last folder in UserDefaults `browser.*`, selection as in
   RawBoy Browser), `BrowserView` (toolbar, `Segmented`), `PhotoGrid` (LazyVGrid, keys, `ThumbnailStore` at 480 px),
-  `Sidebar` (recent, places incl. ~/Library/CloudStorage and volumes, lazy folder tree). The viewer gets the browser's
+  `GridEntry` (parent / folder / photo tiles: folders only with `showFolders`, off by default), favourites (UserDefaults
+  `browser.favourites`, toolbar star or right-click `FolderMenu`), `Sidebar` (favourites, recent, places incl. ~/Library/CloudStorage and volumes, lazy folder tree). The viewer gets the browser's
   order (`AppModel.openViewer`) and hands back the photo it ended on. `Theme/`: tokens as SwiftUI/AppKit colours,
   RawBoy button styles.
 - `Features/Viewer/`: `ViewerSession` (open folder, photo list from `PhotoGroups`, every `ViewerCommand`, load +
@@ -35,7 +36,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   pointer and wakes it at `nextDeadline`; pins saved in UserDefaults `viewer.pinnedEdges`), `ViewerRootView` (flipped,
   y down like `EdgeZones`: the canvas plus the three panels in NSHostingViews, slide/fade, panel frames),
   `ImageCanvasView` (AppKit + one `CALayer`; zoom/pan via `ZoomMath` inside `imageArea` = bounds minus pinned panels;
-  bottom band via `BottomBand`, chevron cursors, hold-repeat, counter pill; mouse/trackpad/keys → `ViewerCommand`),
+  bottom band via `BottomBand`, chevron cursors, hold-repeat, counter pill; press-and-hold peek at 1:1 (after
+  `peekDelay`, at once on drag; release → fit); the wheel/trackpad don't change photos for `navigationPause` after
+  zooming or panning, so zooming out to fit doesn't run on into the next photos; mouse/trackpad/keys → `ViewerCommand`),
   `ViewerKeys` (physical key codes).
 - `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right), `ActionMenu` (left),
   `BrowserStrip` (top: breadcrumb + filmstrip from `ThumbnailStore`). Scrolling goes through `PanelScroll`, because
@@ -46,13 +49,13 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     RawBoy Browser's `PhotoGroups.ts`: RAW + JPEG = one photo, the raw is main), `ZoomMath`, `PrefetchPlan`,
     `LRUCache`, `ViewerCommand`, `ByteSource`/`FileSource` (block-cached random reads), `EmbeddedPreviews` and
     `CaptureDate` (ports of RawBoy's `EmbeddedPreview.ts` / `CaptureDate.ts`, with its tests; JPEG XL previews not
-    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
+    ported: ImageIO decodes those DNGs), `PhotoOrder` (port of RawBoy's), `ExifFormat` (shutter, aperture, bias, codes, camera name), `EdgeZones` (which panels show: dwell, grace, close delay, corners, pins, Tab; time
     passed in, so tested without timers), `BottomBand`, `Rect2D` (y down); later the XMP sidecar, embedded-preview parser, capture dates and the edge-zone state
     machine. It is meant to move into the RawBoy repo and serve RawBoy desktop and the Windows port.
   - `ViewerImaging`: `ImageLoader` (screen-size preview: a raw's embedded JPEG from `EmbeddedPreviews` when
     ≥ 2560 px, else ImageIO's embedded one, else decoded;
     full resolution for 1:1; `displayReady` redraws to 8-bit BGRA), `ImageStore` (actor: LRU 1.5 GB, shared in-flight
-    decodes, sequential prefetch), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
+    decodes, sequential prefetch), `PhotoMetadata` (ImageIO properties → the details panel's fields), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
     path + size + mtime + pixels, 1 GB → made: a raw's embedded JPEG when ≥ 400 px, else ImageIO), `Thumbnailer`.
   - `ViewerFiles`: `FolderScanner` (photos with size, date and `isOnlineOnly`; sidecar names; subfolders without
     packages or `_bin`), `CloudStatus` (ubiquitous status or `SF_DATALESS`). Scanning reads directory entries only,
@@ -88,6 +91,9 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 
 - **The browser window steals the key window from a viewer opened at launch** (SwiftUI shows it after
   `applicationDidFinishLaunching`), and with it go the hidden menu bar and Dock. `AppDelegate` waits for it first.
+- Checking UI states in snapshots that need preferences: `defaults export app.rawboy.viewer <file>` first, then
+  `defaults import` it back **and** `defaults delete` every key you added (import doesn't remove them). The owner's
+  own last folder and recent folders live there.
 - `ImageRenderer` draws native text fields as a yellow placeholder: not a bug in the view.
 - `RAWBOY_SAMPLES=<folder> swift test --package-path Packages --filter SampleFiles` runs the parsers over real raws.
   Phone DNGs have no embedded JPEG, Adobe's JPEG XL DNGs only a 256 px one: both fall back to ImageIO.

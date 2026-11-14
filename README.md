@@ -25,11 +25,14 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⌘A, Esc | Select all, clear |
 | ⌘F | Search names |
 | ⌘R | Reload the folder |
+| ⌘↑ | Up a folder |
+| Folder button | Show subfolders as tiles in the grid (off at first) |
+| Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar) |
 
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
 Move the pointer to an edge and rest it there for a moment: the **left** edge shows actions, the **right** edge the
-photo's details, the **top** edge the folder's filmstrip. A panel goes away when the pointer leaves it; its pin keeps
+photo's details (exposure, camera and lens, file, colour profile, location, credits), the **top** edge the folder's filmstrip. A panel goes away when the pointer leaves it; its pin keeps
 it showing, and the photo then fits beside it. Along the **bottom** of the photo, the left half goes to the previous
 photo and the right half to the next (hold to keep going).
 
@@ -39,14 +42,15 @@ photo and the right half to the next (hold to keep going).
 | ← ↑ ⌫, wheel up, swipe right, bottom left | Previous photo |
 | Home / End | First / last photo |
 | Z, double-click, smart zoom | Fit ↔ 1:1 at the pointer |
-| Pinch, wheel (zoomed in) | Zoom |
+| Press and hold | 1:1 at the pointer while held; drag to look around, release to fit again |
+| Pinch, wheel (zoomed in) | Zoom (once zoomed back out to fit, the wheel waits for a pause before changing photos) |
 | Drag, two-finger scroll (zoomed in) | Pan |
 | F | Screen-filling ↔ window |
 | I / M / B | Details / actions / filmstrip panel |
 | Tab | Hide every panel, pinned ones too (again: bring the pinned back) |
 | E | Open in darktable (or the photo's default app) |
 | Esc | Close the panels; with none showing, back to the browser |
-| G | Back to the browser |
+| G, Return | Back to the browser |
 
 A RAW + JPEG pair is one photo, shown from the raw.
 

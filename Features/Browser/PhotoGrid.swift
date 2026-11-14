@@ -3,8 +3,9 @@ import RawBoyBrowseKit
 import SwiftUI
 import ViewerImaging
 
-/// The folder's photos as thumbnails. Click selects, ⌘-click adds, Shift-click selects a range, double-click (or
-/// Enter / Space) opens the viewer; arrows move, ⌘A selects all, Esc clears (RawBoy Browser's keys).
+/// The folder's photos as thumbnails, after its subfolders when those are shown. Click selects, ⌘-click adds,
+/// Shift-click selects a range, double-click (or Enter / Space) opens the viewer or the folder; arrows move, ⌘A
+/// selects all, Esc clears (RawBoy Browser's keys), ⌘↑ goes up a folder.
 struct PhotoGrid: View {
     let app: AppModel
     @FocusState private var focused: Bool
@@ -23,19 +24,33 @@ struct PhotoGrid: View {
                         columns: [GridItem(.adaptive(minimum: cell, maximum: cell), spacing: Self.spacing)],
                         spacing: Self.spacing
                     ) {
-                        ForEach(browser.visible) { photo in
-                            PhotoCell(
-                                photo: photo, size: cell, isSelected: browser.selection.contains(photo.id),
-                                store: browser.thumbnails
-                            )
-                            .id(photo.id)
+                        ForEach(browser.items) { entry in
+                            Group {
+                                switch entry {
+                                case .photo(let photo):
+                                    PhotoCell(
+                                        photo: photo, size: cell, isSelected: browser.selection.contains(entry.id),
+                                        store: browser.thumbnails)
+                                case .folder(let url):
+                                    FolderCell(
+                                        title: url.lastPathComponent, icon: "folder.fill", size: cell,
+                                        isSelected: browser.selection.contains(entry.id)
+                                    )
+                                    .contextMenu { FolderMenu(url: url, browser: browser) }
+                                case .parent:
+                                    FolderCell(
+                                        title: "Up a folder", icon: "arrow.turn.left.up", size: cell,
+                                        isSelected: browser.selection.contains(entry.id))
+                                }
+                            }
+                            .id(entry.id)
                             .gesture(
-                                TapGesture(count: 2).onEnded { app.openViewer(at: photo.id) }
+                                TapGesture(count: 2).onEnded { open(entry.id) }
                                     .exclusively(
                                         before: TapGesture().onEnded {
                                             let flags = NSEvent.modifierFlags
                                             browser.click(
-                                                photo.id, command: flags.contains(.command),
+                                                entry.id, command: flags.contains(.command),
                                                 shift: flags.contains(.shift))
                                             focused = true
                                         }))
@@ -66,7 +81,7 @@ struct PhotoGrid: View {
             case .downArrow: browser.move(by: columns)
             case .escape: browser.clearSelection()
             default:
-                if let anchor = browser.anchor { app.openViewer(at: anchor) }
+                if let anchor = browser.anchor { open(anchor) }
             }
             return .handled
         }
@@ -75,6 +90,11 @@ struct PhotoGrid: View {
             browser.selectAll()
             return .handled
         }
+    }
+
+    /// A folder tile opens the folder, a photo the viewer.
+    private func open(_ id: String) {
+        if !app.browser.activate(id) { app.openViewer(at: id) }
     }
 
     /// How many cells fit across [width] (the adaptive grid's own arithmetic), for the up/down keys.
@@ -131,6 +151,52 @@ private struct PhotoCell: View {
             guard !photo.isOnlineOnly else { return }
             image = await store.thumbnail(photo.url, size: photo.size, modified: photo.modified)?.cgImage
         }
+    }
+}
+
+/// A folder (or the way up) as a tile the size of a photo's.
+private struct FolderCell: View {
+    let title: String
+    let icon: String
+    let size: Double
+    let isSelected: Bool
+    @State private var hovered = false
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+                    .fill(isSelected || hovered ? Theme.graphiteRaised : Theme.graphiteSurface)
+                Image(systemName: icon)
+                    .font(.system(size: size * 0.22))
+                    .foregroundStyle(Theme.ashMuted)
+            }
+            .frame(width: size, height: size * 0.75)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+                    .strokeBorder(isSelected ? Theme.amber : Theme.hairline, lineWidth: isSelected ? 2 : 1))
+            Text(title)
+                .font(Theme.label)
+                .foregroundStyle(isSelected ? Theme.paperWhite : Theme.ashMuted)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(width: size)
+        }
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
+    }
+}
+
+/// Right-click on a folder, in the grid or the sidebar.
+struct FolderMenu: View {
+    let url: URL
+    let browser: BrowserModel
+
+    var body: some View {
+        Button(browser.isFavourite(url) ? "Remove from Favourites" : "Add to Favourites") {
+            browser.toggleFavourite(url)
+        }
+        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
     }
 }
 

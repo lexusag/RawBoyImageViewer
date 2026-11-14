@@ -7,6 +7,7 @@ import ViewerImaging
 /// Navigation goes out through [onCommand].
 ///
 /// - Bottom band (photo fitted): left half previous, right half next; holding repeats (PLAN.md §2).
+/// - Press and hold elsewhere on a fitted photo: 1:1 at the pointer, drag to pan, release to fit again.
 /// - Mouse wheel: previous/next while the photo fits, zoom at the pointer once zoomed in.
 /// - Trackpad: a horizontal two-finger swipe goes to previous/next while the photo fits, and pans once zoomed in.
 final class ImageCanvasView: NSView {
@@ -48,6 +49,13 @@ final class ImageCanvasView: NSView {
     private var labelHide: DispatchWorkItem?
     private var repeatTimer: Timer?
     private var bandSide: ViewerCommand?
+    /// The last time the wheel or a gesture zoomed: the wheel that zoomed out to fit must not run on into the next
+    /// photos, so navigation waits for a pause.
+    private var lastZoomInput = 0.0
+    /// Press and hold on a fitted photo: 1:1 at the pointer while the button is down, back to fit on release.
+    private var peekTimer: Timer?
+    private var peekAnchor: Point2D?
+    private var isPeeking = false
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -332,15 +340,51 @@ final class ImageCanvasView: NSView {
             return
         }
         if event.clickCount == 2 {
+            cancelPeek()
             toggleZoom(at: anchor(event))
+            return
         }
+        if fitted, image != nil {
+            // A quick click does nothing; holding starts the 1:1 peek (dragging starts it at once).
+            peekAnchor = anchor(event)
+            let timer = Timer(timeInterval: Self.peekDelay, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.startPeek() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            peekTimer = timer
+        }
+    }
+
+    /// How long the button must stay down before a click becomes a peek.
+    static let peekDelay = 0.15
+
+    private func startPeek() {
+        peekTimer?.invalidate()
+        peekTimer = nil
+        guard let math, fitted, let anchor = peekAnchor else { return }
+        isPeeking = true
+        setZoom(math.zoomed(zoom, to: math.oneToOneScale, around: anchor))
+        NSCursor.closedHand.set()
+    }
+
+    private func cancelPeek() {
+        peekTimer?.invalidate()
+        peekTimer = nil
+        peekAnchor = nil
     }
 
     override func mouseUp(with event: NSEvent) {
         stopRepeating()
+        cancelPeek()
+        if isPeeking, let math {
+            isPeeking = false
+            setZoom(math.fit, showLabel: false)
+            window?.invalidateCursorRects(for: self)
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if peekTimer != nil { startPeek() }
         guard let math, !math.isFit(zoom) else { return }
         setZoom(math.panned(zoom, by: Point2D(x: event.deltaX, y: -event.deltaY)), showLabel: false)
     }
@@ -360,12 +404,17 @@ final class ImageCanvasView: NSView {
             swipeFired = false
         }
         if !math.isFit(zoom) {
+            lastZoomInput = event.timestamp
             setZoom(
                 math.panned(zoom, by: Point2D(x: event.scrollingDeltaX, y: -event.scrollingDeltaY)), showLabel: false)
             return
         }
-        // Fitted: one swipe = one photo. Momentum after the fingers lift is ignored.
-        guard event.momentumPhase.isEmpty, !swipeFired else { return }
+        // Fitted: one swipe = one photo. Momentum after the fingers lift is ignored, and so is a scroll that was
+        // panning a moment ago.
+        guard event.momentumPhase.isEmpty, !swipeFired, event.timestamp - lastZoomInput > Self.navigationPause else {
+            if event.timestamp - lastZoomInput <= Self.navigationPause { lastZoomInput = event.timestamp }
+            return
+        }
         // With natural scrolling the deltas follow the fingers; fingers moving left bring the next photo.
         let fingers = event.isDirectionInvertedFromDevice ? event.scrollingDeltaX : -event.scrollingDeltaX
         swipeDistance += fingers
@@ -379,15 +428,25 @@ final class ImageCanvasView: NSView {
         let delta = event.scrollingDeltaY
         guard delta != 0 else { return }
         if math.isFit(zoom) {
+            // Still the wheel that zoomed out to fit: wait for a pause before changing photos.
+            if event.timestamp - lastZoomInput < Self.navigationPause {
+                lastZoomInput = event.timestamp
+                return
+            }
             onCommand?(delta < 0 ? .next : .previous)
         } else {
+            lastZoomInput = event.timestamp
             let factor = delta > 0 ? 1.25 : 1 / 1.25
             setZoom(math.zoomed(zoom, to: zoom.scale * factor, around: anchor(event)))
         }
     }
 
+    /// How long the wheel must rest after zooming before it changes photos.
+    static let navigationPause = 0.4
+
     override func magnify(with event: NSEvent) {
         guard let math else { return }
+        lastZoomInput = event.timestamp
         setZoom(math.zoomed(zoom, to: zoom.scale * (1 + event.magnification), around: anchor(event)))
     }
 

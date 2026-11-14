@@ -20,6 +20,23 @@ struct BrowsePhoto: Identifiable, Equatable {
     var name: String { group.main }
 }
 
+/// One tile of the grid: the parent folder, a subfolder (both only when folders are shown), or a photo.
+enum GridEntry: Identifiable, Equatable {
+    case parent(URL)
+    case folder(URL)
+    case photo(BrowsePhoto)
+
+    var id: String {
+        switch self {
+        case .parent: ".."
+        case .folder(let url): Self.folderID(url)
+        case .photo(let photo): photo.id
+        }
+    }
+
+    static func folderID(_ url: URL) -> String { "folder:" + url.standardizedFileURL.path }
+}
+
 /// The browser's state: the folder, its photos in order, the filter, the selection.
 @MainActor
 @Observable
@@ -38,6 +55,16 @@ final class BrowserModel {
     var filter = "" {
         didSet { reorder() }
     }
+    /// Subfolders (and the parent) as tiles before the photos. Off by default.
+    var showFolders: Bool = UserDefaults.standard.bool(forKey: Keys.showFolders) {
+        didSet {
+            UserDefaults.standard.set(showFolders, forKey: Keys.showFolders)
+            reorder()
+        }
+    }
+    private(set) var favourites: [URL] = (UserDefaults.standard.stringArray(forKey: Keys.favourites) ?? []).map {
+        URL(fileURLWithPath: $0)
+    }
     var thumbnailSize: Double = UserDefaults.standard.object(forKey: Keys.size) as? Double ?? 168 {
         didSet { UserDefaults.standard.set(thumbnailSize, forKey: Keys.size) }
     }
@@ -50,8 +77,12 @@ final class BrowserModel {
         URL(fileURLWithPath: $0)
     }
 
-    /// What the grid shows: the photos matching the filter, in order.
+    /// The photos matching the filter, in order: what the viewer steps through.
     private(set) var visible: [BrowsePhoto] = []
+    /// The folder's subfolders, by name.
+    private(set) var subfolders: [URL] = []
+    /// What the grid shows: folders (when shown), then the visible photos.
+    private(set) var items: [GridEntry] = []
 
     let thumbnails = ThumbnailStore(pixelSize: 480)
     private var generation = 0
@@ -61,6 +92,8 @@ final class BrowserModel {
         static let size = "browser.thumbnailSize"
         static let recent = "browser.recentFolders"
         static let last = "browser.lastFolder"
+        static let showFolders = "browser.showFolders"
+        static let favourites = "browser.favourites"
     }
 
     static var lastFolder: URL? {
@@ -69,8 +102,8 @@ final class BrowserModel {
     }
 
     /// Shows [folder]: its photos at once in name order, reordered once their dates are read. [select] is a file name
-    /// to select (and scroll to).
-    func load(_ folder: URL, select: String? = nil) {
+    /// to select (and scroll to), [selectID] a grid entry's id.
+    func load(_ folder: URL, select: String? = nil, selectID: String? = nil) {
         let folder = folder.standardizedFileURL
         generation += 1
         let generation = generation
@@ -90,8 +123,9 @@ final class BrowserModel {
             photos = []
             loadError = "Can't read \(folder.lastPathComponent): \(error.localizedDescription)"
         }
+        subfolders = FolderScanner.subfolders(of: folder)
         let wanted = select.map { PhotoGroups.stem(of: $0).lowercased() }
-        let selected = wanted.flatMap { w in photos.first { $0.group.stem.lowercased() == w }?.id }
+        let selected = selectID ?? wanted.flatMap { w in photos.first { $0.group.stem.lowercased() == w }?.id }
         selection = selected.map { [$0] } ?? []
         anchor = selected ?? photos.first?.id
         reorder()
@@ -149,15 +183,57 @@ final class BrowserModel {
         let matching = needle.isEmpty ? photos : photos.filter { $0.name.lowercased().contains(needle) }
         let sort = sort
         visible = matching.sorted { PhotoOrder.inOrder(sort, ($0.date, $0.name), ($1.date, $1.name)) }
+        var entries: [GridEntry] = []
+        if showFolders, let folder {
+            let parent = folder.deletingLastPathComponent()
+            if parent.path != folder.path { entries.append(.parent(parent)) }
+            let folders =
+                needle.isEmpty
+                ? subfolders : subfolders.filter { $0.lastPathComponent.lowercased().contains(needle) }
+            entries += folders.map(GridEntry.folder)
+        }
+        items = entries + visible.map(GridEntry.photo)
+    }
+
+    // MARK: Folders
+
+    /// Up to the parent folder, with the folder just left selected.
+    func goUp() {
+        guard let folder else { return }
+        let parent = folder.deletingLastPathComponent()
+        guard parent.path != folder.path else { return }
+        load(parent, selectID: GridEntry.folderID(folder))
+    }
+
+    /// Opens a folder tile; false for a photo (the viewer opens those).
+    func activate(_ id: String) -> Bool {
+        switch items.first(where: { $0.id == id }) {
+        case .parent: goUp()
+        case .folder(let url): load(url)
+        default: return false
+        }
+        return true
+    }
+
+    func isFavourite(_ url: URL) -> Bool { favourites.contains(url.standardizedFileURL) }
+
+    func toggleFavourite(_ url: URL) {
+        let url = url.standardizedFileURL
+        if let i = favourites.firstIndex(of: url) {
+            favourites.remove(at: i)
+        } else {
+            favourites.append(url)
+        }
+        UserDefaults.standard.set(favourites.map(\.path), forKey: Keys.favourites)
     }
 
     // MARK: Selection
 
     func click(_ id: String, command: Bool, shift: Bool) {
-        if shift, let anchor, let a = visible.firstIndex(where: { $0.id == anchor }),
-            let b = visible.firstIndex(where: { $0.id == id })
+        if shift, let anchor, let a = items.firstIndex(where: { $0.id == anchor }),
+            let b = items.firstIndex(where: { $0.id == id })
         {
-            selection.formUnion(visible[min(a, b)...max(a, b)].map(\.id))
+            selection.formUnion(items[min(a, b)...max(a, b)].map(\.id))
         } else if command {
             if selection.remove(id) == nil { selection.insert(id) }
             anchor = id
@@ -167,16 +243,16 @@ final class BrowserModel {
         }
     }
 
-    func selectAll() { selection = Set(visible.map(\.id)) }
+    func selectAll() { selection = Set(items.map(\.id)) }
 
     func clearSelection() { selection = [] }
 
     /// Moves the selection by [step] places (±1 along a row, ±columns between rows).
     func move(by step: Int) {
-        guard !visible.isEmpty else { return }
-        let current = anchor.flatMap { a in visible.firstIndex { $0.id == a } }
-        let target = current.map { min(max($0 + step, 0), visible.count - 1) } ?? 0
-        select(visible[target].id)
+        guard !items.isEmpty else { return }
+        let current = anchor.flatMap { a in items.firstIndex { $0.id == a } }
+        let target = current.map { min(max($0 + step, 0), items.count - 1) } ?? 0
+        select(items[target].id)
     }
 
     /// Selects only [id] and scrolls to it.
@@ -186,5 +262,5 @@ final class BrowserModel {
         scrollRequest += 1
     }
 
-    var anchorIndex: Int? { anchor.flatMap { a in visible.firstIndex { $0.id == a } } }
+    var anchorIndex: Int? { anchor.flatMap { a in items.firstIndex { $0.id == a } } }
 }

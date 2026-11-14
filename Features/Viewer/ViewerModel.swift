@@ -14,6 +14,8 @@ final class ViewerModel {
     /// The current photo's full size in pixels, once loaded.
     var fullSize: Size2D?
     var fileSize: Int64?
+    /// The current photo's EXIF, once read.
+    var metadata: PhotoMetadata?
     var modified: Date?
     var pinned: Set<PanelEdge> = []
     var isFit = true

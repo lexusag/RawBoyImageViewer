@@ -29,13 +29,17 @@ final class AppModel {
             browse(url)
             #if DEBUG
                 // tools/smoke.sh opens a folder and wants the viewer.
-                if ProcessInfo.processInfo.environment["RAWBOY_AUTOPLAY"] != nil, let first = browser.visible.first {
+                if ProcessInfo.processInfo.environment["RAWBOY_AUTOPLAY"] != nil {
                     Task {
                         // Dates first, so the grid is in its final order.
                         try? await Task.sleep(for: .milliseconds(300))
                         Snapshot.write(BrowserView(app: self), size: CGSize(width: 1280, height: 820), name: "browser")
-                        Trace.log("browser: \(browser.visible.map(\.name).joined(separator: ", "))")
-                        openViewer(at: browser.visible.first?.id ?? first.id)
+                        Trace.log("browser: \(browser.items.map(\.id).joined(separator: ", "))")
+                        if let first = browser.visible.first {
+                            openViewer(at: first.id)
+                        } else {
+                            NSApp.terminate(nil)
+                        }
                     }
                 }
             #endif

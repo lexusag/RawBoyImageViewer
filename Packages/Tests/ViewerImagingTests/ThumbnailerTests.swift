@@ -136,3 +136,48 @@ struct ThumbnailStoreTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).count == 1)
     }
 }
+
+struct PhotoMetadataTests {
+    @Test func readsTheFieldsThePanelShows() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let context = try #require(
+            CGContext(
+                data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        let image = try #require(context.makeImage())
+        let dest = try #require(
+            CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
+        let props: [CFString: Any] = [
+            kCGImagePropertyTIFFDictionary: [
+                kCGImagePropertyTIFFMake: "FUJIFILM", kCGImagePropertyTIFFModel: "GFX 50R",
+                kCGImagePropertyTIFFSoftware: "darktable 5.4.0",
+            ],
+            kCGImagePropertyExifDictionary: [
+                kCGImagePropertyExifExposureTime: 1.0 / 240, kCGImagePropertyExifFNumber: 4.0,
+                kCGImagePropertyExifISOSpeedRatings: [100], kCGImagePropertyExifExposureBiasValue: 0,
+                kCGImagePropertyExifExposureProgram: 3, kCGImagePropertyExifMeteringMode: 5,
+                kCGImagePropertyExifFlash: 16, kCGImagePropertyExifDateTimeOriginal: "2026:03:01 12:23:15",
+            ],
+            kCGImagePropertyGPSDictionary: [
+                kCGImagePropertyGPSLatitude: 52.52, kCGImagePropertyGPSLatitudeRef: "N",
+                kCGImagePropertyGPSLongitude: 13.405, kCGImagePropertyGPSLongitudeRef: "E",
+            ],
+        ]
+        CGImageDestinationAddImage(dest, image, props as CFDictionary)
+        #expect(CGImageDestinationFinalize(dest))
+
+        let m = try #require(PhotoMetadata.read(url))
+
+        #expect(m.camera == "FUJIFILM GFX 50R")
+        #expect(m.exposureSummary == "1/240 s  ·  f/4  ·  ISO 100")
+        #expect(m.bias == "0 EV")
+        #expect(m.program == "Aperture priority")
+        #expect(m.metering == "Multi-segment")
+        #expect(m.flash == "Off")
+        #expect(m.software == "darktable 5.4.0")
+        #expect(m.coordinates == "52.5200° N, 13.4050° E")
+        #expect(m.lens == nil)
+        #expect(m.taken != nil)
+    }
+}

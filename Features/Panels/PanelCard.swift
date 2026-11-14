@@ -53,12 +53,32 @@ struct PinButton: View {
     }
 }
 
-/// A label and its value, as the info panel lists them.
+/// A label and its value, as the info panel lists them: side by side, or the value under the label for long ones.
 struct InfoRow: View {
     let label: String
     let value: String
+    var stacked = false
 
     var body: some View {
+        if stacked { stackedBody } else { inlineBody }
+    }
+
+    private var inlineBody: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.sm) {
+            Text(label)
+                .font(Theme.label)
+                .foregroundStyle(Theme.ashMuted)
+                .frame(width: 104, alignment: .leading)
+            Text(value)
+                .font(Theme.body)
+                .foregroundStyle(Theme.paperWhite)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var stackedBody: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(Theme.label)
