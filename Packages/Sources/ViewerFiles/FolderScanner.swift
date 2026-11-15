@@ -62,6 +62,23 @@ public enum FolderScanner {
         .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 
+    /// Whether [folder] has any visible subfolder. Stops at the first one, so it is cheaper than `subfolders(of:)` on
+    /// big folders; run it off the main thread (network volumes can be slow).
+    public static func hasSubfolders(in folder: URL) -> Bool {
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: folder, includingPropertiesForKeys: [.isDirectoryKey, .isPackageKey],
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants, .skipsPackageDescendants])
+        else { return false }
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+            if values?.isDirectory == true && values?.isPackage != true && url.lastPathComponent != binFolderName {
+                return true
+            }
+        }
+        return false
+    }
+
     private static func entries(in folder: URL) throws -> [URL] {
         try FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants])
