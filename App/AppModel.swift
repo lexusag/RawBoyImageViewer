@@ -172,8 +172,59 @@ final class AppModel {
         } else {
             // Only what is selected: with nothing selected, the anchor isn't something to delete.
             guard !browser.selection.isEmpty else { return }
-            let ids = browser.ratingTargets
-            Task { await culling.moveToTrash(ids) }
+            trash(photos: browser.ratingTargets, folders: browser.selectedFolders)
+        }
+    }
+
+    /// Right-click on a folder tile: the whole selection when the tile is in it, else that folder alone.
+    func trashFolder(_ url: URL, entryID: String) {
+        if browser.selection.contains(entryID) {
+            trash(photos: browser.ratingTargets, folders: browser.selectedFolders)
+        } else {
+            trash(photos: [], folders: [url])
+        }
+    }
+
+    /// The browser's way to the Trash (keys, toolbar, right-click): asks first, then moves photos (with their JPEGs and
+    /// sidecars) and folders (with everything in them). Always the Trash, never a permanent delete; ⌘Z puts them back.
+    func trash(photos ids: [String], folders: [URL]) {
+        guard !ids.isEmpty || !folders.isEmpty, let current = browser.folder else { return }
+        let defaults = UserDefaults.standard
+        let synced = CullingStore.isSyncedFolder(current) && !defaults.bool(forKey: CullingStore.Keys.trashNotice)
+        let skip = folders.isEmpty && defaults.bool(forKey: CullingStore.Keys.trashPhotosWithoutAsking)
+        if !skip {
+            let alert = NSAlert()
+            let photoText = "\(ids.count) photo\(ids.count == 1 ? "" : "s")"
+            let folderText =
+                folders.count == 1 ? "the folder “\(folders[0].lastPathComponent)”" : "\(folders.count) folders"
+            alert.messageText =
+                "Move "
+                + [ids.isEmpty ? nil : photoText, folders.isEmpty ? nil : folderText].compactMap { $0 }.joined(
+                    separator: " and ") + " to the Trash?"
+            var lines: [String] = []
+            if !ids.isEmpty { lines.append("A photo's JPEG and sidecars go with it.") }
+            if !folders.isEmpty {
+                lines.append("Everything inside \(folders.count == 1 ? "the folder" : "the folders") goes too.")
+            }
+            lines.append("⌘Z puts \(ids.count + folders.count == 1 ? "it" : "them") back.")
+            if synced {
+                lines.append("This folder syncs with the cloud: the Trash deletes there and on your other devices too.")
+            }
+            alert.informativeText = lines.joined(separator: " ")
+            alert.addButton(withTitle: "Move to Trash")
+            alert.addButton(withTitle: "Cancel")
+            if folders.isEmpty {
+                alert.showsSuppressionButton = true
+                alert.suppressionButton?.title = "Don't ask again for photos"
+            }
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            if alert.suppressionButton?.state == .on {
+                defaults.set(true, forKey: CullingStore.Keys.trashPhotosWithoutAsking)
+            }
+        }
+        Task {
+            await culling.moveToTrash(ids, syncedNoticeShown: !skip)
+            culling.moveFoldersToTrash(folders)
         }
     }
 

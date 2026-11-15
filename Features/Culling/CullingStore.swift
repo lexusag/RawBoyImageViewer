@@ -56,6 +56,8 @@ final class CullingStore {
     enum Keys {
         static let autoAdvance = "culling.autoAdvance"
         static let trashNotice = "culling.syncedTrashNoticeShown"
+        /// Set by "Don't ask again" on the browser's photo-only Trash question; folders always ask.
+        static let trashPhotosWithoutAsking = "culling.trashPhotosWithoutAsking"
     }
 
     private enum Undo {
@@ -439,8 +441,9 @@ final class CullingStore {
 
     /// Moves [ids] (with their companions and sidecars) to the Trash; undoable. In a cloud sync folder the first time
     /// asks first, because the Trash there deletes from every device too.
-    func moveToTrash(_ ids: [String]) async {
-        guard let folder, !ids.isEmpty, confirmTrashInSyncedFolder(folder) else { return }
+    /// [syncedNoticeShown]: the caller's own question already carried the synced-folder warning.
+    func moveToTrash(_ ids: [String], syncedNoticeShown: Bool = false) async {
+        guard let folder, !ids.isEmpty, syncedNoticeShown || confirmTrashInSyncedFolder(folder) else { return }
         await finishWrites()
         var moves: [FileMove] = []
         var failed = 0
@@ -457,6 +460,28 @@ final class CullingStore {
             failed == 0
             ? "Moved \(moved) photo\(moved == 1 ? "" : "s") to the Trash"
             : "Moved \(moved) to the Trash; \(failed) couldn't be moved"
+        filesChanged()
+    }
+
+    /// Moves subfolders (with everything in them) to the Trash; one undo step. The caller has asked already.
+    func moveFoldersToTrash(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        var moves: [FileMove] = []
+        var failed = 0
+        for url in urls {
+            var trashed: NSURL?
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+                if let trashed = trashed as URL? { moves.append(FileMove(from: url, to: trashed)) }
+            } catch { failed += 1 }
+        }
+        noteOwnChanges(moves)
+        if !moves.isEmpty { push(.moves(moves, what: "Move to Trash")) }
+        let moved = urls.count - failed
+        message =
+            failed == 0
+            ? "Moved \(moved) folder\(moved == 1 ? "" : "s") to the Trash"
+            : "Moved \(moved) folder\(moved == 1 ? "" : "s") to the Trash; \(failed) couldn't be moved"
         filesChanged()
     }
 

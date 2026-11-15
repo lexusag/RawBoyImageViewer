@@ -28,7 +28,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | 1–5, 0 | Stars on the selection (the same number again clears them); no stars |
 | P, X, U | Pick, Reject (the same key again unflags), Unflag |
 | ⌘Z | Undo the last rating, move to `_bin` or to the Trash |
-| ⌘⌫, ⌦ | Move to the Trash (with its JPEG and sidecars); ⌦ is Fn-⌫ on a laptop |
+| ⌘⌫, ⌦ | Move to the Trash after asking (a photo with its JPEG and sidecars, a selected folder with its contents); ⌦ is Fn-⌫ on a laptop |
 | [ / ], ⌘[ / ⌘] | Rotate left / right: lossless, kept in the sidecar (`tiff:Orientation`, as Lightroom does) |
 | ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px, location kept or left out; saved to the same folder, one of its subfolders, a new subfolder or anywhere; named presets keep size, format, quality and subfolder |
 | ⌥⌘C | Copy the photo (its file) |
