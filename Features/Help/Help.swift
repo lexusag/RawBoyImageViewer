@@ -39,7 +39,7 @@ enum HelpContent {
                 Item(keys: "P · X · U", text: "Pick · Reject (the same key again unflags) · Unflag"),
                 Item(keys: "⌘Z", text: "Undo the last rating, rotation, or move to _bin, a folder or the Trash"),
                 Item(keys: "[ · ]", text: "Rotate left · right (kept in the sidecar; the file isn't changed)"),
-                Item(keys: "⌘⌫ · ⌦", text: "Move to the Trash, with the JPEG and sidecars (⌦ is Fn-⌫ on a laptop)"),
+                Item(keys: "⌘⌫ · ⌦", text: "Move to the Trash, with the JPEG and sidecars; selected folders too, after asking (⌦ is Fn-⌫ on a laptop)"),
                 Item(keys: "⇧⌘E · ⌥⌘C", text: "Export · Copy the photo"),
             ]),
         Section(

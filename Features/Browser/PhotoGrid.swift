@@ -45,7 +45,7 @@ struct PhotoGrid: View {
                                         isSelected: browser.selection.contains(entry.id),
                                         url: url, store: browser.thumbnails
                                     )
-                                    .contextMenu { FolderMenu(url: url, browser: browser) }
+                                    .contextMenu { FolderMenu(url: url, browser: browser, trash: { app.trashFolder(url, entryID: entry.id) }) }
                                 case .parent:
                                     FolderCell(
                                         title: "Up a folder", icon: "arrow.turn.left.up", size: cell,
@@ -323,7 +323,9 @@ private struct PhotoMenu: View {
         SendToMenu(app: app, ids: ids)
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-        Button("Move to Trash") { Task { await app.culling.moveToTrash(ids) } }
+        Button("Move to Trash…") {
+            app.trash(photos: ids, folders: app.browser.selection.contains(id) ? app.browser.selectedFolders : [])
+        }
     }
 }
 
@@ -331,6 +333,8 @@ private struct PhotoMenu: View {
 struct FolderMenu: View {
     let url: URL
     let browser: BrowserModel
+    /// Set where the folder is a tile in the browser (not in the sidebar): offers Move to Trash….
+    var trash: (() -> Void)?
 
     var body: some View {
         Button(browser.isFavourite(url) ? "Remove from Favourites" : "Add to Favourites") {
@@ -338,6 +342,10 @@ struct FolderMenu: View {
         }
         SendToMenu(app: AppModel.shared, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        if let trash {
+            Divider()
+            Button("Move to Trash…", action: trash)
+        }
     }
 }
 

@@ -142,6 +142,14 @@ final class BrowserModel {
         return anchor.flatMap { a in photos.contains(a) ? [a] : nil } ?? []
     }
 
+    /// The selected subfolders, in grid order.
+    var selectedFolders: [URL] {
+        items.compactMap { entry in
+            if case .folder(let url) = entry, selection.contains(entry.id) { return url }
+            return nil
+        }
+    }
+
     enum Keys {
         static let sort = "browser.sort"
         static let size = "browser.thumbnailSize"

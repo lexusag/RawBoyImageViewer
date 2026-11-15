@@ -165,7 +165,7 @@ private struct ListRow: View {
         .contextMenu {
             switch entry {
             case .photo(let photo): ListPhotoMenu(id: photo.id, url: photo.url, app: app)
-            case .folder(let url): FolderMenu(url: url, browser: browser)
+            case .folder(let url): FolderMenu(url: url, browser: browser, trash: { app.trashFolder(url, entryID: entry.id) })
             case .parent: EmptyView()
             }
         }
@@ -251,6 +251,8 @@ private struct ListPhotoMenu: View {
         Button("Share…") { app.perform(.share, ids) }
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-        Button("Move to Trash") { Task { await app.culling.moveToTrash(ids) } }
+        Button("Move to Trash…") {
+            app.trash(photos: ids, folders: app.browser.selection.contains(id) ? app.browser.selectedFolders : [])
+        }
     }
 }

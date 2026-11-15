@@ -37,6 +37,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
     @AppStorage(SettingsKeys.editorPath) private var editorPath = ""
     @AppStorage(CullingStore.Keys.trashNotice) private var trashNoticeShown = false
+    @AppStorage(CullingStore.Keys.trashPhotosWithoutAsking) private var trashPhotosWithoutAsking = false
     @State private var cacheSize: Int64 = 0
     @State private var sendApps = SendToApps.apps
     @State private var autoUpdate = Updater.shared.checksAutomatically
@@ -85,6 +86,10 @@ struct SettingsView: View {
                         if !editorPath.isEmpty { Button("Darktable or default") { editorPath = "" } }
                     }
                 }
+                Toggle(
+                    "Ask before moving photos to the Trash in the browser",
+                    isOn: Binding(
+                        get: { !trashPhotosWithoutAsking }, set: { trashPhotosWithoutAsking = !$0 }))
                 Toggle(
                     "Ask before moving to the Trash in a synced folder",
                     isOn: Binding(
