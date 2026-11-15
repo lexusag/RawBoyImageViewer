@@ -371,8 +371,8 @@ struct ExporterTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let out = folder.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-        for (w, h, turn) in [(4001, 2999, nil), (3001, 4501, nil), (6000, 4000, 6), (5003, 3331, 8)] as [(Int, Int, Int?)]
-        {
+        let cases: [(Int, Int, Int?)] = [(4001, 2999, nil), (3001, 4501, nil), (6000, 4000, 6), (5003, 3331, 8)]
+        for (w, h, turn) in cases {
             let photo = folder.appendingPathComponent("P\(w)x\(h).png")
             try TestImages.writePNG(width: w, height: h, to: photo)
             let exported = try Exporter.export(
