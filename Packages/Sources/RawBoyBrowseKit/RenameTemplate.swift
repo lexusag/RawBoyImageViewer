@@ -13,6 +13,8 @@ public struct RenameContext: Equatable, Sendable {
     public var folder: String?
     /// The photo's number in this rename, for `#`.
     public var index: Int
+    /// What `{name}` gives, when it isn't the file's own stem (a find and replace applied to the original name).
+    public var originalStem: String?
 
     public init(
         fileName: String, camera: String? = nil, lens: String? = nil, iso: Int? = nil, date: String? = nil,
@@ -119,7 +121,7 @@ public enum RenameTemplate {
         if literal { return sanitize(template) }
         let dates = dateParts(context.date)
         var values: [String: String] = [
-            "name": stemOf(context.fileName),
+            "name": context.originalStem ?? stemOf(context.fileName),
             "camera": context.camera ?? "",
             "lens": context.lens ?? "",
             "iso": (context.iso ?? 0) > 0 ? String(context.iso ?? 0) : "",
@@ -159,6 +161,65 @@ public enum RenameTemplate {
     }
 }
 
+/// Find and replace on a name: plain text or a regular expression, applied to the original name (before the
+/// template) or to the name the template gives.
+public struct RenameReplace: Equatable, Codable, Sendable {
+    public enum Target: String, Codable, Sendable {
+        /// The photo's own name: `{name}` in the template then gives the replaced name.
+        case original
+        /// The name the template gives.
+        case result
+    }
+
+    public var find: String
+    public var replace: String
+    public var regex: Bool
+    public var caseSensitive: Bool
+    public var target: Target
+
+    public init(
+        find: String = "", replace: String = "", regex: Bool = false, caseSensitive: Bool = false,
+        target: Target = .result
+    ) {
+        self.find = find
+        self.replace = replace
+        self.regex = regex
+        self.caseSensitive = caseSensitive
+        self.target = target
+    }
+
+    /// Whether anything is to be replaced.
+    public var isActive: Bool { !find.isEmpty }
+
+    private func expression() throws -> NSRegularExpression {
+        try NSRegularExpression(pattern: find, options: caseSensitive ? [] : [.caseInsensitive])
+    }
+
+    /// Why the regular expression can't be used, or nil when it can (or when it isn't one).
+    public var error: String? {
+        guard isActive, regex else { return nil }
+        do {
+            _ = try expression()
+            return nil
+        } catch {
+            return "Not a valid regular expression"
+        }
+    }
+
+    /// [text] with every match of [find] replaced. `$1`… and `$0` give a regex's groups (`\$` a dollar sign). An
+    /// invalid regex changes nothing.
+    public func apply(_ text: String) -> String {
+        guard isActive else { return text }
+        if regex {
+            guard let expression = try? expression() else { return text }
+            return expression.stringByReplacingMatches(
+                in: text, range: NSRange(text.startIndex..., in: text), withTemplate: replace)
+        }
+        return text.replacingOccurrences(
+            of: find, with: replace, options: caseSensitive ? [.literal] : [.literal, .caseInsensitive])
+    }
+}
+
 /// One photo in a rename: the files it has now and what each becomes.
 public struct RenameItem: Equatable, Sendable {
     public enum Status: Equatable, Sendable {
@@ -192,13 +253,19 @@ public enum RenamePlan {
     /// outside the rename, or given to two photos, is a conflict: nothing is renamed over anything.
     public static func make(
         photos: [(group: PhotoGroup, context: RenameContext)], template: String, start: Int, existing: [String],
-        literal: Bool = false
+        literal: Bool = false, replace: RenameReplace = RenameReplace()
     ) -> [RenameItem] {
+        // A bad regex replaces nothing; the dialog shows why and blocks the rename.
+        let replace = replace.error == nil ? replace : RenameReplace()
         var items: [RenameItem] = []
         for (n, photo) in photos.enumerated() {
             var context = photo.context
             context.index = start + n
-            let newStem = RenameTemplate.apply(template, context, literal: literal)
+            // A typed name has no `{name}`, so the replace goes on what was typed.
+            let beforeTemplate = replace.target == .original && !literal
+            if beforeTemplate { context.originalStem = replace.apply(RenameTemplate.stemOf(context.fileName)) }
+            var newStem = RenameTemplate.apply(template, context, literal: literal)
+            if !beforeTemplate { newStem = RenameTemplate.sanitize(replace.apply(newStem)) }
             let group = photo.group
             let names = [group.main] + group.companions + group.sidecars
             var files: [(old: String, new: String)] = []
