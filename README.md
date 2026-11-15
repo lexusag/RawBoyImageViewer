@@ -49,7 +49,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | Right-click empty space, or a folder (grid, list, Places) › New Folder… | Makes a folder in the folder shown (or in the one clicked), asks for a name, selects it; ⌘Z removes it while it is empty |
 | Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar) |
 
-The bar under the grid rates the selection, filters by Picks / Unflagged / Rejects and stars, and moves the rejects
+The bar under the grid rates the selection, filters by Picks / Unflagged / Rejects (each with its count for the folder) and stars, and moves the rejects
 (with their sidecars and JPEGs) into the folder's `_bin` subfolder: nothing is deleted, and **Bin** brings them back.
 Ratings are saved as you go in XMP sidecars next to the photos (`NAME.xmp`, or the ones a photo already has), in the
 format RawBoy Browser, Lightroom, Capture One and darktable read; other apps' settings in them are left as they are.

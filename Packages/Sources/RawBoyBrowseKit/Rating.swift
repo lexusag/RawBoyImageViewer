@@ -47,3 +47,19 @@ public enum FlagFilter: String, CaseIterable, Sendable {
         return flagOK && rating.stars >= minStars
     }
 }
+
+extension FlagFilter {
+    /// How many of [ratings] each filter's flag state holds, whatever filter or star minimum is on: the counts shown
+    /// on the segments (RawBoy Browser's).
+    public static func counts(_ ratings: [Rating]) -> [FlagFilter: Int] {
+        var result: [FlagFilter: Int] = [.all: ratings.count, .picks: 0, .unflagged: 0, .rejects: 0]
+        for rating in ratings {
+            switch rating.flag {
+            case .pick: result[.picks, default: 0] += 1
+            case .reject: result[.rejects, default: 0] += 1
+            case nil: result[.unflagged, default: 0] += 1
+            }
+        }
+        return result
+    }
+}

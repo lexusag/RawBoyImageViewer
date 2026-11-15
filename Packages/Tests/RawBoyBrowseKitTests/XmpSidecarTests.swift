@@ -79,6 +79,18 @@ struct RatingTests {
         #expect(!FlagFilter.rejects.passes(Rating(flag: .pick), minStars: 0))
     }
 
+    @Test func flagCounts() {
+        let rs = [
+            Rating(stars: 3, flag: .pick), Rating(), Rating(stars: 1), Rating(flag: .reject), Rating(flag: .pick),
+        ]
+        let counts = FlagFilter.counts(rs)
+        #expect(counts[.all] == 5)
+        #expect(counts[.picks] == 2)
+        #expect(counts[.unflagged] == 2)
+        #expect(counts[.rejects] == 1)
+        #expect(FlagFilter.counts([])[.picks] == 0)
+    }
+
     @Test func suffixKeepsSidecarsMatched() {
         #expect(PhotoGroups.withSuffix("IMG_1.CR2.xmp", stem: "IMG_1", suffix: "-2") == "IMG_1-2.CR2.xmp")
         #expect(PhotoGroups.withSuffix("img_1.jpg", stem: "IMG_1", suffix: "-1") == "img_1-1.jpg")
