@@ -255,7 +255,16 @@ extension AppModel {
     /// Whether [urls] is the drag this app started (so dropping it on the grid again does nothing).
     func isOwnDrag(_ urls: [URL]) -> Bool {
         guard let lead = drag?.lead else { return false }
-        return urls.contains { $0.standardizedFileURL == lead.standardizedFileURL }
+        return urls.contains { Self.sameItem($0, lead) }
+    }
+
+    /// Whether a dropped URL is the dragged lead. The path alone isn't enough: since the drag also offers the file's
+    /// contents, a drop target may be handed another URL for it (a file reference, a resolved symlink, a temporary
+    /// in-place copy). The name within the shown folder is what identifies it, so the whole selection still moves.
+    static func sameItem(_ dropped: URL, _ lead: URL) -> Bool {
+        if dropped.standardizedFileURL == lead.standardizedFileURL { return true }
+        if dropped.resolvingSymlinksInPath() == lead.resolvingSymlinksInPath() { return true }
+        return dropped.lastPathComponent == lead.lastPathComponent
     }
 
     /// Files or folders dropped from Finder or another app on the browser: a folder opens, files open their folder
@@ -293,7 +302,7 @@ extension AppModel {
     /// Returns false for drops that aren't from the grid.
     func dropOnPlace(_ urls: [URL], _ destination: URL) -> Bool {
         guard let set = drag, let folder = browser.folder, let lead = set.lead,
-            urls.contains(where: { $0.standardizedFileURL == lead.standardizedFileURL })
+            urls.isEmpty || urls.contains(where: { Self.sameItem($0, lead) })
         else { return false }
         drag = nil
         let copy = NSEvent.modifierFlags.contains(.option) || !Self.sameVolume(folder, destination)
