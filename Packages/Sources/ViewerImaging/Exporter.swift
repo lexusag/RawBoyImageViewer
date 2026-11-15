@@ -20,12 +20,29 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     public var quality: Double
     /// Leave the GPS position out.
     public var removeLocation: Bool
+    /// Replace a file of the same name in the destination (the old one goes to the Trash) instead of numbering the
+    /// new one. Never applies to the photo's own folder, which holds the originals.
+    public var replaceExisting: Bool
 
-    public init(longEdge: Int? = 3000, format: Format = .jpeg, quality: Double = 0.9, removeLocation: Bool = false) {
+    public init(
+        longEdge: Int? = 3000, format: Format = .jpeg, quality: Double = 0.9, removeLocation: Bool = false,
+        replaceExisting: Bool = false
+    ) {
         self.longEdge = longEdge
         self.format = format
         self.quality = quality
         self.removeLocation = removeLocation
+        self.replaceExisting = replaceExisting
+    }
+
+    // Saved options and presets from before `replaceExisting` have no such key.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        longEdge = try c.decodeIfPresent(Int.self, forKey: .longEdge)
+        format = try c.decode(Format.self, forKey: .format)
+        quality = try c.decode(Double.self, forKey: .quality)
+        removeLocation = try c.decode(Bool.self, forKey: .removeLocation)
+        replaceExisting = try c.decodeIfPresent(Bool.self, forKey: .replaceExisting) ?? false
     }
 
     /// The sizes the export sheet offers.
@@ -33,7 +50,7 @@ public struct ExportOptions: Codable, Equatable, Sendable {
 }
 
 /// Writes a photo as a new JPEG or HEIC: resized, turned as its sidecar says, its colour profile and EXIF kept (the
-/// location only when asked), never overwriting a file. Raws are developed by macOS as shot (not RawBoy's look).
+/// location only when asked), never overwriting a file unless asked (the old one goes to the Trash). Raws are developed by macOS as shot (not RawBoy's look).
 public enum Exporter {
     public enum ExportError: LocalizedError {
         case unreadable(String), unwritable(String)
@@ -83,14 +100,49 @@ public enum Exporter {
         }
         image = Orienting.crop(image, crop)
 
-        let out = freeURL(
-            in: folder, stem: (stem ?? PhotoGroups.stem(of: name)) + suffix, extension: options.format.fileExtension)
+        let fullStem = (stem ?? PhotoGroups.stem(of: name)) + suffix
+        let ext = options.format.fileExtension
+        // Replacing is for other folders only: the photo's own folder holds the originals (and a RAW's JPEG).
+        let replacing =
+            options.replaceExisting
+            && folder.standardizedFileURL.resolvingSymlinksInPath()
+                != url.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath()
+        let out =
+            replacing
+            ? folder.appendingPathComponent("\(fullStem).\(ext)") : freeURL(in: folder, stem: fullStem, extension: ext)
+        // Written beside the target first, so a failed export never costs the file already there.
+        let written =
+            replacing
+            ? folder.appendingPathComponent(".\(fullStem)-\(UUID().uuidString.prefix(8)).\(ext)") : out
         guard
-            let dest = CGImageDestinationCreateWithURL(out as CFURL, options.format.type.identifier as CFString, 1, nil)
+            let dest = CGImageDestinationCreateWithURL(
+                written as CFURL, options.format.type.identifier as CFString, 1, nil)
         else { throw ExportError.unwritable(out.lastPathComponent) }
         CGImageDestinationAddImage(dest, image, metadata(props, options) as CFDictionary)
-        guard CGImageDestinationFinalize(dest) else { throw ExportError.unwritable(out.lastPathComponent) }
+        guard CGImageDestinationFinalize(dest) else {
+            if replacing { try? FileManager.default.removeItem(at: written) }
+            throw ExportError.unwritable(out.lastPathComponent)
+        }
+        if replacing {
+            do { try swap(written, into: out) } catch {
+                try? FileManager.default.removeItem(at: written)
+                throw ExportError.unwritable(out.lastPathComponent)
+            }
+        }
         return out
+    }
+
+    /// Puts [new] at [target]. An old file there goes to the Trash (permanently replaced where there is none, e.g.
+    /// on a network volume).
+    static func swap(_ new: URL, into target: URL) throws {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: target.path) {
+            do { try fm.trashItem(at: target, resultingItemURL: nil) } catch {
+                _ = try fm.replaceItemAt(target, withItemAt: new)
+                return
+            }
+        }
+        try fm.moveItem(at: new, to: target)
     }
 
     /// The source's EXIF, TIFF, IPTC and (unless removed) GPS, with the pixels now upright and the quality set.

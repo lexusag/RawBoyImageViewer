@@ -310,6 +310,37 @@ struct ExporterTests {
         #expect(ImageLoader.fileOrientation(of: first) == 1)
     }
 
+    @Test func replacesOnlyWhenAskedAndOnlyOutsideTheSourceFolder() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let out = folder.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photo = folder.appendingPathComponent("IMG_1.png")
+        try TestImages.writePNG(width: 600, height: 400, to: photo)
+
+        _ = try Exporter.export(photo, orientation: nil, to: out, options: ExportOptions(longEdge: 300))
+        let again = try Exporter.export(
+            photo, orientation: nil, to: out, options: ExportOptions(longEdge: nil, replaceExisting: true))
+        #expect(again.lastPathComponent == "IMG_1.jpg")
+        #expect(try #require(ImageLoader.fullSize(of: again)).width == 600)
+        let names = try FileManager.default.contentsOfDirectory(atPath: out.path)
+        #expect(names == ["IMG_1.jpg"])
+
+        // In the photo's own folder the option is ignored: the new file gets a number.
+        let beside = try Exporter.export(
+            photo, orientation: nil, to: folder, options: ExportOptions(replaceExisting: true))
+        #expect(beside.lastPathComponent == "IMG_1.jpg")
+        let next = try Exporter.export(
+            photo, orientation: nil, to: folder, options: ExportOptions(replaceExisting: true))
+        #expect(next.lastPathComponent == "IMG_1-1.jpg")
+    }
+
+    @Test func oldOptionsDecodeWithoutReplace() throws {
+        let json = Data(#"{"longEdge":3000,"format":"jpeg","quality":0.9,"removeLocation":false}"#.utf8)
+        let options = try JSONDecoder().decode(ExportOptions.self, from: json)
+        #expect(options.replaceExisting == false)
+    }
+
     @Test func orientedPreviewSwapsTheSize() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
         defer { try? FileManager.default.removeItem(at: url) }

@@ -30,7 +30,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⌘Z | Undo the last rating, move to `_bin` or to the Trash |
 | ⌘⌫, ⌦ | Move to the Trash after asking (a photo with its JPEG and sidecars, a selected folder with its contents); ⌦ is Fn-⌫ on a laptop |
 | [ / ], ⌘[ / ⌘] | Rotate left / right: lossless, kept in the sidecar (`tiff:Orientation`, as Lightroom does) |
-| ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px, location kept or left out; saved to the same folder, one of its subfolders, a new subfolder or anywhere; named presets keep size, format, quality and subfolder. The export runs in the background: the browser bar shows its progress with Stop, then Show in Finder |
+| ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px, location kept or left out; optionally replacing same-named files (the old ones go to the Trash); saved to the same folder, one of its subfolders, a new subfolder or anywhere; named presets keep size, format, quality and subfolder. The export runs in the background: the browser bar shows its progress with Stop, then Show in Finder |
 | ⌥⌘C | Copy the photo (its file) |
 | Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share, Send to an app (Reblum when installed, others added in Settings › Files; on a folder it sends the photos directly inside it) |
 | Drag photos or folders onto a folder in the sidebar | Moves the selection there (with JPEGs and sidecars; undoes). Copies instead with Option held, or across drives |

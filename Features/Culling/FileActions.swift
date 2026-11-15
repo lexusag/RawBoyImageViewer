@@ -502,6 +502,11 @@ struct ExportSheet: View {
                     .toggleStyle(.checkbox)
                     .font(Theme.body)
             }
+            row("Same name") {
+                Toggle("Replace existing files", isOn: $options.replaceExisting)
+                    .toggleStyle(.checkbox)
+                    .font(Theme.body)
+            }
             row("Save to") {
                 HStack {
                     Menu {
@@ -535,7 +540,8 @@ struct ExportSheet: View {
             }
             Text(
                 "Raws are developed by macOS as shot. For RawBoy's look, export them from RawBoy. Files with the same "
-                    + "name aren't replaced: the new one gets a number."
+                    + "name get a number, or with Replace existing files go to the Trash and are replaced (never in "
+                    + "the photo's own folder)."
             )
             .font(Theme.label)
             .foregroundStyle(Theme.ashMuted)
