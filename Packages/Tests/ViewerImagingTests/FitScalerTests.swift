@@ -43,8 +43,8 @@ struct FitScalerTests {
             let value = try red(of: out, x: x, y: 100)
             #expect(abs(value - expected) <= 3, "x \(x): \(value), expected \(expected)")
         }
-        #expect(abs(try red(of: out, x: 150, y: 0) - 40) <= 3)
-        #expect(abs(try red(of: out, x: 150, y: 199) - 40) <= 3)
+        #expect(abs(try red(of: out, x: 75, y: 0) - 40) <= 3)
+        #expect(abs(try red(of: out, x: 75, y: 199) - 40) <= 3)
     }
 
     @Test func aRegionTakesOnlyThatPart() throws {
