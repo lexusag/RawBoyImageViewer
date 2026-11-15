@@ -12,6 +12,12 @@ public struct LoadedImage: @unchecked Sendable {  // CGImage is immutable.
     public let isFullResolution: Bool
 
     public var cost: Int { cgImage.bytesPerRow * cgImage.height }
+
+    public init(cgImage: CGImage, fullSize: Size2D, isFullResolution: Bool) {
+        self.cgImage = cgImage
+        self.fullSize = fullSize
+        self.isFullResolution = isFullResolution
+    }
 }
 
 /// Decodes photos through ImageIO. Embedded camera previews are used when they are large enough; RawBoy's own
