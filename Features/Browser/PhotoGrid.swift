@@ -11,6 +11,7 @@ struct PhotoGrid: View {
     let app: AppModel
     @FocusState private var focused: Bool
     @State private var columns = 1
+    @State private var marquee = Marquee()
     @Environment(\.isSnapshot) private var isSnapshot
 
     static let spacing = 10.0
@@ -20,7 +21,7 @@ struct PhotoGrid: View {
         let cell = browser.thumbnailSize
         GeometryReader { geometry in
             ScrollViewReader { proxy in
-                PanelScroll {
+                PanelScroll(marquee: marquee) {
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: cell, maximum: cell), spacing: Self.spacing)],
                         spacing: Self.spacing
@@ -57,6 +58,7 @@ struct PhotoGrid: View {
                                 }
                             }
                             .id(entry.id)
+                            .modifier(MarqueeCell(id: entry.id, enabled: !entry.isParent))
                             .onDrag { app.beginDrag(entry) ?? NSItemProvider() }
                             // Both gestures run together: waiting to tell a single click from a double one
                             // (`exclusively`) delayed every selection by the double-click interval.
@@ -72,6 +74,7 @@ struct PhotoGrid: View {
                         }
                     }
                     .padding(DesignTokens.Spacing.md)
+                    .marqueeSurface(marquee, browser: browser) { focused = true }
                 }
                 .onChange(of: browser.scrollRequest) {
                     if let anchor = browser.anchor { proxy.scrollTo(anchor) }
@@ -112,6 +115,23 @@ struct PhotoGrid: View {
     /// How many cells fit across [width] (the adaptive grid's own arithmetic), for the up/down keys.
     static func columns(_ width: Double, _ cell: Double) -> Int {
         max(Int((width - 2 * DesignTokens.Spacing.md + spacing) / (cell + spacing)), 1)
+    }
+}
+
+/// Adds the marquee's frame report to a cell, except the "Up a folder" tile.
+struct MarqueeCell: ViewModifier {
+    let id: String
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled { content.marqueeCell(id) } else { content }
+    }
+}
+
+extension GridEntry {
+    var isParent: Bool {
+        if case .parent = self { return true }
+        return false
     }
 }
 

@@ -20,6 +20,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | In the browser | |
 |---|---|
 | Click, ⌘-click, Shift-click | Select one, add one, select a range |
+| Drag on empty space | Select what the rectangle touches (Shift adds, ⌘ toggles); a click on empty space clears |
 | Arrows | Move |
 | Double-click, Enter, Space | Open the viewer |
 | ⌘A, Esc | Select all, clear |

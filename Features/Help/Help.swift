@@ -22,6 +22,7 @@ enum HelpContent {
             title: "Browser",
             items: [
                 Item(keys: "Click · ⌘-click · ⇧-click", text: "Select one, add one, select a range"),
+                Item(keys: "Drag on empty space", text: "Select what the rectangle touches (⇧ adds, ⌘ toggles)"),
                 Item(keys: "Arrows", text: "Move"),
                 Item(keys: "Double-click · Return · Space", text: "Open the viewer (or a folder tile)"),
                 Item(keys: "⌘A · Esc", text: "Select all · clear"),
