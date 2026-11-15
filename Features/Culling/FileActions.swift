@@ -245,7 +245,62 @@ extension AppModel {
         case .parent: return nil
         }
         drag = set
-        return set.lead.map { NSItemProvider(object: $0 as NSURL) }
+        return set.lead.map { Self.provider(for: $0) }
+    }
+
+    /// The dragged file as other apps can take it: its file URL (Finder, Reblum, Places) and its contents in its own
+    /// type (a browser's upload area, Mail, chat). Handed over in place, so nothing is copied unless the target asks.
+    /// A drag carries one item: SwiftUI's `onDrag` has no way to give the pasteboard several.
+    static func provider(for url: URL) -> NSItemProvider {
+        let provider = NSItemProvider(object: url as NSURL)
+        provider.suggestedName = url.lastPathComponent
+        let values = try? url.resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
+        if values?.isDirectory != true, let type = values?.contentType {
+            provider.registerFileRepresentation(
+                forTypeIdentifier: type.identifier, fileOptions: [.openInPlace], visibility: .all
+            ) { completion in
+                completion(url, true, nil)
+                return nil
+            }
+        }
+        return provider
+    }
+
+    /// Whether [urls] is the drag this app started (so dropping it on the grid again does nothing).
+    func isOwnDrag(_ urls: [URL]) -> Bool {
+        guard let lead = drag?.lead else { return false }
+        return urls.contains { $0.standardizedFileURL == lead.standardizedFileURL }
+    }
+
+    /// Files or folders dropped from Finder or another app on the browser: a folder opens, files open their folder
+    /// with the first one selected.
+    func dropOnBrowser(_ urls: [URL]) -> Bool {
+        guard !isOwnDrag(urls) else { return false }
+        let fm = FileManager.default
+        let isDir = { (u: URL) in
+            var d: ObjCBool = false
+            return fm.fileExists(atPath: u.path, isDirectory: &d) && d.boolValue
+        }
+        guard let url = urls.first(where: isDir) ?? urls.first(where: { fm.fileExists(atPath: $0.path) }) else {
+            return false
+        }
+        open(url)
+        return true
+    }
+
+    /// Folders dropped from elsewhere on Favourites are added to them. Returns false for our own drags.
+    func dropOnFavourites(_ urls: [URL]) -> Bool {
+        guard !isOwnDrag(urls) else { return false }
+        var added = false
+        for url in urls {
+            var d: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &d), d.boolValue,
+                !browser.isFavourite(url)
+            else { continue }
+            browser.toggleFavourite(url)
+            added = true
+        }
+        return added
     }
 
     /// A drop on a folder in Places. Moves on the same volume, copies across volumes or with Option held (as Finder).

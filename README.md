@@ -38,6 +38,9 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | C | Compare the selection (2–4 photos; one photo is compared with the next) |
 | S | Slideshow from the selection |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
+| Drag a photo out of the grid or list | Into Finder, Mail, a browser's upload area or another app: it gets the file itself (one photo per drag) |
+| Drop a folder or photos from Finder onto the browser | Opens the folder (or the photos' folder with the first one selected) |
+| Drop a folder from Finder onto Favourites | Adds it to the favourites |
 | List button | Show the folder as a list (thumbnail, name, shoot date, kind, size, rating) instead of thumbnails; drag the lines between column titles to resize them |
 | Preview button | A pane on the right with the selected photo, large (off at first); drag its edge to resize it, and the sidebar's edge too |
 | Settings › Browser | "Show what is inside folder tiles": folder tiles show up to four of their photos (off at first; needs the Folder button on) |
