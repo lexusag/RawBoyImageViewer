@@ -356,14 +356,37 @@ struct ExporterTests {
             let exported = try Exporter.export(
                 photo, orientation: nil, to: out, options: .instagram(from: ExportOptions(crop: crop)))
             let size = try #require(ImageLoader.fullSize(of: exported))
-            #expect(abs(Int(size.width) - expected.0) <= 1 && abs(Int(size.height) - expected.1) <= 1)
-            #expect(min(size.width, size.height) >= 1439)
+            #expect(Int(size.width) == expected.0 && Int(size.height) == expected.1)
         }
 
         let sub = Exporter.effectiveCrop(
             CropRect(left: 0.2, top: 0.1, right: 0.8, bottom: 0.9), aspect: .square, width: 1000, height: 1000)
         #expect(abs(sub.left - 0.2) < 1e-9 && abs(sub.right - 0.8) < 1e-9)
         #expect(abs(sub.top - 0.2) < 1e-9 && abs(sub.bottom - 0.8) < 1e-9)
+    }
+
+    @Test func instagramCropsAreExactForOddSizesAndTurns() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let out = folder.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        let cases: [(Int, Int, Int?)] = [(4001, 2999, nil), (3001, 4501, nil), (6000, 4000, 6), (5003, 3331, 8)]
+        for (w, h, turn) in cases {
+            let photo = folder.appendingPathComponent("P\(w)x\(h).png")
+            try TestImages.writePNG(width: w, height: h, to: photo)
+            let exported = try Exporter.export(
+                photo, orientation: turn, to: out, options: .instagram(from: ExportOptions(crop: .threeFour)))
+            let size = try #require(ImageLoader.fullSize(of: exported))
+            #expect(size.width == 1440 && size.height == 1920)
+        }
+    }
+
+    @Test func exactSizeKeepsTheShortEdge() {
+        #expect(Exporter.exactSize(short: 1440, ratio: 3.0 / 4.0) == (1440, 1920))
+        #expect(Exporter.exactSize(short: 1440, ratio: 4.0 / 5.0) == (1440, 1800))
+        #expect(Exporter.exactSize(short: 1440, ratio: 9.0 / 16.0) == (1440, 2560))
+        #expect(Exporter.exactSize(short: 1440, ratio: 1.91) == (2750, 1440))
     }
 
     @Test func oldOptionsDecodeWithoutShortEdge() throws {
