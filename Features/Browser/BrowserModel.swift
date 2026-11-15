@@ -111,6 +111,10 @@ final class BrowserModel {
     var anchor: String?
     /// Bumped to scroll the grid to [anchor].
     private(set) var scrollRequest = 0
+    /// Bumped when folders were made or removed here: the sidebar's tree reads its rows again.
+    private(set) var treeChange = 0
+    /// The folder made last (its parent's row opens to show it).
+    private(set) var createdFolder: URL?
     private(set) var recent: [URL] = (UserDefaults.standard.stringArray(forKey: Keys.recent) ?? []).map {
         URL(fileURLWithPath: $0)
     }
@@ -217,6 +221,17 @@ final class BrowserModel {
         load(folder, selectID: anchor)
         let ids = Set(items.map(\.id))
         selection = kept.intersection(ids).isEmpty ? selection : kept.intersection(ids)
+    }
+
+    /// Folders were added or removed: the Places tree rereads. [created] opens its parent and is selected in the grid.
+    func foldersChanged(created: URL? = nil) {
+        createdFolder = created
+        treeChange += 1
+        guard let created, folder?.standardizedFileURL == created.deletingLastPathComponent().standardizedFileURL
+        else { return }
+        reload()
+        let id = GridEntry.folderID(created)
+        if items.contains(where: { $0.id == id }) { select(id) }
     }
 
     /// A folder was loaded (the app watches it).

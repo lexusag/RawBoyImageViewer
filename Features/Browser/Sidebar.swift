@@ -263,6 +263,7 @@ private struct FolderRow: View {
             }
             .onAppear { expandIfCurrentIsInside() }
             .onChange(of: app.browser.folder) { expandIfCurrentIsInside() }
+            .onChange(of: app.browser.treeChange) { foldersChanged() }
 
             if expanded, let children {
                 ForEach(children, id: \.self) { child in
@@ -275,6 +276,21 @@ private struct FolderRow: View {
     }
 
     static func scrollID(_ path: String) -> String { "place:" + path }
+
+    /// A folder was made or removed somewhere: rows that were read read again, and the parent of a new folder opens.
+    private func foldersChanged() {
+        guard tree else { return }
+        if let created = app.browser.createdFolder,
+            created.deletingLastPathComponent().standardizedFileURL == url.standardizedFileURL
+        {
+            children = FolderScanner.subfolders(of: url)
+            hasSubfolders = true
+            expanded = true
+        } else if children != nil {
+            children = FolderScanner.subfolders(of: url)
+            hasSubfolders = children?.isEmpty == false
+        }
+    }
 
     /// Expands towards the folder being shown, never collapsing what the person opened.
     private func expandIfCurrentIsInside() {

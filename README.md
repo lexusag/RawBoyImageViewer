@@ -45,6 +45,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | List button | Show the folder as a list (thumbnail, name, shoot date, kind, size, rating) instead of thumbnails; drag the lines between column titles to resize them |
 | Preview button | A pane on the right with the selected photo, large (off at first); drag its edge to resize it, and the sidebar's edge too |
 | Settings › Browser | "Show what is inside folder tiles": folder tiles show up to four of their photos (off at first; needs the Folder button on) |
+| Right-click empty space, or a folder (grid, list, Places) › New Folder… | Makes a folder in the folder shown (or in the one clicked), asks for a name, selects it; ⌘Z removes it while it is empty |
 | Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar) |
 
 The bar under the grid rates the selection, filters by Picks / Unflagged / Rejects and stars, and moves the rejects
