@@ -180,6 +180,8 @@ private struct FolderRow: View {
     var subtitle: String = ""
     @State private var expanded = false
     @State private var children: [URL]?
+    /// Whether the folder has subfolders, found in the background once the row shows; nil until then (arrow shown).
+    @State private var hasSubfolders: Bool?
     @State private var hovered = false
     @State private var dropTargeted = false
 
@@ -200,7 +202,8 @@ private struct FolderRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .opacity(children?.isEmpty == true ? 0 : 1)
+                    .opacity(children?.isEmpty == true || hasSubfolders == false ? 0 : 1)
+                    .allowsHitTesting(hasSubfolders != false)
                 } else {
                     Spacer().frame(width: 14)
                 }
@@ -246,6 +249,11 @@ private struct FolderRow: View {
             .onHover { hovered = $0 }
             .contextMenu { FolderMenu(url: url, browser: app.browser) }
             .help(url.path)
+            .task(id: url) {
+                guard tree else { return }
+                let folder = url
+                hasSubfolders = await SubfolderCheck.shared.hasSubfolders(folder)
+            }
             .onAppear { expandIfCurrentIsInside() }
             .onChange(of: app.browser.folder) { expandIfCurrentIsInside() }
 
@@ -268,5 +276,25 @@ private struct FolderRow: View {
         guard current.standardizedFileURL.path.hasPrefix(prefix == "/" ? prefix : prefix + "/") else { return }
         if children == nil { children = FolderScanner.subfolders(of: url) }
         expanded = true
+    }
+}
+
+/// Looks for subfolders off the main thread, a few folders at a time (a slow or network volume can't freeze the
+/// sidebar or flood it with reads), and remembers the answers for the session.
+private actor SubfolderCheck {
+    static let shared = SubfolderCheck()
+    private var known: [URL: Bool] = [:]
+    private var running = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func hasSubfolders(_ folder: URL) async -> Bool {
+        if let answer = known[folder] { return answer }
+        if running >= 4 { await withCheckedContinuation { waiting.append($0) } }
+        running += 1
+        let answer = await Task.detached(priority: .utility) { FolderScanner.hasSubfolders(in: folder) }.value
+        running -= 1
+        if !waiting.isEmpty { waiting.removeFirst().resume() }
+        known[folder] = answer
+        return answer
     }
 }
