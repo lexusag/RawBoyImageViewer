@@ -157,31 +157,41 @@ public enum Exporter {
         let scale = min(
             1, Double(options.longEdge ?? longEdge) / croppedLong,
             options.shortEdge.map { Double($0) / croppedShort } ?? 1)
-        var target = max(1, Int((Double(longEdge) * scale).rounded()))
-        // ImageIO sizes by the long edge and rounds the short one down (1439 for a 1440 request): nudge the long edge
-        // up until the cropped short edge is the rounded size asked for.
-        let wantedShort = Int((croppedShort * scale).rounded())
-        let maxLong = options.longEdge ?? Int.max
-        var thumbnail: CGImage?
-        for _ in 0..<4 {
-            thumbnail = CGImageSourceCreateThumbnailAtIndex(
-                source, 0,
-                [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceThumbnailMaxPixelSize: target,
-                ] as CFDictionary)
-            guard let t = thumbnail else { break }
-            let (tw, th) =
-                delta.isQuarterTurned ? (Double(t.height), Double(t.width)) : (Double(t.width), Double(t.height))
-            let cw = Int((c.width * tw).rounded())
-            let ch = Int((c.height * th).rounded())
-            if scale >= 1 || min(cw, ch) >= wantedShort || max(cw, ch) >= maxLong { break }
-            target += 1
+        var image: CGImage
+        if let ratio = options.crop?.ratio {
+            // A fixed ratio must come out as exact integers (Instagram resizes anything else): decode a little more
+            // than needed, then draw the crop into a context of exactly the wanted size.
+            let short = max(1, Int((croppedShort * scale).rounded()))
+            let (outW, outH) = exactSize(short: short, ratio: ratio)
+            let needed = Double(outW) / max(1e-9, w * c.width)
+            let target = min(longEdge, Int((Double(longEdge) * needed).rounded(.up)) + 2)
+            guard let t = thumbnail(source, maxPixel: max(1, target)) else { throw ExportError.unreadable(name) }
+            let turnedImage = Orienting.apply(delta, to: t)
+            guard
+                let drawn = drawCrop(
+                    turnedImage, c, width: outW, height: outH, srgb: options.convertToSRGB)
+            else { throw ExportError.unreadable(name) }
+            image = drawn
+        } else {
+            var target = max(1, Int((Double(longEdge) * scale).rounded()))
+            // ImageIO sizes by the long edge and rounds the short one down (1439 for a 1440 request): nudge the long
+            // edge up until the cropped short edge is the rounded size asked for.
+            let wantedShort = Int((croppedShort * scale).rounded())
+            let maxLong = options.longEdge ?? Int.max
+            var decoded: CGImage?
+            for _ in 0..<4 {
+                decoded = thumbnail(source, maxPixel: target)
+                guard let t = decoded else { break }
+                let (tw, th) =
+                    delta.isQuarterTurned ? (Double(t.height), Double(t.width)) : (Double(t.width), Double(t.height))
+                let cw = Int((c.width * tw).rounded())
+                let ch = Int((c.height * th).rounded())
+                if scale >= 1 || min(cw, ch) >= wantedShort || max(cw, ch) >= maxLong { break }
+                target += 1
+            }
+            guard let d = decoded else { throw ExportError.unreadable(name) }
+            image = Orienting.crop(Orienting.apply(delta, to: d), c)
         }
-        guard var image = thumbnail else { throw ExportError.unreadable(name) }
-        image = Orienting.apply(delta, to: image)
-        image = Orienting.crop(image, c)
         if options.convertToSRGB { image = toSRGB(image) }
 
         let fullStem = (stem ?? PhotoGroups.stem(of: name)) + suffix
@@ -214,6 +224,52 @@ public enum Exporter {
             }
         }
         return out
+    }
+
+    /// Width and height for [short] (the short edge) at [ratio] (width / height), the long edge rounded to an integer.
+    static func exactSize(short: Int, ratio: Double) -> (Int, Int) {
+        ratio < 1
+            ? (short, max(1, Int((Double(short) / ratio).rounded())))
+            : (max(1, Int((Double(short) * ratio).rounded())), short)
+    }
+
+    static func thumbnail(_ source: CGImageSource, maxPixel: Int) -> CGImage? {
+        CGImageSourceCreateThumbnailAtIndex(
+            source, 0,
+            [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+            ] as CFDictionary)
+    }
+
+    /// The part [crop] (fractions, y down) of [image] resampled into exactly [width] x [height] pixels.
+    static func drawCrop(_ image: CGImage, _ crop: CropRect, width: Int, height: Int, srgb: Bool) -> CGImage? {
+        let sRGBSpace = CGColorSpace(name: CGColorSpace.sRGB)
+        var space = srgb ? sRGBSpace : (image.colorSpace ?? sRGBSpace)
+        if space?.model != .rgb { space = sRGBSpace }
+        guard let space else { return nil }
+        let info = CGImageAlphaInfo.noneSkipLast.rawValue
+        guard
+            let context =
+                CGContext(
+                    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                    bitmapInfo: info)
+                ?? CGContext(
+                    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                    space: sRGBSpace ?? space, bitmapInfo: info)
+        else { return nil }
+        context.interpolationQuality = .high
+        let iw = Double(image.width)
+        let ih = Double(image.height)
+        let sx = Double(width) / max(1e-9, crop.width * iw)
+        let sy = Double(height) / max(1e-9, crop.height * ih)
+        // CGContext's origin is bottom left, the crop's top is measured from the top.
+        context.draw(
+            image,
+            in: CGRect(
+                x: -crop.left * iw * sx, y: -(1 - crop.bottom) * ih * sy, width: iw * sx, height: ih * sy))
+        return context.makeImage()
     }
 
     /// [image] redrawn in sRGB (the original when it already is, or when the conversion fails).
