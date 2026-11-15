@@ -115,3 +115,44 @@ struct FolderWatcherTests {
         _ = watcher
     }
 }
+
+struct RenameAllTests {
+    private func folder(_ files: [String: String]) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for (name, text) in files { try Data(text.utf8).write(to: dir.appendingPathComponent(name)) }
+        return dir
+    }
+
+    private func text(_ dir: URL, _ name: String) -> String? {
+        (try? Data(contentsOf: dir.appendingPathComponent(name))).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    @Test func swapsAndShifts() throws {
+        let dir = try folder(["a.jpg": "A", "b.jpg": "B"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileMoves.renameAll([
+            FileMove(from: dir.appendingPathComponent("a.jpg"), to: dir.appendingPathComponent("b.jpg")),
+            FileMove(from: dir.appendingPathComponent("b.jpg"), to: dir.appendingPathComponent("a.jpg")),
+        ])
+        #expect(text(dir, "a.jpg") == "B")
+        #expect(text(dir, "b.jpg") == "A")
+    }
+
+    @Test func aTakenNameLeavesEverythingAsItWas() throws {
+        let dir = try folder(["a.jpg": "A", "b.jpg": "B", "c.jpg": "C"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        #expect(throws: (any Error).self) {
+            try FileMoves.renameAll([
+                FileMove(from: dir.appendingPathComponent("a.jpg"), to: dir.appendingPathComponent("x.jpg")),
+                FileMove(from: dir.appendingPathComponent("b.jpg"), to: dir.appendingPathComponent("c.jpg")),
+            ])
+        }
+        #expect(text(dir, "a.jpg") == "A")
+        #expect(text(dir, "b.jpg") == "B")
+        #expect(text(dir, "c.jpg") == "C")
+        #expect(text(dir, "x.jpg") == nil)
+        let left = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(left.sorted() == ["a.jpg", "b.jpg", "c.jpg"])
+    }
+}

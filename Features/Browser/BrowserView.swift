@@ -109,6 +109,8 @@ private struct BrowserToolbar: View {
                 ToolbarIcon(icon: "arrow.up", help: "Up a folder (⌘↑)", isOn: false) { browser.goUp() }
                     .keyboardShortcut(.upArrow, modifiers: .command)
                     .disabled(browser.folder == nil)
+                ToolbarIcon(icon: "pencil", help: "Rename the selection (F2)", isOn: false) { app.rename() }
+                    .disabled(browser.selection.isEmpty)
                 ToolbarIcon(icon: "trash", help: "Move the selection to the Trash (⌘⌫, ⌦)", isOn: false) {
                     app.moveToTrash()
                 }

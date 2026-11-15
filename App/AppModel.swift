@@ -125,7 +125,7 @@ final class AppModel {
     // MARK: Culling (menus and keys, wherever the focus is)
 
     /// The viewer (or Compare) when it is the key window, else the browser.
-    private var viewerIsKey: Bool { (viewer.isOpen || compare.isOpen) && NSApp.keyWindow is ViewerWindow }
+    var viewerIsKey: Bool { (viewer.isOpen || compare.isOpen) && NSApp.keyWindow is ViewerWindow }
 
     /// Compare [ids] (2–4); one photo is compared with the one after it in the browser.
     func openCompare(_ ids: [String]) {
@@ -241,8 +241,16 @@ final class AppModel {
             if event.keyCode == 51 { browser.goUp() } else { moveToTrash() }
             return true
         }
-        // ⌘A by physical key: SwiftUI's key presses are characters, "ф" on a Ukrainian layout.
         let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        // F2 renames the selection (any layout: key code 120).
+        if !viewerIsKey, event.keyCode == 120, mods.isEmpty, !(NSApp.keyWindow is NSPanel),
+            NSApp.keyWindow?.sheetParent == nil,
+            !(NSApp.keyWindow?.firstResponder is NSTextView), browser.folder != nil, !browser.selection.isEmpty
+        {
+            rename()
+            return true
+        }
+        // ⌘A by physical key: SwiftUI's key presses are characters, "ф" on a Ukrainian layout.
         if !viewerIsKey, event.keyCode == 0, mods == .command, !(NSApp.keyWindow is NSPanel),
             !(NSApp.keyWindow?.firstResponder is NSTextView), browser.folder != nil
         {

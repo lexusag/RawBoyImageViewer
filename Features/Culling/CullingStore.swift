@@ -65,6 +65,8 @@ final class CullingStore {
         case orientations([(id: String, orientation: Int?)])
         case crop(id: String, crop: CropRect?, orientation: Int?)
         case moves([FileMove], what: String)
+        /// Files renamed in place (old name → new name); undone together, so names can swap back.
+        case renames([FileMove])
     }
 
     static let writeDelay = 0.4
@@ -311,6 +313,17 @@ final class CullingStore {
             message = failed == 0 ? "\(what) undone" : "\(failed) file\(failed == 1 ? "" : "s") couldn't be moved back"
             filesChanged()
             return nil
+        case .renames(let moves):
+            let back = moves.map { FileMove(from: $0.to, to: $0.from) }
+            noteOwnChanges(moves)
+            do {
+                try FileMoves.renameAll(back)
+                message = "Rename undone"
+            } catch {
+                message = "Couldn't undo the rename: \(error.localizedDescription)"
+            }
+            filesChanged()
+            return nil
         }
     }
 
@@ -483,6 +496,31 @@ final class CullingStore {
             ? "Moved \(moved) folder\(moved == 1 ? "" : "s") to the Trash"
             : "Moved \(moved) folder\(moved == 1 ? "" : "s") to the Trash; \(failed) couldn't be moved"
         filesChanged()
+    }
+
+    /// Renames the photos in [items] (each with its JPEG and sidecars, as planned); undoable as one step. Returns each
+    /// renamed photo's new id by its old one; empty when nothing was renamed.
+    func rename(_ items: [RenameItem]) async -> [String: String] {
+        guard let folder else { return [:] }
+        await finishWrites()
+        let changing = items.filter { $0.status == .ok }
+        let moves = changing.flatMap { item in
+            item.files.filter { $0.old != $0.new }.map {
+                FileMove(from: folder.appendingPathComponent($0.old), to: folder.appendingPathComponent($0.new))
+            }
+        }
+        guard !moves.isEmpty else { return [:] }
+        noteOwnChanges(moves)
+        do {
+            try FileMoves.renameAll(moves)
+        } catch {
+            message = "Couldn't rename: \(error.localizedDescription). Nothing was changed"
+            return [:]
+        }
+        push(.renames(moves))
+        message = "Renamed \(changing.count) photo\(changing.count == 1 ? "" : "s")"
+        filesChanged()
+        return Dictionary(changing.map { ($0.id, $0.newMain) }, uniquingKeysWith: { a, _ in a })
     }
 
     /// Files moved elsewhere (Move to…): undoable like the bin.

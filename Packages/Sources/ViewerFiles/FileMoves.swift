@@ -71,6 +71,39 @@ public enum FileMoves {
         return failed
     }
 
+    /// Renames files in place, all or none: every file first moves to a temporary name, then to its new one, so names
+    /// can be swapped or shifted (IMG_1 → IMG_2 → IMG_3) and a case-only change works on a case-insensitive volume.
+    /// A name that is taken (by anything) fails the whole batch, which is put back as it was.
+    public static func renameAll(_ moves: [FileMove]) throws {
+        let fm = FileManager.default
+        let token = UUID().uuidString.prefix(8)
+        var staged: [(temp: URL, move: FileMove)] = []
+        func rollBack(_ placed: [FileMove]) {
+            for move in placed.reversed() { try? fm.moveItem(at: move.to, to: move.from) }
+            for item in staged.reversed() where !fm.fileExists(atPath: item.move.from.path) {
+                try? fm.moveItem(at: item.temp, to: item.move.from)
+            }
+        }
+        for (i, move) in moves.enumerated() {
+            let temp = move.from.deletingLastPathComponent().appendingPathComponent(".rawboy-rename-\(token)-\(i)")
+            do { try fm.moveItem(at: move.from, to: temp) } catch {
+                rollBack([])
+                throw error
+            }
+            staged.append((temp, move))
+        }
+        var placed: [FileMove] = []
+        for item in staged {
+            do {
+                try fm.moveItem(at: item.temp, to: item.move.to)
+                placed.append(item.move)
+            } catch {
+                rollBack(placed)
+                throw error
+            }
+        }
+    }
+
     /// Every file in [folder]'s bin, as moves back into [folder].
     public static func binContents(of folder: URL) -> [FileMove] {
         let bin = folder.appendingPathComponent(FolderScanner.binFolderName)
