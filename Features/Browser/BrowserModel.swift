@@ -223,6 +223,12 @@ final class BrowserModel {
         selection = kept.intersection(ids).isEmpty ? selection : kept.intersection(ids)
     }
 
+    /// Something outside the app may have made or removed folders: the Places tree rereads (no folder is opened).
+    func refreshTree() {
+        createdFolder = nil
+        treeChange += 1
+    }
+
     /// Folders were added or removed: the Places tree rereads. [created] opens its parent and is selected in the grid.
     func foldersChanged(created: URL? = nil) {
         createdFolder = created

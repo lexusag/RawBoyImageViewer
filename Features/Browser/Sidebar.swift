@@ -192,7 +192,11 @@ private struct FolderRow: View {
             HStack(spacing: 6) {
                 if tree {
                     Button {
-                        if children == nil { children = FolderScanner.subfolders(of: url) }
+                        if children == nil {
+                            children = FolderScanner.subfolders(of: url)
+                        } else if !expanded {
+                            reread()  // opening again: read it fresh
+                        }
                         expanded.toggle()
                     } label: {
                         Image(systemName: "chevron.right")
@@ -256,10 +260,12 @@ private struct FolderRow: View {
             .onHover { hovered = $0 }
             .contextMenu { FolderMenu(url: url, browser: app.browser) }
             .help(url.path)
-            .task(id: url) {
+            .task(id: CheckKey(url: url, change: app.browser.treeChange)) {
                 guard tree else { return }
                 let folder = url
-                hasSubfolders = await SubfolderCheck.shared.hasSubfolders(folder)
+                // A later round (the tree changed or was refreshed) asks again instead of trusting the last answer.
+                let answer = await SubfolderCheck.shared.hasSubfolders(folder, fresh: app.browser.treeChange > 0)
+                if !Task.isCancelled { hasSubfolders = answer }
             }
             .onAppear { expandIfCurrentIsInside() }
             .onChange(of: app.browser.folder) { expandIfCurrentIsInside() }
@@ -287,9 +293,24 @@ private struct FolderRow: View {
             hasSubfolders = true
             expanded = true
         } else if children != nil {
-            children = FolderScanner.subfolders(of: url)
-            hasSubfolders = children?.isEmpty == false
+            reread()
         }
+    }
+
+    /// Reads the subfolders again off the main thread: a network volume can be slow, and this runs every 30 s.
+    private func reread() {
+        let folder = url
+        Task {
+            let found = await Task.detached(priority: .utility) { FolderScanner.subfolders(of: folder) }.value
+            guard folder == url else { return }
+            if found != children { children = found }
+            hasSubfolders = !found.isEmpty
+        }
+    }
+
+    private struct CheckKey: Hashable {
+        let url: URL
+        let change: Int
     }
 
     /// Expands towards the folder being shown, never collapsing what the person opened.
@@ -310,8 +331,8 @@ private actor SubfolderCheck {
     private var running = 0
     private var waiting: [CheckedContinuation<Void, Never>] = []
 
-    func hasSubfolders(_ folder: URL) async -> Bool {
-        if let answer = known[folder] { return answer }
+    func hasSubfolders(_ folder: URL, fresh: Bool = false) async -> Bool {
+        if !fresh, let answer = known[folder] { return answer }
         if running >= 4 { await withCheckedContinuation { waiting.append($0) } }
         running += 1
         let answer = await Task.detached(priority: .utility) { FolderScanner.hasSubfolders(in: folder) }.value

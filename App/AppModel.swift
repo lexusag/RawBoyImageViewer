@@ -114,6 +114,7 @@ final class AppModel {
         if !structural.isEmpty || !photos.isEmpty {
             Trace.log("folder changed: \(structural.union(photos).sorted().joined(separator: ", "))")
             folderContentsChanged()
+            browser.refreshTree()
             return
         }
         let sidecars = modified.filter { $0.lowercased().hasSuffix(".xmp") }
