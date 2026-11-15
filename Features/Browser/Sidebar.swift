@@ -45,6 +45,7 @@ struct Sidebar: View {
                     .padding(.horizontal, DesignTokens.Spacing.sm)
                     .padding(.bottom, DesignTokens.Spacing.md)
                     .onChange(of: app.browser.folder) { scrollToCurrent(proxy) }
+                    .onAppear { scrollToCurrent(proxy) }
                 }
             }
         }
@@ -213,7 +214,7 @@ private struct FolderRow: View {
                     .frame(width: 16)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(title)
-                        .font(Theme.body)
+                        .font(Theme.body.weight(isCurrent ? .semibold : .regular))
                         .foregroundStyle(isCurrent ? Theme.amber : Theme.paperWhite)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -238,6 +239,12 @@ private struct FolderRow: View {
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.chip)
                     .strokeBorder(dropTargeted ? Theme.amber : .clear, lineWidth: 1.5)
             )
+            .overlay(alignment: .leading) {
+                // The shown folder: an amber edge on its row, in Favourites, Recent and the Places tree alike.
+                if isCurrent {
+                    Capsule().fill(Theme.amber).frame(width: 3, height: 16)
+                }
+            }
             .contentShape(Rectangle())
             .id(followsCurrent ? Self.scrollID(url.standardizedFileURL.path) : nil)
             .dropDestination(for: URL.self) { urls, _ in
