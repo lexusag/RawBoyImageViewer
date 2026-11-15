@@ -224,6 +224,7 @@ private struct RatingBar: View {
         let browser = app.browser
         let culling = app.culling
         let targets = browser.ratingTargets
+        let counts = FlagFilter.counts(browser.photos.map { culling.rating($0.id) })
         let shown = targets.count == 1 ? culling.rating(targets[0]) : Rating.none
         HStack(spacing: DesignTokens.Spacing.md) {
             RatingControl(
@@ -245,7 +246,7 @@ private struct RatingBar: View {
             Segmented(
                 options: [
                     (FlagFilter.all, "All"), (.picks, "Picks"), (.unflagged, "Unflagged"), (.rejects, "Rejects"),
-                ], selection: Bindable(browser).flagFilter)
+                ], selection: Bindable(browser).flagFilter, counts: counts)
             Menu {
                 ForEach(0...5, id: \.self) { n in
                     Button(n == 0 ? "Any stars" : "\(String(repeating: "★", count: n)) or more") {
@@ -310,6 +311,8 @@ private struct ToolbarIcon: View {
 struct Segmented<Value: Hashable>: View {
     let options: [(Value, String)]
     @Binding var selection: Value
+    /// A number after a title, always shown (the photos each option would show).
+    var counts: [Value: Int] = [:]
 
     var body: some View {
         HStack(spacing: 2) {
@@ -318,7 +321,8 @@ struct Segmented<Value: Hashable>: View {
                 Button {
                     selection = value
                 } label: {
-                    Text(title)
+                    Text(counts[value].map { "\(title) \($0)" } ?? title)
+                        .monospacedDigit()
                         .font(Theme.label.weight(on ? .semibold : .regular))
                         .foregroundStyle(on ? Theme.amberInk : Theme.paperWhite)
                         .padding(.horizontal, 10)
