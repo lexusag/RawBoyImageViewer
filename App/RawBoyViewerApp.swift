@@ -38,6 +38,8 @@ struct RawBoyViewerApp: App {
                 Button("Crop… (K, in the viewer)") { AppModel.shared.viewer.handle(.crop) }
                     .disabled(!AppModel.shared.viewer.isOpen)
                 Divider()
+                Button("Rename… (F2)") { AppModel.shared.rename() }
+                    .disabled(AppModel.shared.browser.folder == nil)
                 Button("Export…") { AppModel.shared.perform(.export) }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
                 Button("Copy to Folder…") { AppModel.shared.perform(.copyTo) }

@@ -245,6 +245,7 @@ private struct ListPhotoMenu: View {
         Button("Rotate Left") { app.culling.rotate(ids, clockwise: false) }
         Button("Rotate Right") { app.culling.rotate(ids, clockwise: true) }
         Divider()
+        Button("Rename…") { app.rename(ids) }
         Button("Export…") { app.perform(.export, ids) }
         Button("Copy to Folder…") { app.perform(.copyTo, ids) }
         Button("Move to Folder…") { app.perform(.moveTo, ids) }

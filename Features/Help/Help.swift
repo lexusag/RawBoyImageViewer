@@ -39,11 +39,16 @@ enum HelpContent {
             items: [
                 Item(keys: "1 – 5 · 0", text: "Stars (the same number again clears them) · no stars"),
                 Item(keys: "P · X · U", text: "Pick · Reject (the same key again unflags) · Unflag"),
-                Item(keys: "⌘Z", text: "Undo the last rating, rotation, or move to _bin, a folder or the Trash"),
+                Item(keys: "⌘Z", text: "Undo the last rating, rotation, rename or move to _bin, a folder or the Trash"),
                 Item(keys: "[ · ]", text: "Rotate left · right (kept in the sidecar; the file isn't changed)"),
                 Item(
                     keys: "⌘⌫ · ⌦",
                     text: "Ask, then move to the Trash: photos with JPEG and sidecars, folders (⌦ is Fn-⌫ on a laptop)"),
+                Item(
+                    keys: "F2",
+                    text:
+                        "Rename the selection with one template: {name} {date} {time} {camera} {lens} {iso} {folder}, "
+                        + "# counters (### = 001); the JPEG and sidecars follow, ⌘Z undoes"),
                 Item(keys: "⇧⌘E · ⌥⌘C", text: "Export · Copy the photo"),
             ]),
         Section(

@@ -27,9 +27,10 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⌘R | Reload the folder |
 | 1–5, 0 | Stars on the selection (the same number again clears them); no stars |
 | P, X, U | Pick, Reject (the same key again unflags), Unflag |
-| ⌘Z | Undo the last rating, move to `_bin` or to the Trash |
+| ⌘Z | Undo the last rating, rotation, rename, or move to `_bin`, a folder or the Trash |
 | ⌘⌫, ⌦ | Move to the Trash after asking (a photo with its JPEG and sidecars, a selected folder with its contents); ⌦ is Fn-⌫ on a laptop |
 | [ / ], ⌘[ / ⌘] | Rotate left / right: lossless, kept in the sidecar (`tiff:Orientation`, as Lightroom does) |
+| F2 | Rename the selection (one photo or many) with a name template, as RawBoy Auto's export names: `{name}` `{date}` `{time}` `{camera}` `{lens}` `{iso}` `{folder}` `{year}` `{month}` `{day}` `{hour}` `{minute}` `{second}` and `#` counters (`#` = 1, `##` = 01, `###` = 001, numbered from a chosen start in the order shown). A live list shows each old and new name; a name already taken, or given to two photos, blocks the rename. The extension stays, and a photo's JPEG and sidecars are renamed with it. Templates can be saved as presets; ⌘Z puts the names back. Also in the Photo menu, the toolbar's pencil and right-click |
 | ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px, location kept or left out; optionally replacing same-named files (the old ones go to the Trash); saved to the same folder, one of its subfolders, a new subfolder or anywhere; named presets keep size, format, quality and subfolder. The export runs in the background: the browser bar shows its progress with Stop, then Show in Finder |
 | ⌥⌘C | Copy the photo (its file) |
 | Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share, Send to an app (Reblum when installed, others added in Settings › Files; on a folder it sends the photos directly inside it) |
