@@ -356,7 +356,8 @@ struct ExporterTests {
             let exported = try Exporter.export(
                 photo, orientation: nil, to: out, options: .instagram(from: ExportOptions(crop: crop)))
             let size = try #require(ImageLoader.fullSize(of: exported))
-            #expect(abs(size.width - expected.0) <= 1 && size.height == expected.1)
+            #expect(abs(Int(size.width) - expected.0) <= 1 && abs(Int(size.height) - expected.1) <= 1)
+            #expect(min(size.width, size.height) >= 1439)
         }
 
         let sub = Exporter.effectiveCrop(

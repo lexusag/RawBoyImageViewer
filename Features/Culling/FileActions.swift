@@ -94,7 +94,10 @@ extension AppModel {
             onCancel: { parent.endSheet(sheet) },
             onExport: { [weak self] options, destination in
                 parent.endSheet(sheet)
-                Self.exportOptions = options
+                // The crop is chosen per export (or by a preset), never carried into the next one.
+                var remembered = options
+                remembered.crop = nil
+                Self.exportOptions = remembered
                 Self.exportDestination = destination
                 self?.export(ids, from: folder, to: destination.url(in: folder), options: options)
             })

@@ -180,9 +180,7 @@ public enum Exporter {
             target += 1
         }
         guard var image = thumbnail else { throw ExportError.unreadable(name) }
-        if let orientation {
-            image = Orienting.apply(delta, to: image)
-        }
+        image = Orienting.apply(delta, to: image)
         image = Orienting.crop(image, c)
         if options.convertToSRGB { image = toSRGB(image) }
 
