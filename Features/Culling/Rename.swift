@@ -206,6 +206,13 @@ struct RenameSheet: View {
         .onAppear { nameFocused = true }
     }
 
+    private var currentPresetName: String {
+        let match = presets.first { preset in
+            preset.template == template && preset.start == start && (preset.replace ?? RenameReplace()) == replace
+        }
+        return match?.name ?? "None"
+    }
+
     private var presetRow: some View {
         row("Preset") {
             HStack {
@@ -231,9 +238,7 @@ struct RenameSheet: View {
                         }
                     }
                 } label: {
-                    Text(presets.first {
-                        $0.template == template && $0.start == start && ($0.replace ?? RenameReplace()) == replace
-                    }?.name ?? "None")
+                    Text(currentPresetName)
                 }
                 .menuStyle(.button)
                 .buttonStyle(.rawBoy)
