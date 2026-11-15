@@ -13,11 +13,33 @@ public struct ExportOptions: Codable, Equatable, Sendable {
         var type: UTType { self == .jpeg ? .jpeg : .heic }
     }
 
+    /// A fixed aspect ratio (width : height) applied on export, centred on the photo (or on its crop).
+    public enum Crop: String, Codable, CaseIterable, Sendable {
+        case threeFour = "3:4"
+        case fourFive = "4:5"
+        case square = "1:1"
+        case landscape = "1.91:1"
+        case nineSixteen = "9:16"
+
+        /// Width / height in pixels.
+        public var ratio: Double {
+            switch self {
+            case .threeFour: 3.0 / 4.0
+            case .fourFive: 4.0 / 5.0
+            case .square: 1
+            case .landscape: 1.91
+            case .nineSixteen: 9.0 / 16.0
+            }
+        }
+    }
+
     /// The long edge in pixels; nil keeps the full size.
     public var longEdge: Int?
     /// The short edge in pixels (1440 for Instagram); nil leaves it free. With a long edge too, the smaller result
     /// wins. Photos are never enlarged.
     public var shortEdge: Int?
+    /// An aspect ratio to crop to on export (centred on the photo or its existing crop); nil keeps the photo's own.
+    public var crop: Crop?
     /// Convert the pixels to sRGB (what Instagram shows) instead of keeping the photo's own colour profile.
     public var convertToSRGB: Bool
     public var format: Format
@@ -30,11 +52,12 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     public var replaceExisting: Bool
 
     public init(
-        longEdge: Int? = 3000, shortEdge: Int? = nil, convertToSRGB: Bool = false, format: Format = .jpeg,
-        quality: Double = 0.9, removeLocation: Bool = false, replaceExisting: Bool = false
+        longEdge: Int? = 3000, shortEdge: Int? = nil, crop: Crop? = nil, convertToSRGB: Bool = false,
+        format: Format = .jpeg, quality: Double = 0.9, removeLocation: Bool = false, replaceExisting: Bool = false
     ) {
         self.longEdge = longEdge
         self.shortEdge = shortEdge
+        self.crop = crop
         self.convertToSRGB = convertToSRGB
         self.format = format
         self.quality = quality
@@ -42,11 +65,12 @@ public struct ExportOptions: Codable, Equatable, Sendable {
         self.replaceExisting = replaceExisting
     }
 
-    // Saved options and presets from before `replaceExisting` have no such key.
+    // Saved options and presets from before `replaceExisting` or `crop` have no such keys.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         longEdge = try c.decodeIfPresent(Int.self, forKey: .longEdge)
         shortEdge = try c.decodeIfPresent(Int.self, forKey: .shortEdge)
+        crop = try c.decodeIfPresent(Crop.self, forKey: .crop)
         convertToSRGB = try c.decodeIfPresent(Bool.self, forKey: .convertToSRGB) ?? false
         format = try c.decode(Format.self, forKey: .format)
         quality = try c.decode(Double.self, forKey: .quality)
@@ -60,18 +84,20 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     /// Instagram's feed size: 1440 px on the short edge, sRGB JPEG, no long-edge limit.
     public static let instagramShortEdge = 1440
 
-    /// The one-click Instagram settings, keeping the quality, location and replace choices of [base].
+    /// The one-click Instagram settings, keeping the quality, location and replace choices of [base] (and its
+    /// Instagram crop when one is already chosen, else 3:4).
     public static func instagram(from base: ExportOptions = ExportOptions()) -> ExportOptions {
         var o = base
         o.longEdge = nil
         o.shortEdge = instagramShortEdge
+        o.crop = base.crop ?? .threeFour
         o.convertToSRGB = true
         o.format = .jpeg
         return o
     }
 
     public var isInstagram: Bool {
-        longEdge == nil && shortEdge == Self.instagramShortEdge && convertToSRGB && format == .jpeg
+        longEdge == nil && shortEdge == Self.instagramShortEdge && crop != nil && convertToSRGB && format == .jpeg
     }
 }
 
@@ -87,6 +113,23 @@ public enum Exporter {
             case .unwritable(let name): "Can't write \(name)."
             }
         }
+    }
+
+    /// [crop] (or the whole frame) fitted to [aspect] (width / height in pixels) around its centre, inside the frame.
+    public static func effectiveCrop(_ crop: CropRect?, aspect: ExportOptions.Crop?, width: Double, height: Double)
+        -> CropRect
+    {
+        let r = crop ?? .full
+        guard let ratio = aspect?.ratio, width > 0, height > 0 else { return r }
+        let cw = r.width * width
+        let ch = r.height * height
+        let w = min(cw, ch * ratio)
+        let h = w / ratio
+        let cx = (r.left + r.right) / 2 * width
+        let cy = (r.top + r.bottom) / 2 * height
+        return CropRect(
+            left: (cx - w / 2) / width, top: (cy - h / 2) / height,
+            right: (cx + w / 2) / width, bottom: (cy + h / 2) / height)
     }
 
     /// Exports [url] into [folder]; returns the new file. The name is [stem] (the photo's own by default) plus
@@ -105,10 +148,10 @@ public enum Exporter {
         // The long edge asked for is the cropped photo's: decode enough of the whole one for it. The crop is in the
         // turned photo, so its size is measured there.
         let fileOrientation = props[kCGImagePropertyOrientation] as? Int ?? 1
-        let turned = Orientation(exif: fileOrientation).then(
-            Orienting.delta(from: fileOrientation, to: orientation ?? fileOrientation))
+        let delta = Orienting.delta(from: fileOrientation, to: orientation ?? fileOrientation)
+        let turned = Orientation(exif: fileOrientation).then(delta)
         let (w, h) = turned.isQuarterTurned ? (Double(height), Double(width)) : (Double(width), Double(height))
-        let c = crop ?? .full
+        let c = effectiveCrop(crop, aspect: options.crop, width: w, height: h)
         let croppedLong = max(w * c.width, h * c.height)
         let croppedShort = min(w * c.width, h * c.height)
         let scale = min(
@@ -116,8 +159,9 @@ public enum Exporter {
             options.shortEdge.map { Double($0) / croppedShort } ?? 1)
         var target = max(1, Int((Double(longEdge) * scale).rounded()))
         // ImageIO sizes by the long edge and rounds the short one down (1439 for a 1440 request): nudge the long edge
-        // up until the short edge is the rounded size asked for.
-        let wantedShort = Int((Double(min(width, height)) * scale).rounded())
+        // up until the cropped short edge is the rounded size asked for.
+        let wantedShort = Int((croppedShort * scale).rounded())
+        let maxLong = options.longEdge ?? Int.max
         var thumbnail: CGImage?
         for _ in 0..<4 {
             thumbnail = CGImageSourceCreateThumbnailAtIndex(
@@ -128,14 +172,18 @@ public enum Exporter {
                     kCGImageSourceThumbnailMaxPixelSize: target,
                 ] as CFDictionary)
             guard let t = thumbnail else { break }
-            if scale >= 1 || min(t.width, t.height) >= wantedShort { break }
+            let (tw, th) =
+                delta.isQuarterTurned ? (Double(t.height), Double(t.width)) : (Double(t.width), Double(t.height))
+            let cw = Int((c.width * tw).rounded())
+            let ch = Int((c.height * th).rounded())
+            if scale >= 1 || min(cw, ch) >= wantedShort || max(cw, ch) >= maxLong { break }
             target += 1
         }
         guard var image = thumbnail else { throw ExportError.unreadable(name) }
         if let orientation {
-            image = Orienting.apply(Orienting.delta(from: fileOrientation, to: orientation), to: image)
+            image = Orienting.apply(delta, to: image)
         }
-        image = Orienting.crop(image, crop)
+        image = Orienting.crop(image, c)
         if options.convertToSRGB { image = toSRGB(image) }
 
         let fullStem = (stem ?? PhotoGroups.stem(of: name)) + suffix

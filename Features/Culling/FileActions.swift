@@ -553,8 +553,14 @@ struct ExportSheet: View {
                         selection: $options.shortEdge)
                     Button("Instagram") { options = .instagram(from: options) }
                         .buttonStyle(.rawBoy)
-                        .help("1440 px short edge, sRGB JPEG, no enlarging")
+                        .help("3:4 crop, 1440 px short edge, sRGB JPEG, no enlarging")
                 }
+            }
+            row("Crop") {
+                Segmented(
+                    options: [(ExportOptions.Crop?.none, "Free")]
+                        + ExportOptions.Crop.allCases.map { (.some($0), $0.rawValue) },
+                    selection: $options.crop)
             }
             row("Colour") {
                 Toggle("Convert to sRGB", isOn: $options.convertToSRGB)

@@ -475,6 +475,7 @@ final class ViewerSession {
             var options = AppModel.exportOptions
             options.longEdge = nil
             options.shortEdge = nil
+            options.crop = nil
             controller.canvas.flash("Saving cropped copy…")
             Task.detached(priority: .userInitiated) {
                 let result = Result {

@@ -319,25 +319,59 @@ struct ExporterTests {
         let out = folder.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
+        let free = try Exporter.export(
+            photo, orientation: nil, to: out,
+            options: ExportOptions(longEdge: nil, shortEdge: ExportOptions.instagramShortEdge))
+        let freeSize = try #require(ImageLoader.fullSize(of: free))
+        #expect(freeSize.width == 2160 && freeSize.height == 1440)
+
         let big = try Exporter.export(
             photo, orientation: nil, to: out, options: .instagram())
         let size = try #require(ImageLoader.fullSize(of: big))
-        #expect(size.width == 2160 && size.height == 1440)
+        #expect(size.width == 1440 && size.height == 1920)
 
         let small = folder.appendingPathComponent("SMALL.png")
         try TestImages.writePNG(width: 600, height: 400, to: small)
         let kept = try Exporter.export(small, orientation: nil, to: out, options: .instagram())
         let keptSize = try #require(ImageLoader.fullSize(of: kept))
-        #expect(keptSize.width == 600 && keptSize.height == 400)
+        #expect(keptSize.width == 300 && keptSize.height == 400)
+    }
+
+    @Test func instagramCrops() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photo = folder.appendingPathComponent("IMG_1.png")
+        try TestImages.writePNG(width: 4000, height: 3000, to: photo)
+        let out = folder.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+
+        for (crop, expected) in [
+            (ExportOptions.Crop.threeFour, (1440, 1920)),
+            (.fourFive, (1440, 1800)),
+            (.square, (1440, 1440)),
+            (.landscape, (2750, 1440)),
+            (.nineSixteen, (1440, 2560)),
+        ] {
+            let exported = try Exporter.export(
+                photo, orientation: nil, to: out, options: .instagram(from: ExportOptions(crop: crop)))
+            let size = try #require(ImageLoader.fullSize(of: exported))
+            #expect(abs(size.width - expected.0) <= 1 && size.height == expected.1)
+        }
+
+        let sub = Exporter.effectiveCrop(
+            CropRect(left: 0.2, top: 0.1, right: 0.8, bottom: 0.9), aspect: .square, width: 1000, height: 1000)
+        #expect(abs(sub.left - 0.2) < 1e-9 && abs(sub.right - 0.8) < 1e-9)
+        #expect(abs(sub.top - 0.2) < 1e-9 && abs(sub.bottom - 0.8) < 1e-9)
     }
 
     @Test func oldOptionsDecodeWithoutShortEdge() throws {
         let json = Data(#"{"longEdge":3000,"format":"jpeg","quality":0.9,"removeLocation":false}"#.utf8)
         let options = try JSONDecoder().decode(ExportOptions.self, from: json)
-        #expect(options.shortEdge == nil && options.convertToSRGB == false)
+        #expect(options.shortEdge == nil && options.crop == nil && options.convertToSRGB == false)
         let roundTrip = try JSONDecoder().decode(
             ExportOptions.self, from: JSONEncoder().encode(ExportOptions.instagram()))
-        #expect(roundTrip.isInstagram)
+        #expect(roundTrip.isInstagram && roundTrip.crop == .threeFour)
     }
 
     @Test func replacesOnlyWhenAskedAndOnlyOutsideTheSourceFolder() throws {
