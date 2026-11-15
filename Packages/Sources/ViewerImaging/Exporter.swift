@@ -30,8 +30,8 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     public var replaceExisting: Bool
 
     public init(
-        longEdge: Int? = 3000, shortEdge: Int? = nil, convertToSRGB: Bool = false, format: Format = .jpeg, quality: Double = 0.9, removeLocation: Bool = false,
-        replaceExisting: Bool = false
+        longEdge: Int? = 3000, shortEdge: Int? = nil, convertToSRGB: Bool = false, format: Format = .jpeg,
+        quality: Double = 0.9, removeLocation: Bool = false, replaceExisting: Bool = false
     ) {
         self.longEdge = longEdge
         self.shortEdge = shortEdge
