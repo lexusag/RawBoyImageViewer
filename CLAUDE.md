@@ -113,6 +113,11 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - **Presentation options need the key window, and the key window needs an active app.** Launched straight from a shell
   the app isn't activated (cooperative activation, macOS 14+) and the menu bar/Dock stay; through LaunchServices
   (`open`, Finder) it works. Hence `NSApp.activate()` in `present()` and `open` in `tools/smoke.sh`.
+- **Fit is shown from a picture made for exactly that size.** The preview is screen-size, but fit takes fewer device
+  pixels, and a CALayer's `.trilinear` filter (once used) blends in a half-size mip level at a non-integer downscale:
+  soft. `ImageCanvasView` now makes a Lanczos-3 + light-sharpen copy at the exact pixel size (`FitScaler`, Core Image,
+  off the main thread; the preview shows meanwhile), snaps the layer to whole pixels and draws it with `.nearest`.
+  Zoomed views still use the layer's `.linear`. `FitScaler.sharpness` is the one knob.
 - **Raw previews come back from ImageIO as 16-bit Display P3**; handing those to a `CALayer` cost ~100 ms on the main
   thread per photo. `ImageLoader.displayReady` converts every image to 8-bit BGRA (premultiplied first, 32 little) in its
   own colour space off the main thread. Setting `contents` still costs 0-50 ms in the commit; IOSurface-backed contents

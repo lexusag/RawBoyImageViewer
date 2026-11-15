@@ -98,6 +98,17 @@ final class ImageCanvasView: NSView {
     private var counterConstraint: NSLayoutConstraint?
 
     private(set) var image: LoadedImage?
+    /// What a fit-size picture was made for: the photo (by its image), the pixels it takes and the crop.
+    private struct FitKey: Equatable {
+        var image: ObjectIdentifier
+        var width: Int
+        var height: Int
+        var crop: CropRect?
+    }
+    /// The photo resampled to the pixels it takes at fit (Lanczos, see `FitScaler`), once made.
+    private var fitCache: (key: FitKey, image: CGImage)?
+    private var fitKey: FitKey?
+    private var fitTask: Task<Void, Never>?
     private var zoom = ZoomState(scale: 1)
     /// The photo is at fit and stays fitted through window and panel changes.
     private var fitted = true {
@@ -126,7 +137,8 @@ final class ImageCanvasView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.image)
         imageLayer.contentsGravity = .resize
-        imageLayer.minificationFilter = .trilinear
+        // Never trilinear: at a non-integer downscale it blends in a half-size mip level and softens the photo.
+        imageLayer.minificationFilter = .linear
         layer?.addSublayer(imageLayer)
         clipLayer.contentsGravity = .resize
         clipLayer.magnificationFilter = .nearest
@@ -204,6 +216,9 @@ final class ImageCanvasView: NSView {
             imageLayer.add(transition, forKey: "fade")
         }
         self.image = image
+        fitTask?.cancel()
+        fitCache = nil
+        fitKey = nil
         messageLabel.isHidden = true
         setLoading(false)
         CATransaction.begin()
@@ -314,26 +329,51 @@ final class ImageCanvasView: NSView {
     private func applyZoom(showLabel: Bool) {
         guard let image, let math, let size = shownSize else { return }
         let area = imageArea
+        let backing = math.backingScale
         let width = size.width * zoom.scale
         let height = size.height * zoom.scale
-        let frame = CGRect(
+        var frame = CGRect(
             x: area.midX + zoom.offset.x - width / 2,
             y: area.midY + zoom.offset.y - height / 2,
             width: width, height: height)
         let previewRatio =
             Double(max(image.cgImage.width, image.cgImage.height)) / max(image.fullSize.width, image.fullSize.height)
         let devicePixels = math.devicePixelsPerImagePixel(zoom)
+        // At fit the photo is shown pixel for pixel from a picture made for exactly that size.
+        let c = crop ?? .full
+        let fitPixels = fitPixelSize(frame: frame, image: image, crop: c, devicePixels: devicePixels, backing: backing)
+        if let fitPixels {
+            frame = CGRect(
+                x: (frame.minX * backing).rounded() / backing, y: (frame.minY * backing).rounded() / backing,
+                width: Double(fitPixels.width) / backing, height: Double(fitPixels.height) / backing)
+        }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        imageLayer.frame = backingAligned(frame)
+        imageLayer.frame = fitPixels == nil ? backingAligned(frame) : frame
         clipLayer.frame = imageLayer.frame
         // Layer contents count from the bottom-left; crops from the top-left.
-        let c = crop ?? .full
         let contentsRect = CGRect(x: c.left, y: 1 - c.bottom, width: c.width, height: c.height)
-        imageLayer.contentsRect = contentsRect
         clipLayer.contentsRect = contentsRect
         // Past 1:1, show the pixels as pixels.
         imageLayer.magnificationFilter = devicePixels > 1.01 ? .nearest : .linear
+        imageLayer.contents = image.cgImage
+        imageLayer.contentsRect = contentsRect
+        if let fitPixels {
+            let key = FitKey(
+                image: ObjectIdentifier(image.cgImage), width: fitPixels.width, height: fitPixels.height, crop: crop)
+            if let cache = fitCache, cache.key == key {
+                imageLayer.contents = cache.image
+                imageLayer.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+                imageLayer.magnificationFilter = .nearest
+                imageLayer.minificationFilter = .nearest
+            } else {
+                makeFitImage(key, image: image, region: contentsRect)
+            }
+        } else {
+            fitKey = nil
+            fitTask?.cancel()
+            imageLayer.minificationFilter = .linear
+        }
         CATransaction.commit()
         if devicePixels > previewRatio * 1.01, !image.isFullResolution {
             onNeedsFullResolution?()
@@ -342,6 +382,42 @@ final class ImageCanvasView: NSView {
             flash(math.isFit(zoom) ? "Fit" : "\(Int((devicePixels * 100).rounded()))%")
         }
         window?.invalidateCursorRects(for: self)
+    }
+
+    /// The device pixels the photo takes at fit when that is a downscale of what [image] holds, else nil (zoomed, or
+    /// shown at or above its own size, where the layer's filter is all it needs).
+    private func fitPixelSize(
+        frame: CGRect, image: LoadedImage, crop: CropRect, devicePixels: Double, backing: Double
+    ) -> (width: Int, height: Int)? {
+        guard fitted, devicePixels < 0.999 else { return nil }
+        let w = Int((frame.width * backing).rounded())
+        let h = Int((frame.height * backing).rounded())
+        let sourceWidth = Double(image.cgImage.width) * crop.width
+        guard w > 0, h > 0, Double(w) < sourceWidth * 0.999 else { return nil }
+        return (w, h)
+    }
+
+    /// Makes the fit-size picture off the main thread and puts it on the layer when it is ready and still wanted.
+    private func makeFitImage(_ key: FitKey, image: LoadedImage, region: CGRect) {
+        guard fitKey != key else { return }
+        fitKey = key
+        fitTask?.cancel()
+        let width = key.width
+        let height = key.height
+        fitTask = Task { [weak self] in
+            let made = await Task.detached(priority: .userInitiated) {
+                FitScaler.scale(image, region: region, width: width, height: height)
+            }.value
+            guard let self, !Task.isCancelled, let made, self.fitKey == key else { return }
+            self.fitCache = (key, made.cgImage)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            self.imageLayer.contents = made.cgImage
+            self.imageLayer.contentsRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+            self.imageLayer.magnificationFilter = .nearest
+            self.imageLayer.minificationFilter = .nearest
+            CATransaction.commit()
+        }
     }
 
     private func backingAligned(_ rect: CGRect) -> CGRect {
