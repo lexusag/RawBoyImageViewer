@@ -9,6 +9,8 @@ extension AppModel {
     enum FileKeys {
         static let exportOptions = "export.options"
         static let exportFolder = "export.folder"
+        static let exportDestination = "export.destination"
+        static let exportPresets = "export.presets"
         static let recentDestinations = "files.recentDestinations"
     }
 
@@ -60,19 +62,41 @@ extension AppModel {
         set { UserDefaults.standard.set(newValue.path, forKey: FileKeys.exportFolder) }
     }
 
+    /// The last export destination: the folder itself, a subfolder of whichever folder is open (by name), or a path.
+    /// Older versions stored only a path.
+    static var exportDestination: ExportDestination {
+        get {
+            UserDefaults.standard.string(forKey: FileKeys.exportDestination).flatMap(ExportDestination.init(stored:))
+                ?? .path(exportFolder)
+        }
+        set {
+            UserDefaults.standard.set(newValue.stored, forKey: FileKeys.exportDestination)
+            if case .path(let url) = newValue { exportFolder = url }
+        }
+    }
+
+    static var exportPresets: [ExportPreset] {
+        get {
+            UserDefaults.standard.data(forKey: FileKeys.exportPresets)
+                .flatMap { try? JSONDecoder().decode([ExportPreset].self, from: $0) } ?? []
+        }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: FileKeys.exportPresets) }
+    }
+
     private func showExportSheet(_ ids: [String], _ folder: URL) {
         guard let parent = NSApp.keyWindow ?? NSApp.mainWindow else { return }
         let sheet = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 360), styleMask: [.titled],
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 430), styleMask: [.titled],
             backing: .buffered, defer: false)
         let view = ExportSheet(
-            count: ids.count, options: Self.exportOptions, folder: Self.exportFolder,
+            count: ids.count, options: Self.exportOptions, current: folder,
+            subfolders: FolderScanner.subfolders(of: folder), destination: Self.exportDestination,
             onCancel: { parent.endSheet(sheet) },
             onExport: { [weak self] options, destination in
                 parent.endSheet(sheet)
                 Self.exportOptions = options
-                Self.exportFolder = destination
-                self?.export(ids, from: folder, to: destination, options: options)
+                Self.exportDestination = destination
+                self?.export(ids, from: folder, to: destination.url(in: folder), options: options)
             })
         sheet.contentViewController = NSHostingController(rootView: view.preferredColorScheme(.dark))
         parent.beginSheet(sheet)
@@ -294,19 +318,123 @@ extension AppModel {
     }
 }
 
+/// A named export: size, format, quality, location and where it goes (a subfolder is kept by name).
+struct ExportPreset: Codable, Equatable, Identifiable {
+    var name: String
+    var options: ExportOptions
+    var destination: String
+
+    var id: String { name }
+}
+
+/// Where an export goes: the open folder, a subfolder of it (made on export if it isn't there), or any folder.
+enum ExportDestination: Equatable {
+    case same
+    case subfolder(String)
+    case path(URL)
+
+    init?(stored: String) {
+        if stored == "same" {
+            self = .same
+        } else if stored.hasPrefix("sub:"), let name = Self.cleaned(String(stored.dropFirst(4))) {
+            self = .subfolder(name)
+        } else if stored.hasPrefix("path:") {
+            self = .path(URL(fileURLWithPath: String(stored.dropFirst(5))))
+        } else {
+            return nil
+        }
+    }
+
+    var stored: String {
+        switch self {
+        case .same: "same"
+        case .subfolder(let name): "sub:\(name)"
+        case .path(let url): "path:\(url.path)"
+        }
+    }
+
+    func url(in folder: URL) -> URL {
+        switch self {
+        case .same: folder
+        case .subfolder(let name): folder.appendingPathComponent(name, isDirectory: true)
+        case .path(let url): url
+        }
+    }
+
+    /// A folder name that can't climb out of the open folder: no slashes or colons, not empty, not hidden dots only.
+    static func cleaned(_ name: String) -> String? {
+        let name = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty || name.allSatisfy({ $0 == "." }) ? nil : name
+    }
+}
+
 /// Export settings for the photos chosen: size, format, quality, location, where to.
 struct ExportSheet: View {
     let count: Int
     @State var options: ExportOptions
-    @State var folder: URL
+    /// The folder the photos are in, and its subfolders.
+    let current: URL
+    let subfolders: [URL]
+    @State var destination: ExportDestination
+    @State private var presets = AppModel.exportPresets
+    @State private var namingPreset = false
+    @State private var presetName = ""
+    @State private var makingNew = false
+    @State private var newName = ""
     let onCancel: () -> Void
-    let onExport: (ExportOptions, URL) -> Void
+    let onExport: (ExportOptions, ExportDestination) -> Void
+
+    private var chosen: ExportDestination? {
+        makingNew ? ExportDestination.cleaned(newName).map { .subfolder($0) } : destination
+    }
+
+    private var label: String {
+        if makingNew { return "New subfolder…" }
+        switch destination {
+        case .same: return "Same folder"
+        case .subfolder(let name): return name
+        case .path(let url): return (url.path as NSString).abbreviatingWithTildeInPath
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("Export \(count) photo\(count == 1 ? "" : "s")")
                 .font(Theme.title)
                 .foregroundStyle(Theme.paperWhite)
+            row("Preset") {
+                HStack {
+                    Menu {
+                        ForEach(presets) { preset in
+                            Button(preset.name) { apply(preset) }
+                        }
+                        if !presets.isEmpty { Divider() }
+                        Button("Save these settings as preset…") { namingPreset = true }
+                        if !presets.isEmpty {
+                            Menu("Delete preset") {
+                                ForEach(presets) { preset in
+                                    Button(preset.name) { delete(preset) }
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(currentPreset?.name ?? "None")
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.rawBoy)
+                    .fixedSize()
+                    if namingPreset {
+                        TextField("Preset name", text: $presetName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 140)
+                            .onSubmit(savePreset)
+                        Button("Save", action: savePreset)
+                            .buttonStyle(.rawBoy)
+                            .disabled(presetName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
             row("Long edge") {
                 Segmented(
                     options: ExportOptions.sizes.map { ($0, $0.map { "\($0) px" } ?? "Full size") },
@@ -330,21 +458,34 @@ struct ExportSheet: View {
             }
             row("Save to") {
                 HStack {
-                    Text((folder.path as NSString).abbreviatingWithTildeInPath)
-                        .font(Theme.body)
-                        .foregroundStyle(Theme.paperWhite)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Button("Choose…") {
-                        let panel = NSOpenPanel()
-                        panel.canChooseDirectories = true
-                        panel.canChooseFiles = false
-                        panel.canCreateDirectories = true
-                        panel.directoryURL = folder
-                        if panel.runModal() == .OK, let url = panel.url { folder = url }
+                    Menu {
+                        Button("Same folder (\(current.lastPathComponent))") { pick(.same) }
+                        if !subfolders.isEmpty { Divider() }
+                        ForEach(subfolders, id: \.self) { url in
+                            Button(url.lastPathComponent) { pick(.subfolder(url.lastPathComponent)) }
+                        }
+                        Divider()
+                        Button("New subfolder…") { makingNew = true }
+                        Button("Choose…") { choose() }
+                    } label: {
+                        Text(label).lineLimit(1).truncationMode(.middle)
                     }
+                    .menuStyle(.button)
                     .buttonStyle(.rawBoy)
+                    .fixedSize()
+                    if makingNew {
+                        TextField("Folder name", text: $newName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 160)
+                    }
                 }
+            }
+            if !makingNew, chosen != .same {
+                Text(((chosen?.url(in: current).path ?? "") as NSString).abbreviatingWithTildeInPath)
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.ashMuted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
             Text(
                 "Raws are developed by macOS as shot. For RawBoy's look, export them from RawBoy. Files with the same "
@@ -358,14 +499,60 @@ struct ExportSheet: View {
                 Button("Cancel", action: onCancel)
                     .buttonStyle(.rawBoy)
                     .keyboardShortcut(.cancelAction)
-                Button("Export") { onExport(options, folder) }
+                Button("Export") { if let chosen { onExport(options, chosen) } }
                     .buttonStyle(.rawBoyPrimary)
+                    .disabled(chosen == nil)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(DesignTokens.Spacing.xl)
         .frame(width: 520)
         .background(Theme.graphiteSurface)
+    }
+
+    /// The preset whose settings and destination are what the sheet shows now.
+    private var currentPreset: ExportPreset? {
+        guard let chosen else { return nil }
+        return presets.first { $0.options == options && $0.destination == chosen.stored }
+    }
+
+    private func apply(_ preset: ExportPreset) {
+        options = preset.options
+        pick(ExportDestination(stored: preset.destination) ?? .same)
+        namingPreset = false
+    }
+
+    private func savePreset() {
+        let name = presetName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, let chosen else { return }
+        let preset = ExportPreset(name: name, options: options, destination: chosen.stored)
+        if let i = presets.firstIndex(where: { $0.name == name }) {
+            presets[i] = preset
+        } else {
+            presets.append(preset)
+        }
+        AppModel.exportPresets = presets
+        presetName = ""
+        namingPreset = false
+    }
+
+    private func delete(_ preset: ExportPreset) {
+        presets.removeAll { $0.name == preset.name }
+        AppModel.exportPresets = presets
+    }
+
+    private func pick(_ choice: ExportDestination) {
+        makingNew = false
+        destination = choice
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = destination.url(in: current)
+        if panel.runModal() == .OK, let url = panel.url { pick(url == current ? .same : .path(url)) }
     }
 
     private func row<Content: View>(_ label: String, @ViewBuilder _ content: () -> Content) -> some View {
