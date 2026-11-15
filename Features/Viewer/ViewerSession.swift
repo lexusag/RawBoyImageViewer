@@ -631,10 +631,17 @@ final class ViewerSession {
 
     private func openInEditor() {
         guard let url = model.currentURL else { return }
-        if let app = model.editor.url {
-            NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
-        } else {
-            NSWorkspace.shared.open(url)
+        let app = model.editor.url
+        // The editor reads the sidecar when it opens the photo: a rating, turn or crop made a moment ago goes first.
+        Task {
+            await culling.finishWrites()
+            if let app {
+                NSWorkspace.shared.open(
+                    [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
+                ) { _, _ in }
+            } else {
+                NSWorkspace.shared.open(url)
+            }
         }
     }
 

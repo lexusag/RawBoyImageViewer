@@ -94,7 +94,7 @@ photo and the right half to the next (hold to keep going).
 | I / M / B | Details / actions / filmstrip panel |
 | J, click the histogram | Show clipped highlights red and crushed shadows blue, as RawBoy does |
 | Tab | Hide every panel, pinned ones too (again: bring the pinned back) |
-| E | Open in darktable (or the photo's default app) |
+| E | Open in RawBoy Desktop (else darktable, else the photo's default app) |
 | Esc | Close the panels; with none showing, back to the browser |
 | G, Return | Back to the browser |
 

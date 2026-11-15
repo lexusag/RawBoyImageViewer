@@ -49,7 +49,8 @@ final class ViewerModel {
     func url(of group: PhotoGroup) -> URL? { folder?.appendingPathComponent(group.main) }
     var currentURL: URL? { current.flatMap(url(of:)) }
 
-    /// The external editor: the one chosen in Settings, else darktable when installed, else the photo's default app.
+    /// The external editor: the one chosen in Settings, else RawBoy Desktop when installed, else darktable, else the
+    /// photo's default app. RawBoy Desktop reads and writes the same sidecars, so its edits show up here.
     var editor: (name: String, url: URL?) {
         if let path = UserDefaults.standard.string(forKey: SettingsKeys.editorPath), !path.isEmpty,
             FileManager.default.fileExists(atPath: path)
@@ -57,11 +58,14 @@ final class ViewerModel {
             let url = URL(fileURLWithPath: path)
             return (url.deletingPathExtension().lastPathComponent, url)
         }
-        return Self.darktable
+        return Self.installedEditor
     }
 
-    private static let darktable: (name: String, url: URL?) = {
-        for id in ["org.darktable.darktable", "org.darktable"] {
+    /// Bundle ids tried in order: RawBoy Desktop, then darktable.
+    static let editorBundleIds = ["app.rawboy.desktop", "org.darktable.darktable", "org.darktable"]
+
+    private static let installedEditor: (name: String, url: URL?) = {
+        for id in editorBundleIds {
             if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
                 return (url.deletingPathExtension().lastPathComponent, url)
             }
