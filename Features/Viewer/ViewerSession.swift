@@ -636,7 +636,9 @@ final class ViewerSession {
         Task {
             await culling.finishWrites()
             if let app {
-                NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                NSWorkspace.shared.open(
+                    [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
+                ) { _, _ in }
             } else {
                 NSWorkspace.shared.open(url)
             }
