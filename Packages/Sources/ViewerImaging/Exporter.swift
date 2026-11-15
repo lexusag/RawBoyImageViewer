@@ -114,16 +114,24 @@ public enum Exporter {
         let scale = min(
             1, Double(options.longEdge ?? longEdge) / croppedLong,
             options.shortEdge.map { Double($0) / croppedShort } ?? 1)
-        let target = max(1, Int((Double(longEdge) * scale).rounded()))
-        guard
-            var image = CGImageSourceCreateThumbnailAtIndex(
+        var target = max(1, Int((Double(longEdge) * scale).rounded()))
+        // ImageIO sizes by the long edge and rounds the short one down (1439 for a 1440 request): nudge the long edge
+        // up until the short edge is the rounded size asked for.
+        let wantedShort = Int((Double(min(width, height)) * scale).rounded())
+        var thumbnail: CGImage?
+        for _ in 0..<4 {
+            thumbnail = CGImageSourceCreateThumbnailAtIndex(
                 source, 0,
                 [
                     kCGImageSourceCreateThumbnailFromImageAlways: true,
                     kCGImageSourceCreateThumbnailWithTransform: true,
                     kCGImageSourceThumbnailMaxPixelSize: target,
                 ] as CFDictionary)
-        else { throw ExportError.unreadable(name) }
+            guard let t = thumbnail else { break }
+            if scale >= 1 || min(t.width, t.height) >= wantedShort { break }
+            target += 1
+        }
+        guard var image = thumbnail else { throw ExportError.unreadable(name) }
         if let orientation {
             image = Orienting.apply(Orienting.delta(from: fileOrientation, to: orientation), to: image)
         }
