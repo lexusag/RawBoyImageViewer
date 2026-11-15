@@ -348,11 +348,16 @@ extension AppModel {
     func send(_ urls: [URL], to app: URL) {
         guard !urls.isEmpty else { return }
         let name = SendToApps.name(of: app)
+        let count = SendToApps.expandingFolders(urls).count
+        if count == 0 {
+            say("No photos in the folder to send")
+            return
+        }
         SendToApps.send(urls, to: app) { [weak self] error in
             if error != nil {
                 self?.say("Couldn't open in \(name)")
             } else {
-                let what = urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) photos"
+                let what = count == 1 ? SendToApps.expandingFolders(urls)[0].lastPathComponent : "\(count) photos"
                 self?.say("Sent \(what) to \(name)")
             }
         }
