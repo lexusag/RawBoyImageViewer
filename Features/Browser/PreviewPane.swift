@@ -10,6 +10,7 @@ struct PreviewPane: View {
     let app: AppModel
     @State private var image: CGImage?
     @State private var loadedID: String?
+    @State private var pixelSize: Size2D?
 
     var body: some View {
         let browser = app.browser
@@ -34,6 +35,10 @@ struct PreviewPane: View {
                     Text(photo.name).font(Theme.body).foregroundStyle(Theme.paperWhite)
                         .lineLimit(1).truncationMode(.middle)
                     Text(details(photo)).font(Theme.label).foregroundStyle(Theme.ashMuted).lineLimit(1)
+                    if loadedID == photo.id, let pixelSize {
+                        Text(InfoPanel.dimensions(pixelSize)).font(Theme.label).foregroundStyle(Theme.ashMuted)
+                            .lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(DesignTokens.Spacing.md)
@@ -45,6 +50,7 @@ struct PreviewPane: View {
         .task(id: "\(photo?.id ?? "")|\(orientation ?? 0)|\(photo?.modified?.timeIntervalSince1970 ?? 0)") {
             guard let photo, !photo.isOnlineOnly else {
                 image = nil
+                pixelSize = nil
                 loadedID = nil
                 return
             }
@@ -52,10 +58,11 @@ struct PreviewPane: View {
             if Task.isCancelled { return }
             let url = photo.url
             let loaded = await Task.detached(priority: .userInitiated) {
-                ImageLoader.preview(of: url, maxPixelSize: 1600, orientation: orientation)?.cgImage
+                ImageLoader.preview(of: url, maxPixelSize: 1600, orientation: orientation)
             }.value
             if Task.isCancelled { return }
-            image = loaded
+            image = loaded?.cgImage
+            pixelSize = loaded?.fullSize
             loadedID = photo.id
         }
     }
