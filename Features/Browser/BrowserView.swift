@@ -134,6 +134,9 @@ private struct BrowserToolbar: View {
                         help: favourite ? "Remove from Favourites" : "Add to Favourites", isOn: favourite
                     ) { browser.toggleFavourite(folder) }
                 }
+                ToolbarIcon(icon: "questionmark.circle", help: "Keys and gestures (⌘/ or ?)", isOn: false) {
+                    HelpWindow.toggle()
+                }
             }
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.ashMuted)
