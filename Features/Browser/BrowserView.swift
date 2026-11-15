@@ -203,7 +203,9 @@ private struct RatingBar: View {
             )
             .disabled(targets.isEmpty)
             .opacity(targets.isEmpty ? 0.5 : 1)
-            if let message = culling.message {
+            if let job = app.exportJob {
+                ExportProgress(job: job) { app.exportJob = nil }
+            } else if let message = culling.message {
                 Text(message)
                     .font(Theme.label)
                     .foregroundStyle(Theme.ashMuted)
@@ -244,6 +246,7 @@ private struct RatingBar: View {
         .frame(height: 44)
         .background(Theme.graphiteSurface)
         .animation(.easeOut(duration: 0.2), value: culling.message)
+        .animation(.easeOut(duration: 0.2), value: app.exportJob?.state)
     }
 }
 

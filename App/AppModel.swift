@@ -10,6 +10,8 @@ import ViewerFiles
 final class AppModel {
     /// The grid items being dragged to a folder in Places (see `beginDrag`).
     var drag: DragSet?
+    /// The export running now, or the last one until it is dismissed.
+    var exportJob: ExportJob?
     static let shared = AppModel()
 
     let culling = CullingStore()

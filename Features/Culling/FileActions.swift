@@ -103,32 +103,18 @@ extension AppModel {
     }
 
     private func export(_ ids: [String], from folder: URL, to destination: URL, options: ExportOptions) {
-        let items = ids.map { (folder.appendingPathComponent($0), culling.orientation($0), culling.crop($0)) }
-        say("Exporting \(items.count) photo\(items.count == 1 ? "" : "s")…")
-        Task.detached(priority: .userInitiated) {
-            var done = 0
-            var failed: [String] = []
-            do {
-                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-            } catch {
-                await MainActor.run { self.say("Can't create \(destination.lastPathComponent)") }
-                return
-            }
-            for (url, orientation, crop) in items {
-                do {
-                    _ = try Exporter.export(
-                        url, orientation: orientation, crop: crop, to: destination, options: options)
-                    done += 1
-                } catch {
-                    failed.append(url.lastPathComponent)
-                }
-            }
-            let summary =
-                failed.isEmpty
-                ? "Exported \(done) photo\(done == 1 ? "" : "s") to \(destination.lastPathComponent)"
-                : "Exported \(done); couldn't export \(failed.joined(separator: ", "))"
-            await MainActor.run { self.say(summary) }
+        guard exportJob?.isRunning != true else {
+            say("An export is still running")
+            return
         }
+        let items = ids.map { (folder.appendingPathComponent($0), culling.orientation($0), culling.crop($0)) }
+        let job = ExportJob(total: items.count, destination: destination)
+        job.onChange = { [weak self, weak job] in
+            // The bar shows the result; over the viewer, which has no bar, say it on the photo.
+            if let job, let self, self.viewer.isOpen, NSApp.keyWindow is ViewerWindow { self.viewer.flash(job.summary) }
+        }
+        exportJob = job
+        job.start(items: items, options: options)
     }
 
     // MARK: Copy to, Move to
