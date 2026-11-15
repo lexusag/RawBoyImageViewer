@@ -30,7 +30,9 @@ public enum Orienting {
         guard let crop, !crop.isFull else { return image }
         let w = Double(image.width)
         let h = Double(image.height)
-        let rect = CGRect(x: crop.left * w, y: crop.top * h, width: crop.width * w, height: crop.height * h).integral
+        let rect = CGRect(
+            x: (crop.left * w).rounded(), y: (crop.top * h).rounded(),
+            width: max(1, (crop.width * w).rounded()), height: max(1, (crop.height * h).rounded()))
         return image.cropping(to: rect) ?? image
     }
 
