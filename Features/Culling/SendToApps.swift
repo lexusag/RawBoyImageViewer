@@ -1,4 +1,5 @@
 import AppKit
+import ViewerFiles
 
 /// The apps photos and folders can be sent to ("Send to ▸"): Reblum when it is installed, plus any app added in
 /// Settings. Sending opens the files in the app, as Finder's Open With does.
@@ -34,14 +35,28 @@ enum SendToApps {
             .first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
-    /// Opens [urls] (photos or a folder) in [app].
+    /// [urls] with each folder replaced by the photo files directly inside it (one level, no subfolders). Apps such
+    /// as Reblum open files only and fail on a folder ("mmap() failed, errno = 22").
+    static func expandingFolders(_ urls: [URL]) -> [URL] {
+        urls.flatMap { url -> [URL] in
+            var isFolder: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue else {
+                return [url]
+            }
+            return ((try? FolderScanner.photos(in: url)) ?? []).map(\.url)
+        }
+    }
+
+    /// Opens [urls] (photos, or the photos in a folder) in [app].
     static func send(_ urls: [URL], to app: URL, completion: @escaping @MainActor (Error?) -> Void) {
         // The async variant, not a completion handler: this type is @MainActor, so a closure written here is too, and
         // LaunchServices calls handlers on its own queue, where Swift's isolation check traps (macOS 27).
+        let files = expandingFolders(urls)
         Task { @MainActor in
+            guard !files.isEmpty else { return completion(CocoaError(.fileNoSuchFile)) }
             do {
                 let configuration = NSWorkspace.OpenConfiguration()
-                _ = try await NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: configuration)
+                _ = try await NSWorkspace.shared.open(files, withApplicationAt: app, configuration: configuration)
                 completion(nil)
             } catch {
                 completion(error)
