@@ -310,6 +310,36 @@ struct ExporterTests {
         #expect(ImageLoader.fileOrientation(of: first) == 1)
     }
 
+    @Test func shortEdgeShrinksButNeverEnlarges() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photo = folder.appendingPathComponent("IMG_1.png")
+        try TestImages.writePNG(width: 3000, height: 2000, to: photo)
+        let out = folder.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+
+        let big = try Exporter.export(
+            photo, orientation: nil, to: out, options: .instagram())
+        let size = try #require(ImageLoader.fullSize(of: big))
+        #expect(size.width == 2160 && size.height == 1440)
+
+        let small = folder.appendingPathComponent("SMALL.png")
+        try TestImages.writePNG(width: 600, height: 400, to: small)
+        let kept = try Exporter.export(small, orientation: nil, to: out, options: .instagram())
+        let keptSize = try #require(ImageLoader.fullSize(of: kept))
+        #expect(keptSize.width == 600 && keptSize.height == 400)
+    }
+
+    @Test func oldOptionsDecodeWithoutShortEdge() throws {
+        let json = Data(#"{"longEdge":3000,"format":"jpeg","quality":0.9,"removeLocation":false}"#.utf8)
+        let options = try JSONDecoder().decode(ExportOptions.self, from: json)
+        #expect(options.shortEdge == nil && options.convertToSRGB == false)
+        let roundTrip = try JSONDecoder().decode(
+            ExportOptions.self, from: JSONEncoder().encode(ExportOptions.instagram()))
+        #expect(roundTrip.isInstagram)
+    }
+
     @Test func replacesOnlyWhenAskedAndOnlyOutsideTheSourceFolder() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let out = folder.appendingPathComponent("out")

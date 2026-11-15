@@ -495,6 +495,21 @@ struct ExportSheet: View {
                     options: ExportOptions.sizes.map { ($0, $0.map { "\($0) px" } ?? "Full size") },
                     selection: $options.longEdge)
             }
+            row("Short edge") {
+                HStack {
+                    Segmented(
+                        options: [(Int?.none, "Free"), (.some(ExportOptions.instagramShortEdge), "1440 px")],
+                        selection: $options.shortEdge)
+                    Button("Instagram") { options = .instagram(from: options) }
+                        .buttonStyle(.rawBoy)
+                        .help("1440 px short edge, sRGB JPEG, no enlarging")
+                }
+            }
+            row("Colour") {
+                Toggle("Convert to sRGB", isOn: $options.convertToSRGB)
+                    .toggleStyle(.checkbox)
+                    .font(Theme.body)
+            }
             row("Format") {
                 Segmented(options: [(ExportOptions.Format.jpeg, "JPEG"), (.heic, "HEIC")], selection: $options.format)
             }

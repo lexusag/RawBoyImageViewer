@@ -474,6 +474,7 @@ final class ViewerSession {
             let orientation = culling.orientation(id)
             var options = AppModel.exportOptions
             options.longEdge = nil
+            options.shortEdge = nil
             controller.canvas.flash("Saving cropped copy…")
             Task.detached(priority: .userInitiated) {
                 let result = Result {
