@@ -188,6 +188,14 @@ final class AppModel {
             if event.keyCode == 51 { browser.goUp() } else { moveToTrash() }
             return true
         }
+        // ⌘A by physical key: SwiftUI's key presses are characters, "ф" on a Ukrainian layout.
+        let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        if !viewerIsKey, event.keyCode == 0, mods == .command, !(NSApp.keyWindow is NSPanel),
+            !(NSApp.keyWindow?.firstResponder is NSTextView), browser.folder != nil
+        {
+            browser.selectAll()
+            return true
+        }
         guard !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
             !(NSApp.keyWindow?.firstResponder is NSTextView), let command = ViewerKeys.command(for: event)
         else { return false }
