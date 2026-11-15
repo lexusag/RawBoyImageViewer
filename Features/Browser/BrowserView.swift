@@ -31,9 +31,7 @@ struct BrowserView: View {
         }
         .background(Theme.inkBlack)
         .dropDestination(for: URL.self) { urls, _ in
-            guard let url = urls.first else { return false }
-            app.open(url)
-            return true
+            app.dropOnBrowser(urls)
         }
     }
 

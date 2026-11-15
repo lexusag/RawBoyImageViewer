@@ -65,6 +65,11 @@ struct Sidebar: View {
     }
 
     private var favourites: some View {
+        favouritesList
+            .dropDestination(for: URL.self) { urls, _ in app.dropOnFavourites(urls) }
+    }
+
+    private var favouritesList: some View {
         VStack(alignment: .leading, spacing: 2) {
             SidebarHeading(title: "Favourites") {
                 Button {
