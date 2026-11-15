@@ -324,7 +324,14 @@ final class BrowserModel {
         }
     }
 
-    func selectAll() { selection = Set(items.map(\.id)) }
+    /// Every folder and photo shown, never the "Up a folder" tile.
+    func selectAll() {
+        selection = Set(
+            items.compactMap { entry -> String? in
+                if case .parent = entry { return nil }
+                return entry.id
+            })
+    }
 
     func clearSelection() { selection = [] }
 
