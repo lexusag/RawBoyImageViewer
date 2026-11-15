@@ -26,6 +26,7 @@ enum HelpContent {
                 Item(keys: "Arrows", text: "Move"),
                 Item(keys: "Double-click · Return · Space", text: "Open the viewer (or a folder tile)"),
                 Item(keys: "⌘A · Esc", text: "Select all · clear"),
+                Item(keys: "⌘C · ⌘V", text: "Copy the selection · paste files here (Finder's too)"),
                 Item(keys: "⌘F", text: "Search names"),
                 Item(keys: "⌘↑ · ⌫", text: "Up a folder"),
                 Item(keys: "⌘R", text: "Reload the folder"),

@@ -68,6 +68,8 @@ final class CullingStore {
         /// Files renamed in place (old name → new name); undone together, so names can swap back.
         case renames([FileMove])
         case createdFolder(URL)
+        /// Files and folders pasted here: undone by moving them to the Trash.
+        case pasted([URL])
     }
 
     static let writeDelay = 0.4
@@ -325,6 +327,15 @@ final class CullingStore {
             }
             filesChanged()
             return nil
+        case .pasted(let urls):
+            noteOwnChanges(urls.map(\.lastPathComponent))
+            var failed = 0
+            for url in urls {
+                do { try FileManager.default.trashItem(at: url, resultingItemURL: nil) } catch { failed += 1 }
+            }
+            message = failed == 0 ? "Paste undone" : "\(failed) pasted file\(failed == 1 ? "" : "s") couldn't be removed"
+            filesChanged()
+            return nil
         case .createdFolder(let url):
             noteOwnChanges([url.lastPathComponent])
             // Only while it is still empty: anything put in it since stays.
@@ -337,6 +348,14 @@ final class CullingStore {
             filesChanged()
             return nil
         }
+    }
+
+    /// Files and folders copied in by a paste: ⌘Z puts them in the Trash.
+    func recordPasted(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        noteOwnChanges(urls.map(\.lastPathComponent))
+        push(.pasted(urls))
+        filesChanged()
     }
 
     /// A folder this app made: ⌘Z removes it again while it is empty.

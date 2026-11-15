@@ -197,6 +197,57 @@ extension AppModel {
         if move { culling.recordMoves(moves, what: "Move to \(destination.lastPathComponent)") }
     }
 
+    // MARK: ⌘C, ⌘V
+
+    /// ⌘C in the browser: the selected photos (each with its JPEG and sidecars) and folders, as file URLs, so Finder
+    /// and other apps can paste them. Returns false when nothing is selected.
+    func copySelectionToPasteboard() -> Bool {
+        guard let folder = browser.folder, !browser.selection.isEmpty else { return false }
+        let wanted = Set(browser.ratingTargets)
+        var urls: [URL] = []
+        var photos = 0
+        for group in groups(browser.ratingTargets) where wanted.contains(group.main) {
+            let names = [group.main] + group.companions + (culling.sidecars[group.main] ?? group.sidecars)
+            urls += names.map { folder.appendingPathComponent($0) }
+            photos += 1
+        }
+        let folders = browser.selectedFolders
+        urls += folders
+        guard !urls.isEmpty else { return false }
+        let board = NSPasteboard.general
+        board.clearContents()
+        board.writeObjects(urls as [NSURL])
+        let what =
+            [
+                photos > 0 ? "\(photos) photo\(photos == 1 ? "" : "s")" : nil,
+                folders.isEmpty ? nil : "\(folders.count) folder\(folders.count == 1 ? "" : "s")",
+            ].compactMap { $0 }.joined(separator: " and ")
+        say("Copied \(what)")
+        return true
+    }
+
+    /// ⌘V in the browser: copies the files and folders on the pasteboard (from Finder or from here) into the open
+    /// folder. Names already taken get a number ("IMG_1 2.CR2"), a photo's files together; nothing is overwritten.
+    /// ⌘Z puts the copies in the Trash. Returns false when the pasteboard holds no files.
+    func pasteFromPasteboard() -> Bool {
+        guard let folder = browser.folder,
+            let urls = NSPasteboard.general.readObjects(
+                forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty
+        else { return false }
+        let result = FilePaste.paste(urls, into: folder)
+        guard !result.created.isEmpty || result.failed > 0 else { return false }
+        let what =
+            [
+                result.files > 0 ? "\(result.files) file\(result.files == 1 ? "" : "s")" : nil,
+                result.folders > 0 ? "\(result.folders) folder\(result.folders == 1 ? "" : "s")" : nil,
+            ].compactMap { $0 }.joined(separator: " and ")
+        culling.recordPasted(result.created)
+        say(
+            result.failed == 0
+                ? "Pasted \(what)" : "Pasted \(what); \(result.failed) couldn't be copied")
+        return true
+    }
+
     // MARK: Drag to Places
 
     /// What the grid or list is dragging: set when a drag starts, so a drop knows it was ours.

@@ -313,6 +313,14 @@ final class AppModel {
             browser.selectAll()
             return true
         }
+        // ⌘C / ⌘V by physical key: the selection's files to and from the pasteboard (Finder's too). Text fields, sheets
+        // and panels keep their own copy and paste.
+        if !viewerIsKey, mods == .command, event.keyCode == 8 || event.keyCode == 9, !(NSApp.keyWindow is NSPanel),
+            NSApp.keyWindow?.sheetParent == nil, !(NSApp.keyWindow?.firstResponder is NSTextView),
+            browser.folder != nil
+        {
+            return event.keyCode == 8 ? copySelectionToPasteboard() : pasteFromPasteboard()
+        }
         guard !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
             !(NSApp.keyWindow?.firstResponder is NSTextView), let command = ViewerKeys.command(for: event)
         else { return false }
