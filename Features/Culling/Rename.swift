@@ -9,6 +9,8 @@ struct RenamePreset: Codable, Equatable, Identifiable {
     var name: String
     var template: String
     var start: Int
+    /// Find and replace saved with it (presets saved before it existed have none).
+    var replace: RenameReplace?
 
     var id: String { name }
 }
@@ -98,6 +100,7 @@ struct RenameSheet: View {
     let existing: [String]
     @State var template: String
     @State var start: Int
+    @State private var replace = RenameReplace()
     @State private var presets = AppModel.renamePresets
     @State private var namingPreset = false
     @State private var presetName = ""
@@ -124,7 +127,7 @@ struct RenameSheet: View {
     var body: some View {
         let items = RenamePlan.make(
             photos: photos.map { ($0.group, context($0)) }, template: template, start: max(0, start),
-            existing: existing, literal: plain)
+            existing: existing, literal: plain, replace: replace)
         let changing = items.filter { $0.status == .ok }
         let conflicts = items.filter { if case .conflict = $0.status { true } else { false } }
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -145,6 +148,7 @@ struct RenameSheet: View {
                     }
                 }
             }
+            findRows
             if photos.count == 1 {
                 row("") {
                     Button(macros ? "Just type a name" : "Use keywords and numbers…") { macros.toggle() }
@@ -178,8 +182,8 @@ struct RenameSheet: View {
                 .font(Theme.label)
                 .foregroundStyle(Theme.ashMuted)
                 .fixedSize(horizontal: false, vertical: true)
-                preview(items)
             }
+            if !plain || replace.isActive { preview(items) }
             Text(summary(changing: changing.count, conflicts: conflicts))
                 .font(Theme.label)
                 .foregroundStyle(conflicts.isEmpty ? Theme.ashMuted : Theme.warningRed)
@@ -191,7 +195,7 @@ struct RenameSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Rename") { onRename(items, template, max(0, start)) }
                     .buttonStyle(.rawBoyPrimary)
-                    .disabled((loading && !plain) || !RenamePlan.canApply(items))
+                    .disabled((loading && !plain) || replace.error != nil || !RenamePlan.canApply(items))
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -202,6 +206,13 @@ struct RenameSheet: View {
         .onAppear { nameFocused = true }
     }
 
+    private var currentPresetName: String {
+        let match = presets.first { preset in
+            preset.template == template && preset.start == start && (preset.replace ?? RenameReplace()) == replace
+        }
+        return match?.name ?? "None"
+    }
+
     private var presetRow: some View {
         row("Preset") {
             HStack {
@@ -210,6 +221,7 @@ struct RenameSheet: View {
                         Button(preset.name) {
                             template = preset.template
                             start = preset.start
+                            replace = preset.replace ?? RenameReplace()
                             namingPreset = false
                         }
                     }
@@ -226,7 +238,7 @@ struct RenameSheet: View {
                         }
                     }
                 } label: {
-                    Text(presets.first { $0.template == template && $0.start == start }?.name ?? "None")
+                    Text(currentPresetName)
                 }
                 .menuStyle(.button)
                 .buttonStyle(.rawBoy)
@@ -284,7 +296,43 @@ struct RenameSheet: View {
         .overlay(RoundedRectangle(cornerRadius: DesignTokens.Radius.control).strokeBorder(Theme.hairline))
     }
 
+    /// Find and replace, applied to the original name or to the name the template gives.
+    private var findRows: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            row("Find") {
+                TextField("Text to find (optional)", text: $replace.find)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: DesignTokens.FontSize.body, design: .monospaced))
+            }
+            if replace.isActive {
+                row("Replace") {
+                    TextField(replace.regex ? "Replacement, $1 for a group" : "Replacement", text: $replace.replace)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: DesignTokens.FontSize.body, design: .monospaced))
+                }
+                row("") {
+                    HStack(spacing: DesignTokens.Spacing.md) {
+                        Toggle("Regex", isOn: $replace.regex)
+                        Toggle("Match case", isOn: $replace.caseSensitive)
+                        if !plain {
+                            Picker("In", selection: $replace.target) {
+                                Text("Original name").tag(RenameReplace.Target.original)
+                                Text("New name").tag(RenameReplace.Target.result)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .fixedSize()
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                    .font(Theme.label)
+                }
+            }
+        }
+    }
+
     private func summary(changing: Int, conflicts: [RenameItem]) -> String {
+        if let error = replace.error { return error + ": \(replace.find)" }
         if let first = conflicts.first, case .conflict(let reason) = first.status {
             let n = conflicts.count
             return "\(n) photo\(n == 1 ? "" : "s") can't be renamed: \(reason). Nothing is renamed over another file."
@@ -306,7 +354,8 @@ struct RenameSheet: View {
     private func savePreset() {
         let name = presetName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        let preset = RenamePreset(name: name, template: template, start: start)
+        let preset = RenamePreset(
+            name: name, template: template, start: start, replace: replace.isActive ? replace : nil)
         if let i = presets.firstIndex(where: { $0.name == name }) {
             presets[i] = preset
         } else {

@@ -114,4 +114,79 @@ struct RenamePlanTests {
         let empty = RenamePlan.make(photos: [photo(["A.CR2"])], template: "{lens}", start: 1, existing: ["A.CR2"])
         #expect(empty[0].status == .conflict("Empty name"))
     }
+
+    @Test func plainReplaceIsCaseInsensitiveUnlessAsked() {
+        var r = RenameReplace(find: "img", replace: "Trip")
+        #expect(r.apply("IMG_1 img_2") == "Trip_1 Trip_2")
+        r.caseSensitive = true
+        #expect(r.apply("IMG_1 img_2") == "IMG_1 Trip_2")
+    }
+
+    @Test func plainReplaceTakesRegexCharactersLiterally() {
+        let r = RenameReplace(find: "(1)", replace: "$1")
+        #expect(r.apply("a(1)b") == "a$1b")
+        #expect(r.error == nil)
+    }
+
+    @Test func regexReplaceUsesGroups() {
+        let r = RenameReplace(find: #"IMG_(\d+)"#, replace: "Trip-$1", regex: true)
+        #expect(r.apply("IMG_0042") == "Trip-0042")
+    }
+
+    @Test func invalidRegexIsReportedAndChangesNothing() {
+        let r = RenameReplace(find: "(", replace: "x", regex: true)
+        #expect(r.error != nil)
+        #expect(r.apply("a(b") == "a(b")
+        // Plain text may hold the same characters.
+        #expect(RenameReplace(find: "(", replace: "x").error == nil)
+    }
+
+    @Test func emptyFindDoesNothing() {
+        #expect(!RenameReplace(find: "", replace: "x").isActive)
+        #expect(RenameReplace(find: "", replace: "x").apply("abc") == "abc")
+    }
+
+    @Test func replaceOnTheResultOrOnTheOriginalName() {
+        let result = RenamePlan.make(
+            photos: [photo(["IMG_1.CR2"])], template: "{name}_{date}", start: 1, existing: [],
+            replace: RenameReplace(find: "IMG", replace: "Trip", target: .result))
+        #expect(result[0].newMain == "Trip_1_.CR2")
+        // On the original name only: the template's own text is left alone.
+        let original = RenamePlan.make(
+            photos: [photo(["IMG_1.CR2"])], template: "IMG-{name}", start: 1, existing: [],
+            replace: RenameReplace(find: "IMG", replace: "Trip", target: .original))
+        #expect(original[0].newMain == "IMG-Trip_1.CR2")
+    }
+
+    @Test func replacedOriginalNameKeepsDotsInTheStem() {
+        let items = RenamePlan.make(
+            photos: [photo(["IMG_1.CR2"])], template: "{name}", start: 1, existing: [],
+            replace: RenameReplace(find: "IMG_", replace: "v1.2-", target: .original))
+        #expect(items[0].newMain == "v1.2-1.CR2")
+    }
+
+    @Test func replaceCombinesWithNumbersAndStillBlocksCollisions() {
+        let items = RenamePlan.make(
+            photos: [photo(["A1.CR2"]), photo(["A2.CR2"])], template: "{name}", start: 1, existing: [],
+            replace: RenameReplace(find: #"\d"#, replace: "", regex: true))
+        #expect(items.allSatisfy { $0.status == .conflict("Same name as another photo") })
+        let single = RenamePlan.make(
+            photos: [photo(["A1.CR2"])], template: "A1", start: 1, existing: ["A1.CR2"], literal: true,
+            replace: RenameReplace(find: "A", replace: "B"))
+        #expect(single[0].newMain == "B1.CR2")
+    }
+
+    @Test func badRegexLeavesThePlanAlone() {
+        let items = RenamePlan.make(
+            photos: [photo(["A.CR2"])], template: "x", start: 1, existing: [],
+            replace: RenameReplace(find: "[", replace: "y", regex: true))
+        #expect(items[0].newMain == "x.CR2")
+    }
+
+    @Test func replaceResultIsSanitised() {
+        let items = RenamePlan.make(
+            photos: [photo(["A.CR2"])], template: "a-b", start: 1, existing: [],
+            replace: RenameReplace(find: "-", replace: "/"))
+        #expect(items[0].newMain == "a_b.CR2")
+    }
 }

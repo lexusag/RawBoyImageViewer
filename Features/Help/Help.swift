@@ -51,7 +51,8 @@ enum HelpContent {
                     keys: "F2",
                     text:
                         "Rename the selection with one template: {name} {date} {time} {camera} {lens} {iso} {folder}, "
-                        + "# counters (### = 001); the JPEG and sidecars follow, ⌘Z undoes"),
+                        + "# counters (### = 001), plus find and replace (text or regex, $1 for groups); the JPEG and sidecars "
+                        + "follow, ⌘Z undoes"),
                 Item(keys: "⇧⌘E · ⌥⌘C", text: "Export · Copy the photo"),
             ]),
         Section(
