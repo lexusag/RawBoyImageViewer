@@ -45,7 +45,11 @@ struct PhotoGrid: View {
                                         isSelected: browser.selection.contains(entry.id),
                                         url: url, store: browser.thumbnails
                                     )
-                                    .contextMenu { FolderMenu(url: url, browser: browser, trash: { app.trashFolder(url, entryID: entry.id) }) }
+                                    .contextMenu {
+                                        FolderMenu(
+                                            url: url, browser: browser,
+                                            trash: { app.trashFolder(url, entryID: entry.id) })
+                                    }
                                 case .parent:
                                     FolderCell(
                                         title: "Up a folder", icon: "arrow.turn.left.up", size: cell,
