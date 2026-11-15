@@ -192,8 +192,11 @@ private struct FolderRow: View {
             HStack(spacing: 6) {
                 if tree {
                     Button {
-                        if children == nil { children = FolderScanner.subfolders(of: url) }
-                        else if !expanded { reread() }  // opening again: read it fresh
+                        if children == nil {
+                            children = FolderScanner.subfolders(of: url)
+                        } else if !expanded {
+                            reread()  // opening again: read it fresh
+                        }
                         expanded.toggle()
                     } label: {
                         Image(systemName: "chevron.right")
