@@ -24,11 +24,12 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | Arrows | Move |
 | Double-click, Enter, Space | Open the viewer |
 | ⌘A, Esc | Select all, clear |
+| ⌘C, ⌘V | Copy the selected photos (with their JPEGs and sidecars) and folders as files, so Finder and other apps can paste them; paste files or folders from Finder or from here into the open folder as copies. A name already taken gets a number ("IMG_1 2.CR2", a photo's files together), nothing is overwritten. ⌘Z puts the pasted copies in the Trash. Text fields keep their own copy and paste |
 | ⌘F | Search names |
 | ⌘R | Reload the folder |
 | 1–5, 0 | Stars on the selection (the same number again clears them); no stars |
 | P, X, U | Pick, Reject (the same key again unflags), Unflag |
-| ⌘Z | Undo the last rating, rotation, rename, or move to `_bin`, a folder or the Trash |
+| ⌘Z | Undo the last rating, rotation, rename, paste, or move to `_bin`, a folder or the Trash |
 | ⌘⌫, ⌦ | Move to the Trash after asking (a photo with its JPEG and sidecars, a selected folder with its contents); ⌦ is Fn-⌫ on a laptop |
 | [ / ], ⌘[ / ⌘] | Rotate left / right: lossless, kept in the sidecar (`tiff:Orientation`, as Lightroom does) |
 | F2 | Rename the selection. One photo: type its new name (extension kept), Return confirms; "Use keywords and numbers…" switches to templates. Several photos: one name template, as RawBoy Auto's export names: `{name}` `{date}` `{time}` `{camera}` `{lens}` `{iso}` `{folder}` `{year}` `{month}` `{day}` `{hour}` `{minute}` `{second}` and `#` counters (`#` = 1, `##` = 01, `###` = 001, numbered from a chosen start in the order shown). A live list shows each old and new name; a name already taken, or given to two photos, blocks the rename. The extension stays, and a photo's JPEG and sidecars are renamed with it. Find and replace (plain text or a regex, `$1` for groups, optional match case) works on the original name, before the template, or on the new name; it also works on a single typed name. A bad regex is flagged and blocks the rename. Templates and their find and replace can be saved as presets; ⌘Z puts the names back. Also in the Photo menu, the toolbar's pencil and right-click |
