@@ -333,7 +333,9 @@ final class CullingStore {
             for url in urls {
                 do { try FileManager.default.trashItem(at: url, resultingItemURL: nil) } catch { failed += 1 }
             }
-            message = failed == 0 ? "Paste undone" : "\(failed) pasted file\(failed == 1 ? "" : "s") couldn't be removed"
+            message =
+                failed == 0
+                ? "Paste undone" : "\(failed) pasted file\(failed == 1 ? "" : "s") couldn't be removed"
             filesChanged()
             return nil
         case .createdFolder(let url):
