@@ -96,11 +96,6 @@ struct PhotoGrid: View {
             }
             return .handled
         }
-        .onKeyPress(characters: ["a"]) { press in
-            guard press.modifiers.contains(.command) else { return .ignored }
-            browser.selectAll()
-            return .handled
-        }
     }
 
     /// A folder tile opens the folder, a photo the viewer.

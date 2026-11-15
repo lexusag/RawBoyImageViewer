@@ -62,11 +62,6 @@ struct PhotoList: View {
             }
             return .handled
         }
-        .onKeyPress(characters: ["a"]) { press in
-            guard press.modifiers.contains(.command) else { return .ignored }
-            browser.selectAll()
-            return .handled
-        }
     }
 
     private func open(_ id: String) {
