@@ -227,7 +227,7 @@ public enum Exporter {
     }
 
     /// Width and height for [short] (the short edge) at [ratio] (width / height), the long edge rounded to an integer.
-    static func exactSize(short: Int, ratio: Double) -> (Int, Int) {
+    public static func exactSize(short: Int, ratio: Double) -> (Int, Int) {
         ratio < 1
             ? (short, max(1, Int((Double(short) / ratio).rounded())))
             : (max(1, Int((Double(short) * ratio).rounded())), short)
