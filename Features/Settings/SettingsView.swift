@@ -83,7 +83,7 @@ struct SettingsView: View {
                     HStack {
                         Text(editorName).foregroundStyle(Theme.ashMuted)
                         Button("Choose…", action: chooseEditor)
-                        if !editorPath.isEmpty { Button("Darktable or default") { editorPath = "" } }
+                        if !editorPath.isEmpty { Button("RawBoy, darktable or default") { editorPath = "" } }
                     }
                 }
                 Toggle(

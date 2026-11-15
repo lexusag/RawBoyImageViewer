@@ -273,7 +273,7 @@ RawBoyImageViewer/
 | M7 ✅ | Real preview + Compare | CIRAWFilter real preview, Compare 2–4 with synced zoom, slideshow |
 | M8 ✅ | Ship | Settings, Help, VoiceOver, Reduce Motion, icon, `tools/release.sh` |
 | After M8 ✅ | Owner's requests | Folder watching; crop in RawBoy's fields; subfolder tiles, favourites, hold-to-zoom, Return to the browser, fuller EXIF, filmstrip wheel, portrait thumbnails (from trying the app); MIT; public repo; Personal Team signing; Sparkle; **v0.1 pre-release** |
-| Later | RawBoy desktop | Move RawBoyBrowseKit into the RawBoy repo; real preview through RawBoy's engine; Open in RawBoy / Send to Auto |
+| Later | RawBoy desktop | `E` opens RawBoy Desktop (`app.rawboy.desktop`) when installed ✅. Still to do: move RawBoyBrowseKit into the RawBoy repo; real preview through RawBoy's engine; Send to Auto |
 | Later | Windows | Port the UI. RawBoyBrowseKit serves as the portable spec |
 
 ---
