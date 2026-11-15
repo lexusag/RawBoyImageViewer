@@ -15,6 +15,11 @@ public struct ExportOptions: Codable, Equatable, Sendable {
 
     /// The long edge in pixels; nil keeps the full size.
     public var longEdge: Int?
+    /// The short edge in pixels (1440 for Instagram); nil leaves it free. With a long edge too, the smaller result
+    /// wins. Photos are never enlarged.
+    public var shortEdge: Int?
+    /// Convert the pixels to sRGB (what Instagram shows) instead of keeping the photo's own colour profile.
+    public var convertToSRGB: Bool
     public var format: Format
     /// 0...1.
     public var quality: Double
@@ -25,10 +30,12 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     public var replaceExisting: Bool
 
     public init(
-        longEdge: Int? = 3000, format: Format = .jpeg, quality: Double = 0.9, removeLocation: Bool = false,
-        replaceExisting: Bool = false
+        longEdge: Int? = 3000, shortEdge: Int? = nil, convertToSRGB: Bool = false, format: Format = .jpeg,
+        quality: Double = 0.9, removeLocation: Bool = false, replaceExisting: Bool = false
     ) {
         self.longEdge = longEdge
+        self.shortEdge = shortEdge
+        self.convertToSRGB = convertToSRGB
         self.format = format
         self.quality = quality
         self.removeLocation = removeLocation
@@ -39,6 +46,8 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         longEdge = try c.decodeIfPresent(Int.self, forKey: .longEdge)
+        shortEdge = try c.decodeIfPresent(Int.self, forKey: .shortEdge)
+        convertToSRGB = try c.decodeIfPresent(Bool.self, forKey: .convertToSRGB) ?? false
         format = try c.decode(Format.self, forKey: .format)
         quality = try c.decode(Double.self, forKey: .quality)
         removeLocation = try c.decode(Bool.self, forKey: .removeLocation)
@@ -47,6 +56,23 @@ public struct ExportOptions: Codable, Equatable, Sendable {
 
     /// The sizes the export sheet offers.
     public static let sizes: [Int?] = [nil, 3000, 2048, 1080]
+
+    /// Instagram's feed size: 1440 px on the short edge, sRGB JPEG, no long-edge limit.
+    public static let instagramShortEdge = 1440
+
+    /// The one-click Instagram settings, keeping the quality, location and replace choices of [base].
+    public static func instagram(from base: ExportOptions = ExportOptions()) -> ExportOptions {
+        var o = base
+        o.longEdge = nil
+        o.shortEdge = instagramShortEdge
+        o.convertToSRGB = true
+        o.format = .jpeg
+        return o
+    }
+
+    public var isInstagram: Bool {
+        longEdge == nil && shortEdge == Self.instagramShortEdge && convertToSRGB && format == .jpeg
+    }
 }
 
 /// Writes a photo as a new JPEG or HEIC: resized, turned as its sidecar says, its colour profile and EXIF kept (the
@@ -84,7 +110,10 @@ public enum Exporter {
         let (w, h) = turned.isQuarterTurned ? (Double(height), Double(width)) : (Double(width), Double(height))
         let c = crop ?? .full
         let croppedLong = max(w * c.width, h * c.height)
-        let scale = min(1, Double(options.longEdge ?? longEdge) / croppedLong)
+        let croppedShort = min(w * c.width, h * c.height)
+        let scale = min(
+            1, Double(options.longEdge ?? longEdge) / croppedLong,
+            options.shortEdge.map { Double($0) / croppedShort } ?? 1)
         let target = max(1, Int((Double(longEdge) * scale).rounded()))
         guard
             var image = CGImageSourceCreateThumbnailAtIndex(
@@ -99,6 +128,7 @@ public enum Exporter {
             image = Orienting.apply(Orienting.delta(from: fileOrientation, to: orientation), to: image)
         }
         image = Orienting.crop(image, crop)
+        if options.convertToSRGB { image = toSRGB(image) }
 
         let fullStem = (stem ?? PhotoGroups.stem(of: name)) + suffix
         let ext = options.format.fileExtension
@@ -130,6 +160,18 @@ public enum Exporter {
             }
         }
         return out
+    }
+
+    /// [image] redrawn in sRGB (the original when it already is, or when the conversion fails).
+    static func toSRGB(_ image: CGImage) -> CGImage {
+        guard let srgb = CGColorSpace(name: CGColorSpace.sRGB), image.colorSpace?.name != srgb.name,
+            let context = CGContext(
+                data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: srgb, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        else { return image }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage() ?? image
     }
 
     /// Puts [new] at [target]. An old file there goes to the Trash (permanently replaced where there is none, e.g.
