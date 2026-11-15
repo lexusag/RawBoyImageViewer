@@ -23,7 +23,7 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - `App/`: entry point (`RawBoyViewerApp`, one `Window` scene so opening files never spawns windows), `AppDelegate`
   (Finder "Open With", Dock drops, a path on the command line, the last folder at launch; all held until the browser
   window is key), `AppModel` (the browser and the viewer, and what opens where), `Trace` (dev log).
-- `Features/Browser/`: `BrowserModel` (folder → `BrowsePhoto`s via `FolderScanner` + `PhotoGroups`, capture dates read
+- `Features/Browser/`: `MarqueeSelection` (rubber-band: a drag surface behind the cells, rectangle in content coordinates, auto-scroll by timer), `BrowserModel` (folder → `BrowsePhoto`s via `FolderScanner` + `PhotoGroups`, capture dates read
   in the background then one reorder, sort/filter/size/recent/last folder in UserDefaults `browser.*`, selection as in
   RawBoy Browser), `BrowserView` (toolbar, `Segmented`), `PhotoGrid` (LazyVGrid, keys, `ThumbnailStore` at 480 px),
   `GridEntry` (parent / folder / photo tiles: folders only with `showFolders`, off by default), favourites (UserDefaults

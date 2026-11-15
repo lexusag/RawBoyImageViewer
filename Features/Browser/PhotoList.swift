@@ -8,6 +8,7 @@ import ViewerImaging
 struct PhotoList: View {
     let app: AppModel
     @FocusState private var focused: Bool
+    @State private var marquee = Marquee()
     @Environment(\.isSnapshot) private var isSnapshot
 
     static let rowHeight = 36.0
@@ -19,11 +20,12 @@ struct PhotoList: View {
             header(browser)
             Rectangle().fill(Theme.hairline).frame(height: 1)
             ScrollViewReader { proxy in
-                PanelScroll {
+                PanelScroll(marquee: marquee) {
                     LazyVStack(spacing: 2) {
                         ForEach(browser.items) { entry in
                             ListRow(entry: entry, app: app)
                                 .id(entry.id)
+                                .modifier(MarqueeCell(id: entry.id, enabled: !entry.isParent))
                                 .onDrag { app.beginDrag(entry) ?? NSItemProvider() }
                                 .gesture(
                                     TapGesture(count: 2).onEnded { open(entry.id) }
@@ -39,6 +41,7 @@ struct PhotoList: View {
                     }
                     .padding(.horizontal, DesignTokens.Spacing.md)
                     .padding(.vertical, DesignTokens.Spacing.sm)
+                    .marqueeSurface(marquee, browser: browser) { focused = true }
                 }
                 .onChange(of: browser.scrollRequest) {
                     if let anchor = browser.anchor { proxy.scrollTo(anchor) }

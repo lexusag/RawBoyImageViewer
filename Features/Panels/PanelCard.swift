@@ -115,6 +115,8 @@ extension EnvironmentValues {
 /// A ScrollView, or its content laid out flat in snapshots.
 struct PanelScroll<Content: View>: View {
     var axis: Axis.Set = .vertical
+    /// Set where a marquee selection scrolls this view (the browser's grid and list).
+    var marquee: Marquee?
     @ViewBuilder let content: Content
     @Environment(\.isSnapshot) private var isSnapshot
 
@@ -124,7 +126,11 @@ struct PanelScroll<Content: View>: View {
                 maxWidth: .infinity, maxHeight: axis == .vertical ? .infinity : nil, alignment: .topLeading
             ).clipped()
         } else {
-            ScrollView(axis, showsIndicators: false) { content }
+            if let marquee {
+                ScrollView(axis, showsIndicators: false) { content }.marqueeScrolling(marquee)
+            } else {
+                ScrollView(axis, showsIndicators: false) { content }
+            }
         }
     }
 }

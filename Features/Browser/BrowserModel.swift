@@ -343,6 +343,23 @@ final class BrowserModel {
 
     func clearSelection() { selection = [] }
 
+    /// The marquee's selection: the rectangle's hits alone, added to what was selected (Shift) or toggled in it (⌘).
+    func marqueeSelect(base: Set<String>, hits: Set<String>, command: Bool, shift: Bool) {
+        let shown = Set(items.compactMap { entry -> String? in
+            if case .parent = entry { return nil }
+            return entry.id
+        })
+        let hits = hits.intersection(shown)
+        if shift {
+            selection = base.union(hits)
+        } else if command {
+            selection = base.symmetricDifference(hits)
+        } else {
+            selection = hits
+        }
+        if let first = items.first(where: { hits.contains($0.id) }) { anchor = first.id }
+    }
+
     /// Moves the selection by [step] places (±1 along a row, ±columns between rows).
     func move(by step: Int) {
         guard !items.isEmpty else { return }
