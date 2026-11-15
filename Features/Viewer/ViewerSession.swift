@@ -636,9 +636,10 @@ final class ViewerSession {
         Task {
             await culling.finishWrites()
             if let app {
-                NSWorkspace.shared.open(
-                    [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
-                ) { _, _ in }
+                // The async variant, not a completion handler: a closure written here is @MainActor, and
+                // LaunchServices calls handlers on its own queue, where Swift's isolation check traps (macOS 27).
+                _ = try? await NSWorkspace.shared.open(
+                    [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
             } else {
                 NSWorkspace.shared.open(url)
             }
