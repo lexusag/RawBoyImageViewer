@@ -39,7 +39,10 @@ final class AppModel {
             self?.compare.orientationsChanged(ids)
         }
         viewer.onFileAction = { [weak self] action, ids in self?.perform(action, ids) }
-        culling.onFilesChanged = { [weak self] in self?.folderContentsChanged() }
+        culling.onFilesChanged = { [weak self] in
+            self?.folderContentsChanged()
+            self?.browser.foldersChanged()
+        }
         browser.onLoad = { [weak self] folder in self?.watch(folder) }
         viewer.onClose = { [weak self] current in
             // Back in the browser on the photo the viewer showed last.
@@ -176,6 +179,58 @@ final class AppModel {
             guard !browser.selection.isEmpty else { return }
             trash(photos: browser.ratingTargets, folders: browser.selectedFolders)
         }
+    }
+
+    /// New Folder… in [parent]: asks for a name (empty names and names already taken are refused, with the reason),
+    /// makes it, shows it in the grid and the Places tree. ⌘Z removes it while it is empty.
+    func newFolder(in parent: URL) {
+        let fm = FileManager.default
+        func taken(_ name: String) -> Bool {
+            ((try? fm.contentsOfDirectory(atPath: parent.path)) ?? []).contains { $0.lowercased() == name.lowercased() }
+        }
+        var name = "untitled folder"
+        var n = 2
+        while taken(name) {
+            name = "untitled folder \(n)"
+            n += 1
+        }
+        var problem: String?
+        while true {
+            let alert = NSAlert()
+            alert.messageText = "New folder in “\(parent.lastPathComponent)”"
+            alert.informativeText = problem ?? "Name the new folder."
+            let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+            field.stringValue = name
+            alert.accessoryView = field
+            alert.addButton(withTitle: "Create")
+            alert.addButton(withTitle: "Cancel")
+            alert.window.initialFirstResponder = field
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if name.isEmpty {
+                problem = "The name can't be empty."
+            } else if name.contains("/") || name.contains(":") {
+                problem = "A folder name can't contain “/” or “:”."
+            } else if name == "." || name == ".." {
+                problem = "“\(name)” isn't a usable name."
+            } else if taken(name) {
+                problem = "“\(name)” already exists here. Pick another name."
+            } else {
+                break
+            }
+        }
+        let url = parent.appendingPathComponent(name, isDirectory: true)
+        do {
+            try fm.createDirectory(at: url, withIntermediateDirectories: false)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Couldn't create “\(name)”"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+            return
+        }
+        culling.recordCreatedFolder(url)
+        browser.foldersChanged(created: url)
     }
 
     /// Right-click on a folder tile: the whole selection when the tile is in it, else that folder alone.

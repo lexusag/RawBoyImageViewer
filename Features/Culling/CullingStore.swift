@@ -67,6 +67,7 @@ final class CullingStore {
         case moves([FileMove], what: String)
         /// Files renamed in place (old name → new name); undone together, so names can swap back.
         case renames([FileMove])
+        case createdFolder(URL)
     }
 
     static let writeDelay = 0.4
@@ -324,7 +325,26 @@ final class CullingStore {
             }
             filesChanged()
             return nil
+        case .createdFolder(let url):
+            noteOwnChanges([url.lastPathComponent])
+            // Only while it is still empty: anything put in it since stays.
+            let contents = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
+            if contents.filter({ $0 != ".DS_Store" }).isEmpty, (try? FileManager.default.removeItem(at: url)) != nil {
+                message = "New folder undone"
+            } else {
+                message = "“\(url.lastPathComponent)” isn't empty, so it stays"
+            }
+            filesChanged()
+            return nil
         }
+    }
+
+    /// A folder this app made: ⌘Z removes it again while it is empty.
+    func recordCreatedFolder(_ url: URL) {
+        noteOwnChanges([url.lastPathComponent])
+        push(.createdFolder(url))
+        message = "Created “\(url.lastPathComponent)”"
+        filesChanged()
     }
 
     private func push(_ undo: Undo) {

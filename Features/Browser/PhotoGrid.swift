@@ -80,6 +80,8 @@ struct PhotoGrid: View {
                     if !isSnapshot, let anchor = browser.anchor { proxy.scrollTo(anchor, anchor: .center) }
                 }
             }
+            // Empty space between and below the tiles; the tiles' own menus win over it.
+            .contextMenu { NewFolderMenu(app: app) }
             .onAppear { columns = Self.columns(geometry.size.width, cell) }
             .onChange(of: geometry.size.width) { _, width in columns = Self.columns(width, cell) }
             .onChange(of: cell) { _, size in columns = Self.columns(geometry.size.width, size) }
@@ -345,6 +347,7 @@ struct FolderMenu: View {
         Button(browser.isFavourite(url) ? "Remove from Favourites" : "Add to Favourites") {
             browser.toggleFavourite(url)
         }
+        Button("New Folder…") { AppModel.shared.newFolder(in: url) }
         SendToMenu(app: AppModel.shared, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         if let trash {
@@ -364,5 +367,16 @@ private struct Badge: View {
             .padding(.horizontal, 4)
             .padding(.vertical, 1)
             .background(RoundedRectangle(cornerRadius: 3).fill(Theme.graphiteSurface.opacity(0.92)))
+    }
+}
+
+/// Right-click on empty space in the grid or list: New Folder… in the folder shown.
+struct NewFolderMenu: View {
+    let app: AppModel
+
+    var body: some View {
+        if let folder = app.browser.folder {
+            Button("New Folder…") { app.newFolder(in: folder) }
+        }
     }
 }

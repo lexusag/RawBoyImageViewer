@@ -48,6 +48,7 @@ struct PhotoList: View {
                 }
             }
         }
+        .contextMenu { NewFolderMenu(app: app) }
         .focusable()
         .focused($focused)
         .focusEffectDisabled()
