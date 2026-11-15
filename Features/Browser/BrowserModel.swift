@@ -345,10 +345,11 @@ final class BrowserModel {
 
     /// The marquee's selection: the rectangle's hits alone, added to what was selected (Shift) or toggled in it (⌘).
     func marqueeSelect(base: Set<String>, hits: Set<String>, command: Bool, shift: Bool) {
-        let shown = Set(items.compactMap { entry -> String? in
-            if case .parent = entry { return nil }
-            return entry.id
-        })
+        let shown = Set(
+            items.compactMap { entry -> String? in
+                if case .parent = entry { return nil }
+                return entry.id
+            })
         let hits = hits.intersection(shown)
         if shift {
             selection = base.union(hits)
