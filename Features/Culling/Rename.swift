@@ -51,11 +51,10 @@ extension AppModel {
         guard !photos.isEmpty else { return }
         let existing = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         let defaults = UserDefaults.standard
-        // One photo starts from its own name; several from the last template used.
-        let single = photos.count == 1 ? photos[0].group.stem : nil
+        // One photo starts from its own name, to type over; several from the last template used.
         let template =
-            single.flatMap { $0.contains("#") || $0.contains("{") ? nil : $0 }
-            ?? defaults.string(forKey: RenameKeys.template) ?? "{date}_###"
+            photos.count == 1
+            ? photos[0].group.stem : defaults.string(forKey: RenameKeys.template) ?? "{date}_###"
         let sheet = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 560), styleMask: [.titled],
             backing: .buffered, defer: false)
@@ -66,8 +65,10 @@ extension AppModel {
             onRename: { [weak self] items, template, start in
                 parent.endSheet(sheet)
                 let defaults = UserDefaults.standard
-                defaults.set(template, forKey: RenameKeys.template)
-                defaults.set(start, forKey: RenameKeys.start)
+                if items.count > 1 {
+                    defaults.set(template, forKey: RenameKeys.template)
+                    defaults.set(start, forKey: RenameKeys.start)
+                }
                 Task { @MainActor in
                     guard let self else { return }
                     let renamed = await self.culling.rename(items)
@@ -103,6 +104,9 @@ struct RenameSheet: View {
     /// Camera, lens and ISO by photo, read from the files' headers (online-only files are left alone).
     @State private var metadata: [String: PhotoMetadata] = [:]
     @State private var loading = true
+    /// One photo: just a name to type, unless the template tools are asked for.
+    @State private var macros = false
+    @FocusState private var nameFocused: Bool
     let onCancel: () -> Void
     let onRename: ([RenameItem], String, Int) -> Void
 
@@ -114,21 +118,38 @@ struct RenameSheet: View {
             folder: folderName)
     }
 
+    /// A single photo, renamed by typing its new name.
+    private var plain: Bool { photos.count == 1 && !macros }
+
     var body: some View {
         let items = RenamePlan.make(
             photos: photos.map { ($0.group, context($0)) }, template: template, start: max(0, start),
-            existing: existing)
+            existing: existing, literal: plain)
         let changing = items.filter { $0.status == .ok }
         let conflicts = items.filter { if case .conflict = $0.status { true } else { false } }
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text(photos.count == 1 ? "Rename “\(photos[0].group.main)”" : "Rename \(photos.count) photos")
                 .font(Theme.title)
                 .foregroundStyle(Theme.paperWhite)
-            presetRow
+            if !plain { presetRow }
             row("Name") {
-                TextField("Name", text: $template)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: DesignTokens.FontSize.body, design: .monospaced))
+                HStack(spacing: 4) {
+                    TextField("Name", text: $template)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: DesignTokens.FontSize.body, design: .monospaced))
+                        .focused($nameFocused)
+                    if plain {
+                        Text(photoExtension)
+                            .font(.system(size: DesignTokens.FontSize.body, design: .monospaced))
+                            .foregroundStyle(Theme.ashMuted)
+                    }
+                }
+            }
+            if photos.count == 1 {
+                row("") {
+                    Button(macros ? "Just type a name" : "Use keywords and numbers…") { macros.toggle() }
+                        .buttonStyle(.rawBoy)
+                }
             }
             if photos.count > 1 {
                 row("Number from") {
@@ -142,21 +163,23 @@ struct RenameSheet: View {
                     }
                 }
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6)], alignment: .leading, spacing: 6) {
-                ForEach(RenameTemplate.keywords, id: \.token) { keyword in
-                    Button(keyword.token) { template += keyword.token }
-                        .buttonStyle(.rawBoy)
-                        .help(keyword.text)
+            if !plain {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6)], alignment: .leading, spacing: 6) {
+                    ForEach(RenameTemplate.keywords, id: \.token) { keyword in
+                        Button(keyword.token) { template += keyword.token }
+                            .buttonStyle(.rawBoy)
+                            .help(keyword.text)
+                    }
                 }
+                Text(
+                    "# is a counter: # = 1, ## = 01, ### = 001. Click a keyword to add it. The extension stays, and a "
+                        + "photo's JPEG and sidecars are renamed with it."
+                )
+                .font(Theme.label)
+                .foregroundStyle(Theme.ashMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                preview(items)
             }
-            Text(
-                "# is a counter: # = 1, ## = 01, ### = 001. Click a keyword to add it. The extension stays, and a "
-                    + "photo's JPEG and sidecars are renamed with it."
-            )
-            .font(Theme.label)
-            .foregroundStyle(Theme.ashMuted)
-            .fixedSize(horizontal: false, vertical: true)
-            preview(items)
             Text(summary(changing: changing.count, conflicts: conflicts))
                 .font(Theme.label)
                 .foregroundStyle(conflicts.isEmpty ? Theme.ashMuted : Theme.warningRed)
@@ -168,7 +191,7 @@ struct RenameSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Rename") { onRename(items, template, max(0, start)) }
                     .buttonStyle(.rawBoyPrimary)
-                    .disabled(loading || !RenamePlan.canApply(items))
+                    .disabled((loading && !plain) || !RenamePlan.canApply(items))
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -176,6 +199,7 @@ struct RenameSheet: View {
         .frame(width: 560)
         .background(Theme.graphiteSurface)
         .task { await readMetadata() }
+        .onAppear { nameFocused = true }
     }
 
     private var presetRow: some View {
@@ -265,8 +289,18 @@ struct RenameSheet: View {
             let n = conflicts.count
             return "\(n) photo\(n == 1 ? "" : "s") can't be renamed: \(reason). Nothing is renamed over another file."
         }
+        if plain {
+            let extra = (photos[0].group.companions.count + photos[0].group.sidecars.count)
+            return extra == 0 ? "" : "Its JPEG and sidecars (\(extra)) are renamed with it."
+        }
         if loading { return "Reading camera, lens and ISO…" }
         return changing == 0 ? "Nothing would change." : "\(changing) photo\(changing == 1 ? "" : "s") will be renamed."
+    }
+
+    /// ".CR2" of the single photo, shown after the name field.
+    private var photoExtension: String {
+        let main = photos[0].group.main
+        return String(main.dropFirst(photos[0].group.stem.count))
     }
 
     private func savePreset() {

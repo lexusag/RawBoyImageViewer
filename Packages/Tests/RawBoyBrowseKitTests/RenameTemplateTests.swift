@@ -43,6 +43,11 @@ struct RenameTemplateTests {
         #expect(RenameTemplate.sanitize("CON") == "_CON")
     }
 
+    @Test func literalNamesKeepHashesAndBraces() {
+        #expect(RenameTemplate.apply("Shot #3 {a}", ctx, literal: true) == "Shot #3 {a}")
+        #expect(RenameTemplate.apply("a/b", ctx, literal: true) == "a_b")
+    }
+
     @Test func emptyTemplateMeansOriginalName() {
         #expect(RenameTemplate.apply("  ", ctx) == "IMG_1234")
     }

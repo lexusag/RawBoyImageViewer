@@ -113,8 +113,10 @@ public enum RenameTemplate {
     /// [name] without its extension.
     static func stemOf(_ name: String) -> String { PhotoGroups.stem(of: name) }
 
-    /// The name (without extension) [template] gives [context]. Empty when the template gives nothing.
-    public static func apply(_ template: String, _ context: RenameContext) -> String {
+    /// The name (without extension) [template] gives [context], or [template] itself when [literal]. Empty when it gives nothing.
+    public static func apply(_ template: String, _ context: RenameContext, literal: Bool = false) -> String {
+        // A typed name, not a template: `#` and braces mean themselves.
+        if literal { return sanitize(template) }
         let dates = dateParts(context.date)
         var values: [String: String] = [
             "name": stemOf(context.fileName),
@@ -189,13 +191,14 @@ public enum RenamePlan {
     /// [start] in the order given. [existing] is every file name in the folder. A new name that is taken by a file
     /// outside the rename, or given to two photos, is a conflict: nothing is renamed over anything.
     public static func make(
-        photos: [(group: PhotoGroup, context: RenameContext)], template: String, start: Int, existing: [String]
+        photos: [(group: PhotoGroup, context: RenameContext)], template: String, start: Int, existing: [String],
+        literal: Bool = false
     ) -> [RenameItem] {
         var items: [RenameItem] = []
         for (n, photo) in photos.enumerated() {
             var context = photo.context
             context.index = start + n
-            let newStem = RenameTemplate.apply(template, context)
+            let newStem = RenameTemplate.apply(template, context, literal: literal)
             let group = photo.group
             let names = [group.main] + group.companions + group.sidecars
             var files: [(old: String, new: String)] = []
