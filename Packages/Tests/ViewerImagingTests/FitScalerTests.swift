@@ -50,8 +50,9 @@ struct FitScalerTests {
     @Test func aRegionTakesOnlyThatPart() throws {
         let source = try halves(width: 600, height: 400, left: 40, right: 200)
         // The right half only.
+        let right = CGRect(x: 0.5, y: 0, width: 0.5, height: 1)
         let out = try #require(
-            FitScaler.scale(source, region: CGRect(x: 0.5, y: 0, width: 0.5, height: 1), width: 150, height: 200, sharpness: 0)
+            FitScaler.scale(source, region: right, width: 150, height: 200, sharpness: 0)
         ).cgImage
         #expect(abs(try red(of: out, x: 0, y: 100) - 200) <= 3)
         #expect(abs(try red(of: out, x: 149, y: 100) - 200) <= 3)
@@ -60,6 +61,7 @@ struct FitScalerTests {
     @Test func refusesAnEmptyRegionOrSize() throws {
         let source = try halves(width: 100, height: 100, left: 0, right: 255)
         #expect(FitScaler.scale(source, width: 0, height: 10) == nil)
-        #expect(FitScaler.scale(source, region: CGRect(x: 2, y: 2, width: 0.5, height: 0.5), width: 10, height: 10) == nil)
+        let outside = CGRect(x: 2, y: 2, width: 0.5, height: 0.5)
+        #expect(FitScaler.scale(source, region: outside, width: 10, height: 10) == nil)
     }
 }

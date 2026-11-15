@@ -56,7 +56,11 @@ public enum FitScaler {
         }
 
         let space: CGColorSpace =
-            if let own = source.colorSpace, own.model == .rgb { own } else { CGColorSpace(name: CGColorSpace.displayP3)! }
+            if let own = source.colorSpace, own.model == .rgb {
+                own
+            } else {
+                CGColorSpace(name: CGColorSpace.displayP3)!
+            }
         guard let result = context.createCGImage(out, from: target, format: .BGRA8, colorSpace: space) else {
             return nil
         }
