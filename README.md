@@ -39,6 +39,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⌘↑, ⌫ | Up a folder |
 | C | Compare the selection (2–4 photos; one photo is compared with the next) |
 | S | Slideshow from the selection |
+| Status line (bottom) | How many photos are selected, and folders too when any are: "3 files, 1 folder selected" |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
 | Drag a photo out of the grid or list | Into Finder, Mail, a browser's upload area or another app: it gets the file itself (one photo per drag) |
 | Drop a folder or photos from Finder onto the browser | Opens the folder (or the photos' folder with the first one selected) |

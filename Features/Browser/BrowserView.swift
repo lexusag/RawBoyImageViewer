@@ -22,6 +22,10 @@ struct BrowserView: View {
                     Rectangle().fill(Theme.hairline).frame(height: 1)
                     RatingBar(app: app)
                 }
+                if browser.folder != nil, !browser.items.isEmpty {
+                    Rectangle().fill(Theme.hairline).frame(height: 1)
+                    SelectionStatus(browser: browser)
+                }
             }
             if browser.showPreview, browser.folder != nil {
                 ResizeHandle(width: Bindable(browser).previewWidth, range: 220...760, growsRight: false)
@@ -193,6 +197,26 @@ private struct BrowserToolbar: View {
 }
 
 /// Under the grid: rate the selection, filter by rating, move rejects to the bin (RawBoy Browser's bar).
+/// The always-visible selection counter along the bottom edge.
+private struct SelectionStatus: View {
+    let browser: BrowserModel
+
+    var body: some View {
+        let counts = browser.selectionCounts
+        HStack {
+            Text(SelectionSummary.text(files: counts.files, folders: counts.folders))
+                .font(Theme.label)
+                .foregroundStyle(Theme.ashMuted)
+                .monospacedDigit()
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .frame(height: 24)
+        .background(Theme.graphiteSurface)
+    }
+}
+
 private struct RatingBar: View {
     let app: AppModel
 
