@@ -146,6 +146,20 @@ final class BrowserModel {
         return anchor.flatMap { a in photos.contains(a) ? [a] : nil } ?? []
     }
 
+    /// How many shown photos and folders are selected (ids left over from a filter don't count).
+    var selectionCounts: (files: Int, folders: Int) {
+        var files = 0
+        var folders = 0
+        for entry in items where selection.contains(entry.id) {
+            switch entry {
+            case .photo: files += 1
+            case .folder: folders += 1
+            case .parent: break
+            }
+        }
+        return (files, folders)
+    }
+
     /// The selected subfolders, in grid order.
     var selectedFolders: [URL] {
         items.compactMap { entry in
