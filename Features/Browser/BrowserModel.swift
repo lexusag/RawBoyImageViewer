@@ -228,7 +228,8 @@ final class BrowserModel {
             let byName = Dictionary(files.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { a, _ in a })
             photos = PhotoGroups.group(files.map(\.url.lastPathComponent) + sidecars).compactMap { group in
                 guard let file = byName[group.main] else { return nil }
-                let date = knownDates[group.main].flatMap { $0.modified == file.modified && $0.size == file.size ? $0.date : nil }
+                let known = knownDates[group.main]
+                let date = known.flatMap { $0.modified == file.modified && $0.size == file.size ? $0.date : nil }
                 return BrowsePhoto(
                     group: group, url: file.url, isRaw: file.type == .raw, size: file.size, modified: file.modified,
                     isOnlineOnly: file.isOnlineOnly, date: date)
