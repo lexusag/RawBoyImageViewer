@@ -104,7 +104,7 @@ public struct ViewerView: View {
     public init(app: AppModel) { self.app = app }
 
     public var body: some View {
-        EmbeddedViewer(root: app.viewer.model.isPresented ? app.viewer.rootView : nil)
+        EmbeddedViewer(root: app.isViewerOpen ? app.viewer.rootView : nil)
             .background(
                 WindowReader { _ in
                     app.viewAppeared(browserIn: nil)

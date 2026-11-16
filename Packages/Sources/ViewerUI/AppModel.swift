@@ -25,7 +25,8 @@ public final class AppModel {
         get { optionsBox.value }
         set { optionsBox.value = newValue }
     }
-    /// Compare is open (observed: a host that places `CompareView` shows it then).
+    /// Compare is open as a view in the host's window (observed: a host that places `CompareView` shows it then); not
+    /// when it is a window of its own.
     public private(set) var compareOpen = false
     /// The window the browser view is in (set by `BrowserRoot`): where the key monitor and "back to the browser" go.
     @ObservationIgnored public private(set) weak var browserWindow: NSWindow?
@@ -172,7 +173,7 @@ public final class AppModel {
         guard ids.count >= 2 else { return }
         if viewer.isOpen { viewer.close() }
         compare.show(folder: folder, ids: ids, order: browser.visible.map(\.group))
-        compareOpen = compare.isOpen
+        compareOpen = compare.isOpen && compare.isEmbedded
     }
 
     /// Opens the viewer on the browser's selection (or first photo). [inHostWindow] overrides `options` for this one
@@ -441,8 +442,20 @@ public final class AppModel {
     /// The folder the browser shows, for a host's window title.
     public var folder: URL? { browser.folder }
 
-    /// The viewer is open (observed: a host places `ViewerView` while this is true).
-    public var isViewerOpen: Bool { viewer.model.isPresented }
+    /// The viewer is open as a view in the host's window (observed: a host places `ViewerView` while this is true). A
+    /// viewer in a window of its own (`ViewerOptions.viewerInHostWindow` off) is not: its view stays in that window.
+    public var isViewerOpen: Bool { viewer.model.isPresented && viewer.isEmbedded }
+
+    #if DEBUG
+        /// Debug probes only (never a synthetic key event: those go through the system's keyboard handling, which can
+        /// reach other apps): the browser's select-all, a rating of the selection, and the viewer's E key, called directly.
+        public func debugSelectAll() { browser.selectAll() }
+        public func debugRateSelection(stars: Int) { culling.setStars(browser.ratingTargets, stars) }
+        public func debugPressEditorKey() { viewer.handle(.openInEditor) }
+        public var debugViewerFirstResponder: String {
+            viewer.window?.firstResponder.map { String(describing: type(of: $0)) } ?? "none"
+        }
+    #endif
 
     /// Whether the browser's window is the key window.
     public var browserWindowIsKey: Bool {

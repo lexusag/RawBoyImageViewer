@@ -286,4 +286,35 @@ struct HostTests {
         app.compare.close()
         #expect(!app.compareOpen)
     }
+
+    @Test func aViewerInAWindowOfItsOwnStaysThereWhileTheHostShowsViewerView() async throws {
+        _ = NSApplication.shared
+        var options = ViewerOptions()
+        options.hidesDockAndMenuBar = false
+        let app = withStore(Memory()) { AppModel(options: options) }
+        let host = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600), styleMask: [.titled], backing: .buffered,
+            defer: false)
+        host.contentView = NSHostingView(
+            rootView: ZStack {
+                ViewerView(app: app)
+                CompareView(app: app)
+            })
+        let dir = try photoFolder(["a.jpg", "b.jpg"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        app.viewer.show(folder: dir, groups: groups(["a", "b"]), at: 0)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!app.isViewerOpen)
+        let root = try #require(app.viewer.rootView)
+        #expect(root.window is ViewerWindow)
+        #expect(root.window !== host)
+        app.viewer.close()
+        app.browser.load(dir)
+        try await Task.sleep(for: .milliseconds(400))
+        app.openCompare(["a.jpg", "b.jpg"])
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(app.compare.isOpen && !app.compareOpen)
+        #expect(app.compare.rootView?.window is ViewerWindow)
+        app.compare.close()
+    }
 }
