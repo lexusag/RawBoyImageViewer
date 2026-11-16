@@ -30,6 +30,8 @@ final class CompareSession {
 
     var isOpen: Bool { controller != nil }
 
+    var chosenID: String? { panes.indices.contains(chosen) ? panes[chosen] : nil }
+
     /// Compares [ids] (2–4) of [folder]; [order] is the browser's, for the next challengers.
     func show(folder: URL, ids: [String], order: [PhotoGroup]) {
         let ids = Array(ids.prefix(4))
@@ -59,7 +61,7 @@ final class CompareSession {
         controller.onClose = { [weak self] in
             guard let self else { return }
             self.controller = nil
-            onClose?(panes.indices.contains(chosen) ? panes[chosen] : nil)
+            onClose?(chosenID)
         }
         controller.present()
         for i in panes.indices { load(i) }
@@ -71,6 +73,39 @@ final class CompareSession {
     }
 
     func close() { controller?.close() }
+
+    /// The folder's photos changed: panes whose photos went are replaced with the next available ones, or Compare
+    /// closes when fewer than two remain.
+    func replace(order: [PhotoGroup]) {
+        guard isOpen else { return }
+        guard order.count >= panes.count else {
+            self.order = order
+            if let kept = order.first(where: { panes.contains($0.main) })?.main ?? order.first?.main {
+                panes = [kept]
+                chosen = 0
+            } else {
+                panes = []
+            }
+            close()
+            return
+        }
+        let previous = self.order.map(\.main)
+        self.order = order
+        let remaining = order.map(\.main)
+        let kept = Set(remaining)
+        for i in panes.indices where !kept.contains(panes[i]) {
+            let otherPanes = Set(panes.enumerated().compactMap { $0.offset == i ? nil : $0.element })
+            let candidates = remaining.filter { !otherPanes.contains($0) }
+            let oldIndex = previous.firstIndex(of: panes[i]) ?? 0
+            if let next = PhotoOrder.nextAfterRemoval(
+                previous: previous, remaining: candidates, current: nil, index: oldIndex)
+            {
+                panes[i] = next
+                load(i)
+            }
+        }
+        updateBadges()
+    }
 
     // MARK: Panes
 
@@ -163,7 +198,7 @@ final class CompareSession {
 
     // MARK: Keys and ratings
 
-    private func handle(_ command: ViewerCommand, from pane: Int) {
+    func handle(_ command: ViewerCommand, from pane: Int = 0) {
         guard panes.indices.contains(chosen) else { return }
         let id = panes[chosen]
         switch command {
@@ -173,6 +208,7 @@ final class CompareSession {
         case .toggleFlag(let flag): culling.toggleFlag([id], flag)
         case .unflag: culling.clearFlag([id])
         case .rotate(let clockwise): culling.rotate([id], clockwise: clockwise)
+        case .moveToTrash: Task { await culling.moveToTrash([id]) }
         case .undo: culling.undo()
         case .dismiss, .close: close()
         case .toggleFullScreen: controller?.toggleScreenFilling()

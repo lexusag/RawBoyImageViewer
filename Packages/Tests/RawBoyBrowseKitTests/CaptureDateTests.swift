@@ -31,6 +31,56 @@ struct PhotoOrderTests {
                 == "2026:10:21 16:10:59")
         #expect(PhotoOrder.fileDate(nil) == nil)
     }
+
+    @Test func nextPhotoAfterRemovalInViewer() {
+        let all = ["a", "b", "c", "d"]
+        // Deleting a photo in the middle advances to the next photo.
+        #expect(
+            PhotoOrder.nextAfterRemoval(previous: all, remaining: ["a", "c", "d"], current: "b", index: 1) == "c")
+        // Deleting the first photo selects the new first photo.
+        #expect(
+            PhotoOrder.nextAfterRemoval(previous: all, remaining: ["b", "c", "d"], current: "a", index: 0) == "b")
+        // Deleting the last photo steps back to the new last photo.
+        #expect(
+            PhotoOrder.nextAfterRemoval(previous: all, remaining: ["a", "b", "c"], current: "d", index: 3) == "c")
+        // Deleting the current photo along with an earlier one still selects the photo after the current one.
+        #expect(
+            PhotoOrder.nextAfterRemoval(previous: all, remaining: ["b", "d"], current: "c", index: 2) == "d")
+        // Keeping the current photo leaves it selected even when earlier photos are removed.
+        #expect(
+            PhotoOrder.nextAfterRemoval(previous: all, remaining: ["b", "c", "d"], current: "c", index: 2) == "c")
+        // Removing all photos returns nil.
+        #expect(
+            PhotoOrder.nextAfterRemoval(previous: all, remaining: [], current: "b", index: 1) == nil)
+    }
+
+    @Test func selectionAfterRemovalInBrowser() {
+        let all = ["a", "b", "c", "d"]
+        // Deleting the selected middle photo selects the next photo.
+        let mid = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: all, remainingPhotos: ["a", "c", "d"], selection: ["b"], anchor: "b")
+        #expect(mid.selection == ["c"] && mid.anchor == "c")
+
+        // Deleting the last photo selects the new last photo.
+        let last = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: all, remainingPhotos: ["a", "b", "c"], selection: ["d"], anchor: "d")
+        #expect(last.selection == ["c"] && last.anchor == "c")
+
+        // Deleting a range of photos selects the photo immediately after the deleted range.
+        let range = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: all, remainingPhotos: ["a", "d"], selection: ["b", "c"], anchor: "b")
+        #expect(range.selection == ["d"] && range.anchor == "d")
+
+        // When part of the selection survives, the surviving selection is kept.
+        let partial = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: all, remainingPhotos: ["a", "c", "d"], selection: ["b", "c"], anchor: "b")
+        #expect(partial.selection == ["c"] && partial.anchor == "c")
+
+        // Deleting the last remaining photo clears the selection.
+        let empty = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: ["a"], remainingPhotos: [], selection: ["a"], anchor: "a")
+        #expect(empty.selection.isEmpty && empty.anchor == nil)
+    }
 }
 
 struct CaptureDateTests {

@@ -620,13 +620,17 @@ final class ViewerSession {
     func replace(groups: [PhotoGroup]) {
         guard let folder = model.folder else { return }
         guard !groups.isEmpty else {
+            model.groups = []
+            photos = []
             close()
             return
         }
         let current = model.current?.main
+        let target = PhotoOrder.nextAfterRemoval(
+            previous: model.groups.map(\.main), remaining: groups.map(\.main), current: current, index: index)
         model.groups = groups
         photos = groups.map { folder.appendingPathComponent($0.main) }
-        index = groups.firstIndex { $0.main == current } ?? min(index, groups.count - 1)
+        index = target.flatMap { id in groups.firstIndex { $0.main == id } } ?? min(index, groups.count - 1)
         shownURL = nil
         showCurrent()
     }
