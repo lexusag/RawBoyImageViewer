@@ -370,6 +370,9 @@ struct FolderMenu: View {
         Button(browser.isFavourite(url) ? "Remove from Favourites" : "Add to Favourites") {
             browser.toggleFavourite(url)
         }
+        Button(browser.isPinnedRecent(url) ? "Unpin from Recent" : "Pin to Recent") {
+            browser.togglePinnedRecent(url)
+        }
         Button("New Folder…") { app.newFolder(in: url) }
         SendToMenu(app: app, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }

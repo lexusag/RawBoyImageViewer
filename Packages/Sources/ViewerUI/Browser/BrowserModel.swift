@@ -118,6 +118,10 @@ final class BrowserModel {
     private(set) var recent: [URL] = (ViewerSettings.current.stringArray(forKey: Keys.recent) ?? []).map {
         URL(fileURLWithPath: $0)
     }
+    /// Folders pinned to the top of Recent; they stay when newer folders push the others out.
+    private(set) var pinnedRecent: [URL] = (ViewerSettings.current.stringArray(forKey: Keys.pinnedRecent) ?? []).map {
+        URL(fileURLWithPath: $0)
+    }
 
     /// The photos matching the filter, in order: what the viewer steps through.
     private(set) var visible: [BrowsePhoto] = []
@@ -186,6 +190,7 @@ final class BrowserModel {
         static let sort = "browser.sort"
         static let size = "browser.thumbnailSize"
         static let recent = "browser.recentFolders"
+        static let pinnedRecent = "browser.pinnedRecentFolders"
         static let last = "browser.lastFolder"
         static let showFolders = "browser.showFolders"
         static let favourites = "browser.favourites"
@@ -308,7 +313,7 @@ final class BrowserModel {
 
     private func remember(_ folder: URL) {
         ViewerSettings.current.set(folder.path, forKey: Keys.last)
-        recent = [folder] + recent.filter { $0 != folder }.prefix(7)
+        recent = RecentFolders.remembering(folder, in: recent)
         ViewerSettings.current.set(recent.map(\.path), forKey: Keys.recent)
     }
 
@@ -394,6 +399,16 @@ final class BrowserModel {
         default: return false
         }
         return true
+    }
+
+    /// The Recent list as the sidebar shows it: pinned folders, then the latest others.
+    var recentListed: [URL] { RecentFolders.listed(recent: recent, pinned: pinnedRecent) }
+
+    func isPinnedRecent(_ url: URL) -> Bool { pinnedRecent.contains(url.standardizedFileURL) }
+
+    func togglePinnedRecent(_ url: URL) {
+        pinnedRecent = RecentFolders.toggling(url, in: pinnedRecent)
+        ViewerSettings.current.set(pinnedRecent.map(\.path), forKey: Keys.pinnedRecent)
     }
 
     func isFavourite(_ url: URL) -> Bool { favourites.contains(url.standardizedFileURL) }

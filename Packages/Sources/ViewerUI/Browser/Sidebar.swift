@@ -27,11 +27,12 @@ struct Sidebar: View {
                 ScrollViewReader { proxy in
                     VStack(alignment: .leading, spacing: 2) {
                         if !pinFavourites { favourites }
-                        if !app.browser.recent.isEmpty {
+                        if !app.browser.recentListed.isEmpty {
                             SidebarHeading(title: "Recent")
-                            ForEach(app.browser.recent.prefix(6), id: \.self) { url in
+                            ForEach(app.browser.recentListed, id: \.self) { url in
                                 FolderRow(
-                                    url: url, title: url.lastPathComponent, icon: "clock", depth: 0, app: app,
+                                    url: url, title: url.lastPathComponent,
+                                    icon: app.browser.isPinnedRecent(url) ? "pin.fill" : "clock", depth: 0, app: app,
                                     tree: false, subtitle: Self.parents(of: url))
                             }
                         }
