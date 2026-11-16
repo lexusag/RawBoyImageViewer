@@ -50,7 +50,13 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Lint
-        run: swift format lint --strict -r App Packages/Sources Packages/Tests Packages/Package.swift
+        run: swift format lint --strict -r App Packages/Sources Packages/Tests Packages/Package.swift Package.swift
+
+      - name: Root Package.swift matches Packages/Package.swift
+        run: tools/check-root-package.sh
+
+      - name: Root package builds (what a git dependency sees)
+        run: swift build
 
       - name: Package tests
         run: swift test --package-path Packages

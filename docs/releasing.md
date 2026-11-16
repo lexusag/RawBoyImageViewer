@@ -80,3 +80,12 @@ Repository secrets, all optional (without them the DMG is ad hoc signed: right-c
 | `SPARKLE_PRIVATE_KEY` | the Sparkle EdDSA private key (`generate_keys -x file`, in `build/SourcePackages/artifacts/sparkle/Sparkle/bin`): CI signs the DMG and commits `appcast.xml` to `main`. Without it the feed is left alone |
 
 Don't also run `PUBLISH=1 tools/release.sh` for the same version: CI would replace the DMG the feed was signed for.
+
+## Tags that RawBoy pins
+
+RawBoy Desktop (`lexusag/RawBoy`, `ios/project.yml`) depends on this repository's libraries (RawBoyBrowseKit, ViewerFiles,
+ViewerImaging, ViewerUI) by git tag, which needs `Package.swift` at the repository root. **v0.2.0 has none**; the root
+manifest arrives with the next release, so RawBoy pins **v0.2.1 or later**. Every tag RawBoy uses must contain
+`Package.swift`, and `tools/check-root-package.sh` (run by CI) keeps it in step with `Packages/Package.swift`. After
+tagging, RawBoy's `project.yml` switches from the local path to `from: <tag>` (see its `docs/desktop.md`). Library API
+changes that RawBoy depends on (`ViewerHost`, `ViewerOptions`, `PhotoHandOff`...) are a reason for a new tag.
