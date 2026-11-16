@@ -266,7 +266,7 @@ public final class AppModel {
     /// sidecars) and folders (with everything in them). Always the Trash, never a permanent delete; ⌘Z puts them back.
     func trash(photos ids: [String], folders: [URL]) {
         guard !ids.isEmpty || !folders.isEmpty, let current = browser.folder else { return }
-        let defaults = ViewerSettings.store
+        let defaults = ViewerSettings.current
         let synced = CullingStore.isSyncedFolder(current) && !defaults.bool(forKey: CullingStore.Keys.trashNotice)
         let skip = folders.isEmpty && defaults.bool(forKey: CullingStore.Keys.trashPhotosWithoutAsking)
         if !skip {
@@ -320,7 +320,7 @@ public final class AppModel {
         let sidecarCount = targets.reduce(0) { $0 + (culling.sidecars[$1]?.count ?? 0) }
         let synced =
             CullingStore.isSyncedFolder(current)
-            && !ViewerSettings.store.bool(forKey: CullingStore.Keys.trashNotice)
+            && !ViewerSettings.current.bool(forKey: CullingStore.Keys.trashNotice)
         let alert = NSAlert()
         alert.messageText =
             targets.count == 1

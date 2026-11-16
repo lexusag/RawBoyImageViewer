@@ -26,10 +26,10 @@ extension AppModel {
 
     static var renamePresets: [RenamePreset] {
         get {
-            ViewerSettings.store.data(forKey: RenameKeys.presets)
+            ViewerSettings.current.data(forKey: RenameKeys.presets)
                 .flatMap { try? JSONDecoder().decode([RenamePreset].self, from: $0) } ?? []
         }
-        set { ViewerSettings.store.set(try? JSONEncoder().encode(newValue), forKey: RenameKeys.presets) }
+        set { ViewerSettings.current.set(try? JSONEncoder().encode(newValue), forKey: RenameKeys.presets) }
     }
 
     /// Asks how to rename [ids] (default: the browser's selection), then renames them; ⌘Z puts the names back.
@@ -52,7 +52,7 @@ extension AppModel {
         }
         guard !photos.isEmpty else { return }
         let existing = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        let defaults = ViewerSettings.store
+        let defaults = ViewerSettings.current
         // One photo starts from its own name, to type over; several from the last template used.
         let template =
             photos.count == 1
@@ -66,7 +66,7 @@ extension AppModel {
             onCancel: { parent.endSheet(sheet) },
             onRename: { [weak self] items, template, start in
                 parent.endSheet(sheet)
-                let defaults = ViewerSettings.store
+                let defaults = ViewerSettings.current
                 if items.count > 1 {
                     defaults.set(template, forKey: RenameKeys.template)
                     defaults.set(start, forKey: RenameKeys.start)

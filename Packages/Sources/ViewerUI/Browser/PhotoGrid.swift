@@ -234,7 +234,7 @@ private struct FolderCell: View {
     /// The folder itself and a store for the pictures inside it (the "show what is inside" setting); nil for "up".
     var url: URL?
     var store: ThumbnailStore?
-    @AppStorage(ViewerSettings.key(SettingsKeys.folderContents)) private var showContents = false
+    @ViewerSetting(SettingsKeys.folderContents) private var showContents = false
     @State private var hovered = false
     @State private var inside: [CGImage] = []
 

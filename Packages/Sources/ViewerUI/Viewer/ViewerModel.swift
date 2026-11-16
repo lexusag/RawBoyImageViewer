@@ -21,8 +21,8 @@ final class ViewerModel {
     /// The clipping warning is over the photo (J). Stays on from photo to photo.
     var showClipping = false
     /// Raws developed by macOS instead of the camera's JPEG (R). Off at first, as in RawBoy Browser; remembered.
-    var realPreview: Bool = ViewerSettings.store.bool(forKey: "viewer.realPreview") {
-        didSet { ViewerSettings.store.set(realPreview, forKey: "viewer.realPreview") }
+    var realPreview: Bool = ViewerSettings.current.bool(forKey: "viewer.realPreview") {
+        didSet { ViewerSettings.current.set(realPreview, forKey: "viewer.realPreview") }
     }
     /// A slideshow is running.
     var isSlideshow = false
@@ -52,7 +52,7 @@ final class ViewerModel {
     /// The external editor: the one chosen in Settings, else RawBoy Desktop when installed, else darktable, else the
     /// photo's default app. RawBoy Desktop reads and writes the same sidecars, so its edits show up here.
     var editor: (name: String, url: URL?) {
-        if let path = ViewerSettings.store.string(forKey: SettingsKeys.editorPath), !path.isEmpty,
+        if let path = ViewerSettings.current.string(forKey: SettingsKeys.editorPath), !path.isEmpty,
             FileManager.default.fileExists(atPath: path)
         {
             let url = URL(fileURLWithPath: path)

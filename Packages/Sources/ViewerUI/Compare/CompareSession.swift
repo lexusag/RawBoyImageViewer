@@ -118,7 +118,7 @@ final class CompareSession {
         guard let folder, let controller, panes.indices.contains(i) else { return }
         let id = panes[i]
         let url = folder.appendingPathComponent(id)
-        let raw = PhotoFileType(fileName: id) == .raw && ViewerSettings.store.bool(forKey: "viewer.realPreview")
+        let raw = PhotoFileType(fileName: id) == .raw && ViewerSettings.current.bool(forKey: "viewer.realPreview")
         let kind: ImageStore.Kind = raw ? (full ? .developedFull : .developed) : (full ? .full : .preview)
         let orientation = culling.orientation(id)
         let canvas = controller.canvases[i]

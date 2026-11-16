@@ -34,7 +34,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     init(screen: NSScreen, model: ViewerModel, options: ViewerOptions) {
         self.model = model
         self.options = options
-        let pinned = Set((ViewerSettings.store.stringArray(forKey: Self.pinnedKey) ?? []).compactMap(PanelEdge.init))
+        let pinned = Set((ViewerSettings.current.stringArray(forKey: Self.pinnedKey) ?? []).compactMap(PanelEdge.init))
         zones = EdgeZones(pinned: pinned)
         root = ViewerRootView(model: model)
         let window = ViewerWindow(
@@ -117,7 +117,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         root.apply(visible: zones.visible, reserved: zones.reservedEdges)
         if model.pinned != zones.pinned {
             model.pinned = zones.pinned
-            ViewerSettings.store.set(zones.pinned.map(\.rawValue).sorted(), forKey: Self.pinnedKey)
+            ViewerSettings.current.set(zones.pinned.map(\.rawValue).sorted(), forKey: Self.pinnedKey)
         }
         // Wake up when a dwell or close delay ends, even if the pointer rests.
         deadline?.cancel()

@@ -15,29 +15,29 @@ enum SettingsKeys {
 
     /// Size of the browser's interface, 1 = as designed.
     static var interfaceScale: Double {
-        let s = ViewerSettings.store.double(forKey: uiScale)
+        let s = ViewerSettings.current.double(forKey: uiScale)
         return s >= 0.5 && s <= 2 ? s : 1
     }
 
-    static var opensLastFolder: Bool { ViewerSettings.store.object(forKey: openLastFolder) as? Bool ?? true }
+    static var opensLastFolder: Bool { ViewerSettings.current.object(forKey: openLastFolder) as? Bool ?? true }
     /// The mouse wheel zooms instead of changing photos.
-    static var wheelZooms: Bool { ViewerSettings.store.string(forKey: wheel) == "zoom" }
+    static var wheelZooms: Bool { ViewerSettings.current.string(forKey: wheel) == "zoom" }
     static var slideshow: Double {
-        let s = ViewerSettings.store.double(forKey: slideshowSeconds)
+        let s = ViewerSettings.current.double(forKey: slideshowSeconds)
         return s >= 1 ? s : 4
     }
 }
 
 struct SettingsView: View {
     let app: AppModel
-    @AppStorage(ViewerSettings.key(SettingsKeys.openLastFolder)) private var openLastFolder = true
-    @AppStorage(ViewerSettings.key(SettingsKeys.folderContents)) private var folderContents = false
-    @AppStorage(ViewerSettings.key(SettingsKeys.wheel)) private var wheel = "navigate"
-    @AppStorage(ViewerSettings.key(SettingsKeys.slideshowSeconds)) private var slideshowSeconds = 4.0
-    @AppStorage(ViewerSettings.key(SettingsKeys.uiScale)) private var uiScale = 1.0
-    @AppStorage(ViewerSettings.key(SettingsKeys.editorPath)) private var editorPath = ""
-    @AppStorage(ViewerSettings.key(CullingStore.Keys.trashNotice)) private var trashNoticeShown = false
-    @AppStorage(ViewerSettings.key(CullingStore.Keys.trashPhotosWithoutAsking)) private var trashPhotosWithoutAsking =
+    @ViewerSetting(SettingsKeys.openLastFolder) private var openLastFolder = true
+    @ViewerSetting(SettingsKeys.folderContents) private var folderContents = false
+    @ViewerSetting(SettingsKeys.wheel) private var wheel = "navigate"
+    @ViewerSetting(SettingsKeys.slideshowSeconds) private var slideshowSeconds = 4.0
+    @ViewerSetting(SettingsKeys.uiScale) private var uiScale = 1.0
+    @ViewerSetting(SettingsKeys.editorPath) private var editorPath = ""
+    @ViewerSetting(CullingStore.Keys.trashNotice) private var trashNoticeShown = false
+    @ViewerSetting(CullingStore.Keys.trashPhotosWithoutAsking) private var trashPhotosWithoutAsking =
         false
     @State private var cacheSize: Int64 = 0
     @State private var sendApps = SendToApps.apps

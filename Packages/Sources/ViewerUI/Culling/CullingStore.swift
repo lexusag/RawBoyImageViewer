@@ -30,8 +30,8 @@ final class CullingStore {
     /// A short note on what just happened ("Moved 3 rejects to _bin"), for the browser to show.
     private(set) var message: String?
     /// In the viewer, rating moves on to the next photo (RawBoy Browser's default: on).
-    var autoAdvance: Bool = ViewerSettings.store.object(forKey: Keys.autoAdvance) as? Bool ?? true {
-        didSet { ViewerSettings.store.set(autoAdvance, forKey: Keys.autoAdvance) }
+    var autoAdvance: Bool = ViewerSettings.current.object(forKey: Keys.autoAdvance) as? Bool ?? true {
+        didSet { ViewerSettings.current.set(autoAdvance, forKey: Keys.autoAdvance) }
     }
     /// Files moved (bin, Trash, undo): the browser rereads the folder.
     var onFilesChanged: (() -> Void)?
@@ -643,7 +643,7 @@ final class CullingStore {
     }
 
     private func confirmTrashInSyncedFolder(_ folder: URL) -> Bool {
-        guard Self.isSyncedFolder(folder), !ViewerSettings.store.bool(forKey: Keys.trashNotice) else { return true }
+        guard Self.isSyncedFolder(folder), !ViewerSettings.current.bool(forKey: Keys.trashNotice) else { return true }
         let alert = NSAlert()
         alert.messageText = "Move to the Trash in a synced folder?"
         alert.informativeText =
@@ -654,7 +654,7 @@ final class CullingStore {
         alert.showsSuppressionButton = true
         alert.suppressionButton?.title = "Don't ask again"
         let ok = alert.runModal() == .alertFirstButtonReturn
-        if ok, alert.suppressionButton?.state == .on { ViewerSettings.store.set(true, forKey: Keys.trashNotice) }
+        if ok, alert.suppressionButton?.state == .on { ViewerSettings.current.set(true, forKey: Keys.trashNotice) }
         return ok
     }
 }

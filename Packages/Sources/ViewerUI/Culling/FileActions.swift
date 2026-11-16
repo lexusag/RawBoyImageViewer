@@ -49,39 +49,39 @@ extension AppModel {
 
     static var exportOptions: ExportOptions {
         get {
-            ViewerSettings.store.data(forKey: FileKeys.exportOptions)
+            ViewerSettings.current.data(forKey: FileKeys.exportOptions)
                 .flatMap { try? JSONDecoder().decode(ExportOptions.self, from: $0) } ?? ExportOptions()
         }
-        set { ViewerSettings.store.set(try? JSONEncoder().encode(newValue), forKey: FileKeys.exportOptions) }
+        set { ViewerSettings.current.set(try? JSONEncoder().encode(newValue), forKey: FileKeys.exportOptions) }
     }
 
     static var exportFolder: URL {
         get {
-            ViewerSettings.store.string(forKey: FileKeys.exportFolder).map { URL(fileURLWithPath: $0) }
+            ViewerSettings.current.string(forKey: FileKeys.exportFolder).map { URL(fileURLWithPath: $0) }
                 ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/RawBoy Export")
         }
-        set { ViewerSettings.store.set(newValue.path, forKey: FileKeys.exportFolder) }
+        set { ViewerSettings.current.set(newValue.path, forKey: FileKeys.exportFolder) }
     }
 
     /// The last export destination: the folder itself, a subfolder of whichever folder is open (by name), or a path.
     /// Older versions stored only a path.
     static var exportDestination: ExportDestination {
         get {
-            ViewerSettings.store.string(forKey: FileKeys.exportDestination).flatMap(ExportDestination.init(stored:))
+            ViewerSettings.current.string(forKey: FileKeys.exportDestination).flatMap(ExportDestination.init(stored:))
                 ?? .path(exportFolder)
         }
         set {
-            ViewerSettings.store.set(newValue.stored, forKey: FileKeys.exportDestination)
+            ViewerSettings.current.set(newValue.stored, forKey: FileKeys.exportDestination)
             if case .path(let url) = newValue { exportFolder = url }
         }
     }
 
     static var exportPresets: [ExportPreset] {
         get {
-            ViewerSettings.store.data(forKey: FileKeys.exportPresets)
+            ViewerSettings.current.data(forKey: FileKeys.exportPresets)
                 .flatMap { try? JSONDecoder().decode([ExportPreset].self, from: $0) } ?? []
         }
-        set { ViewerSettings.store.set(try? JSONEncoder().encode(newValue), forKey: FileKeys.exportPresets) }
+        set { ViewerSettings.current.set(try? JSONEncoder().encode(newValue), forKey: FileKeys.exportPresets) }
     }
 
     private func showExportSheet(_ ids: [String], _ folder: URL) {
@@ -125,13 +125,13 @@ extension AppModel {
 
     /// Recently used destinations, newest first.
     var recentDestinations: [URL] {
-        (ViewerSettings.store.stringArray(forKey: FileKeys.recentDestinations) ?? []).map { URL(fileURLWithPath: $0) }
+        (ViewerSettings.current.stringArray(forKey: FileKeys.recentDestinations) ?? []).map { URL(fileURLWithPath: $0) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     private func remember(destination: URL) {
         let list = [destination] + recentDestinations.filter { $0 != destination }.prefix(4)
-        ViewerSettings.store.set(list.map(\.path), forKey: FileKeys.recentDestinations)
+        ViewerSettings.current.set(list.map(\.path), forKey: FileKeys.recentDestinations)
     }
 
     /// Copies or moves [ids] (with their JPEGs and sidecars) into [to], or a folder chosen now. Moves are undoable.
