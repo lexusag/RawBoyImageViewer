@@ -126,4 +126,3 @@ public enum PhotoOrder {
         return ([], remainingPhotos.first ?? remItems.first)
     }
 }
-
