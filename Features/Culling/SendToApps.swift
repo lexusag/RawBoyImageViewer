@@ -64,6 +64,27 @@ enum SendToApps {
         }
     }
 
+    /// RawBoy Desktop, when installed.
+    static var rawBoyDesktop: URL? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: "app.rawboy.desktop")
+    }
+
+    /// Hands [urls] (photos and folders) to RawBoy Desktop's Auto batch. A copy that isn't running is started with
+    /// `--auto`, which fills the batch. A running one is asked to open them: it takes several files or a folder into
+    /// Auto, and a single file into its editor (it can't be told otherwise from here).
+    static func sendToAuto(_ urls: [URL], app: URL) async throws {
+        // The async variant, not a completion handler: LaunchServices calls handlers on its own queue, where Swift's
+        // isolation check traps in a @MainActor type (macOS 27).
+        let configuration = NSWorkspace.OpenConfiguration()
+        let running = !NSRunningApplication.runningApplications(withBundleIdentifier: "app.rawboy.desktop").isEmpty
+        if running {
+            _ = try await NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: configuration)
+        } else {
+            configuration.arguments = ["--auto"] + urls.map(\.path)
+            _ = try await NSWorkspace.shared.openApplication(at: app, configuration: configuration)
+        }
+    }
+
     static func chooseApp() -> URL? {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.application]

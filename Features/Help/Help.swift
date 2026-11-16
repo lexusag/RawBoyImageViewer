@@ -75,6 +75,7 @@ enum HelpContent {
                 Item(keys: "S", text: "Slideshow (S or Esc stops)"),
                 Item(keys: "C", text: "Compare with the next photo"),
                 Item(keys: "F", text: "Screen-filling ↔ window"),
+                Item(keys: "⇧⌘A", text: "Send the selection (or this photo) to RawBoy Auto"),
                 Item(keys: "E", text: "Open in RawBoy Desktop (else darktable or the editor in Settings)"),
                 Item(keys: "Esc · G · Return", text: "Close the panels, then back to the browser"),
             ]),

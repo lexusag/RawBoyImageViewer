@@ -29,6 +29,7 @@ extension AppModel {
         case .moveTo: copyOrMove(ids, folder, move: true, to: nil)
         case .clipboard: copyToClipboard(ids, folder)
         case .share: share(ids, folder)
+        case .sendToAuto: sendToAuto(ids.map { folder.appendingPathComponent($0) })
         case .sendTo(let path): send(ids.map { folder.appendingPathComponent($0) }, to: URL(fileURLWithPath: path))
         }
     }
@@ -408,6 +409,25 @@ extension AppModel {
             } else {
                 let what = count == 1 ? SendToApps.expandingFolders(urls)[0].lastPathComponent : "\(count) photos"
                 self?.say("Sent \(what) to \(name)")
+            }
+        }
+    }
+
+    /// Adds photos to RawBoy Desktop's Auto batch. Pending ratings and turns are written first, as Auto reads sidecars.
+    func sendToAuto(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        guard let app = SendToApps.rawBoyDesktop else {
+            say("RawBoy Desktop isn't installed")
+            return
+        }
+        Task { @MainActor in
+            await culling.finishWrites()
+            do {
+                try await SendToApps.sendToAuto(urls, app: app)
+                let what = urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) photos"
+                say("Sent \(what) to RawBoy Auto")
+            } catch {
+                say("Couldn't open RawBoy Desktop")
             }
         }
     }

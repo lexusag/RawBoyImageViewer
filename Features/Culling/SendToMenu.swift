@@ -18,6 +18,15 @@ struct SendToMenu: View {
                     }
                 }
             }
+            if SendToApps.rawBoyDesktop != nil {
+                Button("RawBoy Auto") {
+                    if let folder {
+                        app.sendToAuto([folder])
+                    } else if let base = app.browser.folder {
+                        app.sendToAuto((ids ?? app.actionTargets).map { base.appendingPathComponent($0) })
+                    }
+                }
+            }
             if apps.isEmpty { Text("No apps yet: add them in Settings") }
         }
     }
