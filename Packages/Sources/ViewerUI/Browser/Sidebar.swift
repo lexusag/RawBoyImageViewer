@@ -6,8 +6,8 @@ import ViewerFiles
 /// Recent folders, then places (home folders, cloud storage, volumes) as folder trees that open as they are expanded.
 struct Sidebar: View {
     let app: AppModel
-    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
-    @AppStorage("browser.pinFavourites") private var pinFavourites = true
+    @AppStorage(ViewerSettings.key(SettingsKeys.uiScale)) private var uiScale = 1.0
+    @AppStorage(ViewerSettings.key("browser.pinFavourites")) private var pinFavourites = true
 
     /// A row is about 28 pt high; the pinned list stops growing at [pinnedMaxHeight] and scrolls inside itself.
     private static let pinnedMaxHeight = 220.0

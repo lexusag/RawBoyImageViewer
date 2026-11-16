@@ -15,29 +15,30 @@ enum SettingsKeys {
 
     /// Size of the browser's interface, 1 = as designed.
     static var interfaceScale: Double {
-        let s = UserDefaults.standard.double(forKey: uiScale)
+        let s = ViewerSettings.store.double(forKey: uiScale)
         return s >= 0.5 && s <= 2 ? s : 1
     }
 
-    static var opensLastFolder: Bool { UserDefaults.standard.object(forKey: openLastFolder) as? Bool ?? true }
+    static var opensLastFolder: Bool { ViewerSettings.store.object(forKey: openLastFolder) as? Bool ?? true }
     /// The mouse wheel zooms instead of changing photos.
-    static var wheelZooms: Bool { UserDefaults.standard.string(forKey: wheel) == "zoom" }
+    static var wheelZooms: Bool { ViewerSettings.store.string(forKey: wheel) == "zoom" }
     static var slideshow: Double {
-        let s = UserDefaults.standard.double(forKey: slideshowSeconds)
+        let s = ViewerSettings.store.double(forKey: slideshowSeconds)
         return s >= 1 ? s : 4
     }
 }
 
 struct SettingsView: View {
     let app: AppModel
-    @AppStorage(SettingsKeys.openLastFolder) private var openLastFolder = true
-    @AppStorage(SettingsKeys.folderContents) private var folderContents = false
-    @AppStorage(SettingsKeys.wheel) private var wheel = "navigate"
-    @AppStorage(SettingsKeys.slideshowSeconds) private var slideshowSeconds = 4.0
-    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
-    @AppStorage(SettingsKeys.editorPath) private var editorPath = ""
-    @AppStorage(CullingStore.Keys.trashNotice) private var trashNoticeShown = false
-    @AppStorage(CullingStore.Keys.trashPhotosWithoutAsking) private var trashPhotosWithoutAsking = false
+    @AppStorage(ViewerSettings.key(SettingsKeys.openLastFolder)) private var openLastFolder = true
+    @AppStorage(ViewerSettings.key(SettingsKeys.folderContents)) private var folderContents = false
+    @AppStorage(ViewerSettings.key(SettingsKeys.wheel)) private var wheel = "navigate"
+    @AppStorage(ViewerSettings.key(SettingsKeys.slideshowSeconds)) private var slideshowSeconds = 4.0
+    @AppStorage(ViewerSettings.key(SettingsKeys.uiScale)) private var uiScale = 1.0
+    @AppStorage(ViewerSettings.key(SettingsKeys.editorPath)) private var editorPath = ""
+    @AppStorage(ViewerSettings.key(CullingStore.Keys.trashNotice)) private var trashNoticeShown = false
+    @AppStorage(ViewerSettings.key(CullingStore.Keys.trashPhotosWithoutAsking)) private var trashPhotosWithoutAsking =
+        false
     @State private var cacheSize: Int64 = 0
     @State private var sendApps = SendToApps.apps
     @State private var autoUpdate = HostInfo.updater?.checksAutomatically ?? false

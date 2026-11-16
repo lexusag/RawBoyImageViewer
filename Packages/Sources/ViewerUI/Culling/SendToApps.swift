@@ -10,14 +10,14 @@ enum SendToApps {
 
     /// Installed apps named Reblum are offered first, until the list has been edited.
     static var apps: [URL] {
-        if let paths = UserDefaults.standard.stringArray(forKey: key) {
+        if let paths = ViewerSettings.store.stringArray(forKey: key) {
             return paths.filter { FileManager.default.fileExists(atPath: $0) }.map { URL(fileURLWithPath: $0) }
         }
         return detectedReblum.map { [$0] } ?? []
     }
 
     static func set(_ urls: [URL]) {
-        UserDefaults.standard.set(urls.map(\.path), forKey: key)
+        ViewerSettings.store.set(urls.map(\.path), forKey: key)
     }
 
     static func add(_ url: URL) {
@@ -72,8 +72,8 @@ enum SendToApps {
 
     /// The last Looks / Film / As is choice for RawBoy Auto, offered first next time.
     static var lastAutoImport: AutoImport {
-        get { UserDefaults.standard.string(forKey: "files.autoImport").flatMap(AutoImport.init(rawValue:)) ?? .looks }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "files.autoImport") }
+        get { ViewerSettings.store.string(forKey: "files.autoImport").flatMap(AutoImport.init(rawValue:)) ?? .looks }
+        set { ViewerSettings.store.set(newValue.rawValue, forKey: "files.autoImport") }
     }
 
     /// Hands [urls] (photos and folders) to RawBoy Desktop's Auto batch as [how], through its `rawboy-desktop://auto`

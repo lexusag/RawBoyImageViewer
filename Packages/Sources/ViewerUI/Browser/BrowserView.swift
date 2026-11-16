@@ -93,7 +93,7 @@ private struct EmptyState: View {
 /// The folder's name and count, search, sort and thumbnail size.
 private struct BrowserToolbar: View {
     let app: AppModel
-    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
+    @AppStorage(ViewerSettings.key(SettingsKeys.uiScale)) private var uiScale = 1.0
     @FocusState private var searchFocused: Bool
 
     var body: some View {

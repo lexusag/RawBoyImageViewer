@@ -48,9 +48,9 @@ final class BrowserModel {
     private(set) var loadError: String?
     private(set) var isLoading = false
 
-    var sort: PhotoSort = PhotoSort(rawValue: UserDefaults.standard.string(forKey: Keys.sort) ?? "") ?? .date {
+    var sort: PhotoSort = PhotoSort(rawValue: ViewerSettings.store.string(forKey: Keys.sort) ?? "") ?? .date {
         didSet {
-            UserDefaults.standard.set(sort.rawValue, forKey: Keys.sort)
+            ViewerSettings.store.set(sort.rawValue, forKey: Keys.sort)
             reorder()
         }
     }
@@ -68,43 +68,43 @@ final class BrowserModel {
     var isRatingFiltered: Bool { flagFilter != .all || minStars > 0 }
     let culling: CullingStore
     /// Subfolders (and the parent) as tiles before the photos. Off by default.
-    var showFolders: Bool = UserDefaults.standard.bool(forKey: Keys.showFolders) {
+    var showFolders: Bool = ViewerSettings.store.bool(forKey: Keys.showFolders) {
         didSet {
-            UserDefaults.standard.set(showFolders, forKey: Keys.showFolders)
+            ViewerSettings.store.set(showFolders, forKey: Keys.showFolders)
             reorder()
         }
     }
     /// Photos as thumbnails or as a list with columns.
     var viewMode: BrowserViewMode =
-        BrowserViewMode(rawValue: UserDefaults.standard.string(forKey: Keys.viewMode) ?? "") ?? .grid
+        BrowserViewMode(rawValue: ViewerSettings.store.string(forKey: Keys.viewMode) ?? "") ?? .grid
     {
-        didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: Keys.viewMode) }
+        didSet { ViewerSettings.store.set(viewMode.rawValue, forKey: Keys.viewMode) }
     }
     /// A pane on the right with the selected photo, large. Off by default.
-    var showPreview: Bool = UserDefaults.standard.bool(forKey: Keys.showPreview) {
-        didSet { UserDefaults.standard.set(showPreview, forKey: Keys.showPreview) }
+    var showPreview: Bool = ViewerSettings.store.bool(forKey: Keys.showPreview) {
+        didSet { ViewerSettings.store.set(showPreview, forKey: Keys.showPreview) }
     }
     /// Pane and column widths, set by dragging their edges.
     var sidebarWidth = BrowserModel.stored(Keys.sidebarWidth, 248) {
-        didSet { UserDefaults.standard.set(sidebarWidth, forKey: Keys.sidebarWidth) }
+        didSet { ViewerSettings.store.set(sidebarWidth, forKey: Keys.sidebarWidth) }
     }
     var previewWidth = BrowserModel.stored(Keys.previewWidth, 360) {
-        didSet { UserDefaults.standard.set(previewWidth, forKey: Keys.previewWidth) }
+        didSet { ViewerSettings.store.set(previewWidth, forKey: Keys.previewWidth) }
     }
     var dateColumn = BrowserModel.stored(Keys.dateColumn, 130) {
-        didSet { UserDefaults.standard.set(dateColumn, forKey: Keys.dateColumn) }
+        didSet { ViewerSettings.store.set(dateColumn, forKey: Keys.dateColumn) }
     }
     var kindColumn = BrowserModel.stored(Keys.kindColumn, 84) {
-        didSet { UserDefaults.standard.set(kindColumn, forKey: Keys.kindColumn) }
+        didSet { ViewerSettings.store.set(kindColumn, forKey: Keys.kindColumn) }
     }
     var sizeColumn = BrowserModel.stored(Keys.sizeColumn, 76) {
-        didSet { UserDefaults.standard.set(sizeColumn, forKey: Keys.sizeColumn) }
+        didSet { ViewerSettings.store.set(sizeColumn, forKey: Keys.sizeColumn) }
     }
-    private(set) var favourites: [URL] = (UserDefaults.standard.stringArray(forKey: Keys.favourites) ?? []).map {
+    private(set) var favourites: [URL] = (ViewerSettings.store.stringArray(forKey: Keys.favourites) ?? []).map {
         URL(fileURLWithPath: $0)
     }
-    var thumbnailSize: Double = UserDefaults.standard.object(forKey: Keys.size) as? Double ?? 168 {
-        didSet { UserDefaults.standard.set(thumbnailSize, forKey: Keys.size) }
+    var thumbnailSize: Double = ViewerSettings.store.object(forKey: Keys.size) as? Double ?? 168 {
+        didSet { ViewerSettings.store.set(thumbnailSize, forKey: Keys.size) }
     }
     var selection: Set<String> = []
     /// Where Shift-click ranges and arrow keys start.
@@ -115,7 +115,7 @@ final class BrowserModel {
     private(set) var treeChange = 0
     /// The folder made last (its parent's row opens to show it).
     private(set) var createdFolder: URL?
-    private(set) var recent: [URL] = (UserDefaults.standard.stringArray(forKey: Keys.recent) ?? []).map {
+    private(set) var recent: [URL] = (ViewerSettings.store.stringArray(forKey: Keys.recent) ?? []).map {
         URL(fileURLWithPath: $0)
     }
 
@@ -199,11 +199,11 @@ final class BrowserModel {
     }
 
     nonisolated static func stored(_ key: String, _ fallback: Double) -> Double {
-        UserDefaults.standard.object(forKey: key) as? Double ?? fallback
+        ViewerSettings.store.object(forKey: key) as? Double ?? fallback
     }
 
     static var lastFolder: URL? {
-        UserDefaults.standard.string(forKey: Keys.last).map { URL(fileURLWithPath: $0) }
+        ViewerSettings.store.string(forKey: Keys.last).map { URL(fileURLWithPath: $0) }
             .flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
     }
 
@@ -306,9 +306,9 @@ final class BrowserModel {
     var onOrderChanged: (() -> Void)?
 
     private func remember(_ folder: URL) {
-        UserDefaults.standard.set(folder.path, forKey: Keys.last)
+        ViewerSettings.store.set(folder.path, forKey: Keys.last)
         recent = [folder] + recent.filter { $0 != folder }.prefix(7)
-        UserDefaults.standard.set(recent.map(\.path), forKey: Keys.recent)
+        ViewerSettings.store.set(recent.map(\.path), forKey: Keys.recent)
     }
 
     /// Capture dates, read in the background (headers only; online-only files get their file date, since reading them
@@ -404,7 +404,7 @@ final class BrowserModel {
         } else {
             favourites.append(url)
         }
-        UserDefaults.standard.set(favourites.map(\.path), forKey: Keys.favourites)
+        ViewerSettings.store.set(favourites.map(\.path), forKey: Keys.favourites)
     }
 
     // MARK: Selection

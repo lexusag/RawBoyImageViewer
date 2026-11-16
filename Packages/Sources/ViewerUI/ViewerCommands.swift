@@ -70,7 +70,7 @@ public struct ViewerCommands: Commands {
 
 /// The browser at the chosen interface size (Settings): laid out in a smaller or larger space, then scaled to fit.
 public struct BrowserRoot: View {
-    @AppStorage(SettingsKeys.uiScale) private var uiScale = 1.0
+    @AppStorage(ViewerSettings.key(SettingsKeys.uiScale)) private var uiScale = 1.0
 
     public init() {}
 
