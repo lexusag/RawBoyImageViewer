@@ -84,6 +84,43 @@ public struct BrowserRoot: View {
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
         .ignoresSafeArea()
+        .background(
+            WindowReader { window in
+                app.viewAppeared(browserIn: window)
+            } onDisappear: {
+                app.viewDisappeared()
+            })
+    }
+}
+
+/// Tells its closure which window the view is in (and when it leaves).
+struct WindowReader: NSViewRepresentable {
+    let onWindow: (NSWindow?) -> Void
+    var onDisappear: () -> Void = {}
+
+    func makeNSView(context: Context) -> NSView {
+        let view = ReaderView()
+        view.onWindow = onWindow
+        view.onDisappear = onDisappear
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class ReaderView: NSView {
+        var onWindow: ((NSWindow?) -> Void)?
+        var onDisappear: (() -> Void)?
+        private var reported = false
+
+        override func viewDidMoveToWindow() {
+            if let window, !reported {
+                reported = true
+                onWindow?(window)
+            } else if window == nil, reported {
+                reported = false
+                onDisappear?()
+            }
+        }
     }
 }
 

@@ -7,25 +7,10 @@ import ViewerUI
 /// and a viewer opened before then loses the key window to it, which brings back the menu bar and Dock.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var ready = false
-    private var keyMonitor: Any?
     private var pending: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = MainActor.assumeIsolated { Updater.shared }
-        // The browser's rating keys, by physical key (SwiftUI's key presses are characters, Cyrillic on a Ukrainian
-        // layout).
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            MainActor.assumeIsolated {
-                // ? (Shift + the / key) anywhere but a text field: the keys.
-                if event.keyCode == 44, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-                    event.modifierFlags.contains(.shift), !(NSApp.keyWindow?.firstResponder is NSTextView)
-                {
-                    HelpWindow.toggle()
-                    return true
-                }
-                return AppState.model.browserKey(event)
-            } ? nil : event
-        }
         // `RawBoy Viewer <folder or photo>`: skip AppKit's own -Flag value pairs.
         var args = Array(CommandLine.arguments.dropFirst())
         while let arg = args.first {
@@ -71,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func waitForBrowserWindow() async {
         for _ in 0..<50 {
-            if let key = NSApp.keyWindow, !AppModel.isViewerWindow(key), key.isVisible { return }
+            if AppState.model.browserWindowIsKey { return }
             try? await Task.sleep(for: .milliseconds(20))
         }
     }

@@ -148,6 +148,8 @@ struct HelpView: View {
 public enum HelpWindow {
     private static var panel: NSPanel?
 
+    static func isHelp(_ window: NSWindow) -> Bool { window === panel }
+
     public static func toggle() {
         if let panel, panel.isVisible {
             panel.orderOut(nil)

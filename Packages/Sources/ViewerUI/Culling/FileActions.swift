@@ -16,7 +16,7 @@ extension AppModel {
 
     /// The photos an action applies to: the one on screen in the viewer, else the browser's selection.
     var actionTargets: [String] {
-        if viewer.isOpen, NSApp.keyWindow is ViewerWindow, let id = viewer.model.current?.main { return [id] }
+        if viewer.isOpen, viewerIsKey, let id = viewer.model.current?.main { return [id] }
         return browser.ratingTargets
     }
 
@@ -37,7 +37,7 @@ extension AppModel {
     /// Says what happened in the browser's bar, and over the photo when the viewer is in front.
     func say(_ text: String) {
         culling.say(text)
-        if viewer.isOpen, NSApp.keyWindow is ViewerWindow { viewer.flash(text) }
+        if viewer.isOpen, viewerIsKey { viewer.flash(text) }
     }
 
     private func groups(_ ids: [String]) -> [PhotoGroup] {
@@ -115,7 +115,7 @@ extension AppModel {
         let job = ExportJob(total: items.count, destination: destination)
         job.onChange = { [weak self, weak job] in
             // The bar shows the result; over the viewer, which has no bar, say it on the photo.
-            if let job, let self, self.viewer.isOpen, NSApp.keyWindow is ViewerWindow { self.viewer.flash(job.summary) }
+            if let job, let self, self.viewer.isOpen, viewerIsKey { self.viewer.flash(job.summary) }
         }
         exportJob = job
         job.start(items: items, options: options)
@@ -462,11 +462,11 @@ extension AppModel {
     private func share(_ ids: [String], _ folder: URL) {
         let urls = ids.map { folder.appendingPathComponent($0) }
         let picker = NSSharingServicePicker(items: urls)
-        if viewer.isOpen, NSApp.keyWindow is ViewerWindow, let view = viewer.canvasView {
+        if viewer.isOpen, viewerIsKey, let view = viewer.canvasView {
             picker.show(
                 relativeTo: NSRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1), of: view,
                 preferredEdge: .minY)
-        } else if let view = NSApp.keyWindow?.contentView {
+        } else if let view = (browserWindow ?? NSApp.keyWindow)?.contentView {
             picker.show(
                 relativeTo: NSRect(x: view.bounds.midX, y: view.bounds.maxY - 60, width: 1, height: 1),
                 of: view, preferredEdge: .minY)

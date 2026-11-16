@@ -32,6 +32,8 @@ final class CompareSession {
     }
 
     var isOpen: Bool { controller != nil }
+    var isKey: Bool { controller?.window?.isKeyWindow ?? false }
+    var window: NSWindow? { controller?.window }
 
     var chosenID: String? { panes.indices.contains(chosen) ? panes[chosen] : nil }
 

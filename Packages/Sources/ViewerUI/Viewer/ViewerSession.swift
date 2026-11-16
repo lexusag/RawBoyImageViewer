@@ -35,6 +35,12 @@ final class ViewerSession {
     private var previewPixelSize = 3840
 
     var isOpen: Bool { controller != nil }
+    /// The viewer has the keyboard: its window is key (and, in the host's window, its canvas has the focus).
+    var isKey: Bool {
+        guard let controller, let window = controller.window, window.isKeyWindow else { return false }
+        guard options.viewerInHostWindow else { return true }
+        return (window.firstResponder as? NSView)?.isDescendant(of: controller.root) ?? false
+    }
     /// The viewer closed, on this photo (its main file name).
     var onClose: ((String?) -> Void)?
     /// Export, copy, move, clipboard or share for these photos: the app handles them.

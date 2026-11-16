@@ -20,6 +20,10 @@ public final class AppModel {
     @ObservationIgnored private var watcher: FolderWatcher?
 
     public let options: ViewerOptions
+    /// The window the browser view is in (set by `BrowserRoot`): where the key monitor and "back to the browser" go.
+    @ObservationIgnored public private(set) weak var browserWindow: NSWindow?
+    @ObservationIgnored private var keyMonitor: Any?
+    @ObservationIgnored private var shownViews = 0
 
     public init(options: ViewerOptions = ViewerOptions()) {
         self.options = options
@@ -29,7 +33,7 @@ public final class AppModel {
         viewer.app = self
         compare.onClose = { [weak self] chosen in
             if let chosen { self?.browser.select(chosen) }
-            NSApp.windows.first { !($0 is ViewerWindow) && $0.isVisible }?.makeKeyAndOrderFront(nil)
+            self?.browserWindow?.makeKeyAndOrderFront(nil)
         }
         viewer.onCompare = { [weak self] ids in self?.openCompare(ids) }
         culling.onRatingsChanged = { [weak self] in
@@ -55,7 +59,7 @@ public final class AppModel {
         viewer.onClose = { [weak self] current in
             // Back in the browser on the photo the viewer showed last.
             if let current { self?.browser.select(current) }
-            NSApp.windows.first { !($0 is ViewerWindow) && $0.isVisible }?.makeKeyAndOrderFront(nil)
+            self?.browserWindow?.makeKeyAndOrderFront(nil)
         }
         viewer.onBrowse = { [weak self] folder in self?.browse(folder) }
     }
@@ -144,7 +148,7 @@ public final class AppModel {
     // MARK: Culling (menus and keys, wherever the focus is)
 
     /// The viewer (or Compare) when it is the key window, else the browser.
-    var viewerIsKey: Bool { (viewer.isOpen || compare.isOpen) && NSApp.keyWindow is ViewerWindow }
+    var viewerIsKey: Bool { viewer.isKey || compare.isKey }
 
     /// Compare [ids] (2–4); one photo is compared with the one after it in the browser.
     func openCompare(_ ids: [String]) {
@@ -343,42 +347,42 @@ public final class AppModel {
     }
 
     /// The browser's rating keys (by physical key, as the viewer's): 1–5, 0, P, X, U on the selection.
-    public func browserKey(_ event: NSEvent) -> Bool {
+    func browserKey(_ event: NSEvent) -> Bool {
         // ⌦ (Fn-⌫ on a laptop) trashes the selection; plain ⌫ goes up a folder. Here rather than in the views, so it
         // works whichever view (grid, list, preview) has the focus. ⌘⌫ is the menu's.
         if !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
-            event.keyCode == 51 || event.keyCode == 117, !(NSApp.keyWindow is NSPanel),
-            !(NSApp.keyWindow?.firstResponder is NSTextView), browser.folder != nil
+            event.keyCode == 51 || event.keyCode == 117, !(event.window is NSPanel),
+            !(event.window?.firstResponder is NSTextView), browser.folder != nil
         {
             if event.keyCode == 51 { browser.goUp() } else { moveToTrash() }
             return true
         }
         let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
         // F2 renames the selection (any layout: key code 120).
-        if !viewerIsKey, event.keyCode == 120, mods.isEmpty, !(NSApp.keyWindow is NSPanel),
-            NSApp.keyWindow?.sheetParent == nil,
-            !(NSApp.keyWindow?.firstResponder is NSTextView), browser.folder != nil, !browser.selection.isEmpty
+        if !viewerIsKey, event.keyCode == 120, mods.isEmpty, !(event.window is NSPanel),
+            event.window?.sheetParent == nil,
+            !(event.window?.firstResponder is NSTextView), browser.folder != nil, !browser.selection.isEmpty
         {
             rename()
             return true
         }
         // ⌘A by physical key: SwiftUI's key presses are characters, "ф" on a Ukrainian layout.
-        if !viewerIsKey, event.keyCode == 0, mods == .command, !(NSApp.keyWindow is NSPanel),
-            !(NSApp.keyWindow?.firstResponder is NSTextView), browser.folder != nil
+        if !viewerIsKey, event.keyCode == 0, mods == .command, !(event.window is NSPanel),
+            !(event.window?.firstResponder is NSTextView), browser.folder != nil
         {
             browser.selectAll()
             return true
         }
         // ⌘C / ⌘V by physical key: the selection's files to and from the pasteboard (Finder's too). Text fields, sheets
         // and panels keep their own copy and paste.
-        if !viewerIsKey, mods == .command, event.keyCode == 8 || event.keyCode == 9, !(NSApp.keyWindow is NSPanel),
-            NSApp.keyWindow?.sheetParent == nil, !(NSApp.keyWindow?.firstResponder is NSTextView),
+        if !viewerIsKey, mods == .command, event.keyCode == 8 || event.keyCode == 9, !(event.window is NSPanel),
+            event.window?.sheetParent == nil, !(event.window?.firstResponder is NSTextView),
             browser.folder != nil
         {
             return event.keyCode == 8 ? copySelectionToPasteboard() : pasteFromPasteboard()
         }
         guard !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-            !(NSApp.keyWindow?.firstResponder is NSTextView), let command = ViewerKeys.command(for: event)
+            !(event.window?.firstResponder is NSTextView), let command = ViewerKeys.command(for: event)
         else { return false }
         let ids = browser.ratingTargets
         guard !ids.isEmpty else { return false }
@@ -406,8 +410,58 @@ public final class AppModel {
     /// Ratings still waiting to be written go to disk now (quitting).
     public func writePendingNow() { culling.writePendingNow() }
 
-    /// Whether [window] is a viewer or Compare window (the screen-filling ones), not the browser.
-    public static func isViewerWindow(_ window: NSWindow?) -> Bool { window is ViewerWindow }
+    /// Whether the browser's window is the key window.
+    public var browserWindowIsKey: Bool {
+        guard let window = browserWindow else { return false }
+        return window.isKeyWindow && window.isVisible
+    }
+
+    // MARK: Keys
+
+    /// The browser (or a viewer) is on screen in [window]: its keys are handled until `viewDisappeared`.
+    func viewAppeared(browserIn window: NSWindow?) {
+        if let window { browserWindow = window }
+        shownViews += 1
+        installKeyMonitor()
+    }
+
+    func viewDisappeared() {
+        shownViews = max(0, shownViews - 1)
+        if shownViews == 0 { removeKeyMonitor() }
+    }
+
+    /// The browser's rating keys, by physical key (SwiftUI's key presses are characters, Cyrillic on a Ukrainian
+    /// layout), and ? for Help: only in this model's windows (the browser's, the viewer's, Compare's), and only while
+    /// one of its views is shown.
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated { self?.handleKeyDown(event) ?? false } ? nil : event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
+    }
+
+    private func ownsWindow(_ window: NSWindow?) -> Bool {
+        guard let window else { return false }
+        return window === browserWindow || window === viewer.window || window === compare.window
+            || HelpWindow.isHelp(window)
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        guard ownsWindow(event.window) else { return false }
+        // ? (Shift + the / key) anywhere but a text field: the keys.
+        if event.keyCode == 44, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+            event.modifierFlags.contains(.shift), !(event.window?.firstResponder is NSTextView)
+        {
+            HelpWindow.toggle()
+            return true
+        }
+        return browserKey(event)
+    }
 
     func openFolderPanel() {
         let panel = NSOpenPanel()
