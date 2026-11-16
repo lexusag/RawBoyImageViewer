@@ -49,16 +49,31 @@ targets:
         # Sparkle: where updates are announced, and the key their signatures must match.
         SUFeedURL: https://raw.githubusercontent.com/lexusag/RawBoyImageViewer/main/appcast.xml
         SUPublicEDKey: "Bl2hd+5HmsGBI/sB8AIDPoBJMr791oxBCbuaMfEr88w="
-        # "Open With" for photos and folders, never the default app for a type.
+        # "Open With" for every photo type the viewer shows (RawBoyBrowseKit's PhotoFileType) and for folders; never the
+        # default app for a type on its own (rank Alternate). Camera raws: the parent type covers every raw macOS knows.
         CFBundleDocumentTypes:
+          - CFBundleTypeName: RAW photo
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.camera-raw-image, com.adobe.raw-image, app.rawboy.kdc-raw-image, app.rawboy.x3f-raw-image]
           - CFBundleTypeName: Photo
             CFBundleTypeRole: Viewer
             LSHandlerRank: Alternate
-            LSItemContentTypes: [public.image, public.camera-raw-image, com.adobe.raw-image]
+            LSItemContentTypes: [public.jpeg, public.heic, public.heif, public.png, public.tiff, org.webmproject.webp, public.avif, public.jpeg-xl]
           - CFBundleTypeName: Folder
             CFBundleTypeRole: Viewer
             LSHandlerRank: Alternate
             LSItemContentTypes: [public.folder]
+        # Raw formats macOS has no type for (extensions kdc, x3f), so Open With can offer the app for them.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: app.rawboy.kdc-raw-image
+            UTTypeDescription: Kodak raw image
+            UTTypeConformsTo: [public.camera-raw-image]
+            UTTypeTagSpecification: {public.filename-extension: [kdc]}
+          - UTTypeIdentifier: app.rawboy.x3f-raw-image
+            UTTypeDescription: Sigma X3F raw image
+            UTTypeConformsTo: [public.camera-raw-image]
+            UTTypeTagSpecification: {public.filename-extension: [x3f]}
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.viewer
