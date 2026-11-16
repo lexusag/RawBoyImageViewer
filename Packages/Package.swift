@@ -9,7 +9,7 @@ let optimised: [SwiftSetting] = [.unsafeFlags(["-O"])]
 
 let package = Package(
     name: "RawBoyViewerPackages",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v15), .iOS(.v17)],
     products: [
         .library(name: "RawBoyBrowseKit", targets: ["RawBoyBrowseKit"]),
         .library(name: "ViewerImaging", targets: ["ViewerImaging"]),
