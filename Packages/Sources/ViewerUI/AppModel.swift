@@ -19,19 +19,29 @@ public final class AppModel {
     let compare: CompareSession
     @ObservationIgnored private var watcher: FolderWatcher?
 
-    public let options: ViewerOptions
+    private let optionsBox: ViewerOptionsBox
+    /// How the next viewer or Compare opens (changeable: a host's setting for an in-window or a full-screen viewer).
+    public var options: ViewerOptions {
+        get { optionsBox.value }
+        set { optionsBox.value = newValue }
+    }
+    /// Compare is open (observed: a host that places `CompareView` shows it then).
+    public private(set) var compareOpen = false
     /// The window the browser view is in (set by `BrowserRoot`): where the key monitor and "back to the browser" go.
     @ObservationIgnored public private(set) weak var browserWindow: NSWindow?
     @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var shownViews = 0
 
     public init(options: ViewerOptions = ViewerOptions()) {
-        self.options = options
+        let box = ViewerOptionsBox(options)
+        optionsBox = box
         browser = BrowserModel(culling: culling)
-        viewer = ViewerSession(culling: culling, options: options)
-        compare = CompareSession(culling: culling, options: options)
+        viewer = ViewerSession(culling: culling, options: box)
+        compare = CompareSession(culling: culling, options: box)
         viewer.app = self
+        compare.app = self
         compare.onClose = { [weak self] chosen in
+            self?.compareOpen = false
             if let chosen { self?.browser.select(chosen) }
             self?.browserWindow?.makeKeyAndOrderFront(nil)
         }
@@ -162,6 +172,24 @@ public final class AppModel {
         guard ids.count >= 2 else { return }
         if viewer.isOpen { viewer.close() }
         compare.show(folder: folder, ids: ids, order: browser.visible.map(\.group))
+        compareOpen = compare.isOpen
+    }
+
+    /// Opens the viewer on the browser's selection (or first photo). [inHostWindow] overrides `options` for this one
+    /// opening: true in the host's window, false in the screen-filling window of its own; nil follows `options`.
+    public func openSelectedInViewer(inHostWindow: Bool? = nil) {
+        guard let id = browser.ratingTargets.first ?? browser.visible.first?.id else { return }
+        let saved = options
+        if let inHostWindow { options.viewerInHostWindow = inHostWindow }
+        openViewer(at: id)
+        options = saved
+    }
+
+    /// Closes the viewer and Compare when they are windows of their own (the host leaves Browse mode: nothing of
+    /// ours may stay over its windows). Their presentation options are restored by their windows closing.
+    public func closeOwnWindows() {
+        if viewer.isOpen, !viewer.isEmbedded { viewer.close() }
+        if compare.isOpen, !compare.isEmbedded { compare.close() }
     }
 
     /// ⌘Z: text editing in a text field, else the last rating or file move.

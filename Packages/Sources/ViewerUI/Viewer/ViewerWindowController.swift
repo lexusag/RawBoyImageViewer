@@ -22,6 +22,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// The root view is in the host's window (`ViewerOptions.viewerInHostWindow`): there is no window of ours.
     let isEmbedded: Bool
     private var keyObservers: [NSObjectProtocol] = []
+    private var observers: [NSObjectProtocol] = []
     private var windowedFrame: NSRect?
 
     private var zones: EdgeZones
@@ -56,6 +57,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
             super.init(window: window)
             window.delegate = self
             window.setFrame(screen.frame, display: false)
+            observers = ScreenWatch.observe(window: window, hidesDock: options.hidesDockAndMenuBar) { [weak self] in
+                self?.refit()
+            }
         }
         root.onPointer = { [weak self] in self?.pointerMoved($0) }
         root.onWindowChange = { [weak self] in self?.rootMovedToWindow($0) }
@@ -283,6 +287,13 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         pointerMoved(nil)
     }
 
+    /// A display was unplugged or changed: the window goes back onto one that exists, and fills it again.
+    private func refit() {
+        guard !isEmbedded, let window else { return }
+        ScreenWatch.refit(window, filling: isScreenFilling, windowedFrame: &windowedFrame)
+        updatePresentation()
+    }
+
     func windowDidChangeScreen(_ notification: Notification) {
         guard isScreenFilling, let window, let screen = window.screen else { return }
         window.setFrame(screen.frame, display: true)
@@ -296,6 +307,8 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         wheelMonitor = nil
         keyObservers.forEach(NotificationCenter.default.removeObserver)
         keyObservers = []
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
         if options.hidesDockAndMenuBar && !isEmbedded { NSApp.presentationOptions = [] }
         onClose?()
     }

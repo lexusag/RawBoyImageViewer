@@ -189,3 +189,20 @@ public struct ViewerPhotoCommands: Commands {
         }
     }
 }
+
+/// Compare as a view, for a host that places it in its own window (`ViewerOptions.viewerInHostWindow`).
+public struct CompareView: View {
+    let app: AppModel
+
+    public init(app: AppModel) { self.app = app }
+
+    public var body: some View {
+        EmbeddedViewer(root: app.compareOpen ? app.compare.rootView : nil)
+            .background(
+                WindowReader { _ in
+                    app.viewAppeared(browserIn: nil)
+                } onDisappear: {
+                    app.viewDisappeared()
+                })
+    }
+}

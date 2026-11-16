@@ -35,10 +35,12 @@ final class ViewerSession {
     private var previewPixelSize = 3840
 
     var isOpen: Bool { controller != nil }
+    /// The open viewer is a view in the host's window (not a window of its own).
+    var isEmbedded: Bool { controller?.isEmbedded ?? false }
     /// The viewer has the keyboard: its window is key (and, in the host's window, its canvas has the focus).
     var isKey: Bool {
         guard let controller, let window = controller.window, window.isKeyWindow else { return false }
-        guard options.viewerInHostWindow else { return true }
+        guard controller.isEmbedded else { return true }
         return (window.firstResponder as? NSView)?.isDescendant(of: controller.root) ?? false
     }
     /// The viewer closed, on this photo (its main file name).
@@ -48,13 +50,14 @@ final class ViewerSession {
     /// A folder in the breadcrumb was clicked: the browser shows it.
     var onBrowse: ((URL) -> Void)?
 
-    let options: ViewerOptions
-    /// For the debug smoke scripts, which look at the whole app.
+    private let optionsBox: ViewerOptionsBox
+    var options: ViewerOptions { optionsBox.value }
+    /// For the host's screen, and the debug smoke scripts, which look at the whole app.
     weak var app: AppModel?
 
-    init(culling: CullingStore, options: ViewerOptions) {
+    init(culling: CullingStore, options: ViewerOptionsBox) {
         self.culling = culling
-        self.options = options
+        self.optionsBox = options
         model = ViewerModel(culling: culling)
         model.send = { [weak self] command in
             self?.handle(command)
@@ -370,7 +373,9 @@ final class ViewerSession {
     private func presentWindow() {
         if controller == nil {
             let mouse = NSEvent.mouseLocation
-            let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main!
+            let screen =
+                (options.opensOnHostScreen ? app?.browserWindow?.screen : nil)
+                ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main!
             let controller = ViewerWindowController(screen: screen, model: model, options: options)
             controller.canvas.onCommand = { [weak self] in self?.handle($0) }
             controller.canvas.onNeedsFullResolution = { [weak self] in self?.loadFullResolution() }
@@ -657,7 +662,12 @@ final class ViewerSession {
         // The editor reads the sidecar when it opens the photo: a rating, turn or crop made a moment ago goes first.
         Task {
             await culling.finishWrites()
-            if await ViewerHost.handOff.openInEditor(url) { return }
+            if await ViewerHost.handOff.openInEditor(url) {
+                // Handed over: a window of ours would stay over the host's, so it closes (the menu bar and Dock come
+                // back); a viewer in the host's window stays where it is.
+                if isOpen, !isEmbedded { close() }
+                return
+            }
             if let app {
                 // The async variant, not a completion handler: a closure written here is @MainActor, and
                 // LaunchServices calls handlers on its own queue, where Swift's isolation check traps (macOS 27).

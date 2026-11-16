@@ -24,15 +24,24 @@ final class CompareSession {
     /// Closed, on the chosen photo.
     var onClose: ((String?) -> Void)?
 
-    let options: ViewerOptions
+    private let optionsBox: ViewerOptionsBox
+    var options: ViewerOptions { optionsBox.value }
+    weak var app: AppModel?
 
-    init(culling: CullingStore, options: ViewerOptions) {
+    init(culling: CullingStore, options: ViewerOptionsBox) {
         self.culling = culling
-        self.options = options
+        self.optionsBox = options
     }
 
     var isOpen: Bool { controller != nil }
-    var isKey: Bool { controller?.window?.isKeyWindow ?? false }
+    var isEmbedded: Bool { controller?.isEmbedded ?? false }
+    var isKey: Bool {
+        guard let controller, let window = controller.window, window.isKeyWindow else { return false }
+        guard controller.isEmbedded else { return true }
+        return (window.firstResponder as? NSView)?.isDescendant(of: controller.root) ?? false
+    }
+    /// The panes' view, for `CompareView` (nil when Compare isn't open).
+    var rootView: NSView? { controller?.root }
     var window: NSWindow? { controller?.window }
 
     var chosenID: String? { panes.indices.contains(chosen) ? panes[chosen] : nil }
@@ -48,7 +57,9 @@ final class CompareSession {
         shared = .fit
         controller?.close()
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main!
+        let screen =
+            (options.opensOnHostScreen ? app?.browserWindow?.screen : nil)
+            ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main!
         let controller = CompareWindowController(screen: screen, count: ids.count, options: options)
         self.controller = controller
         Task {

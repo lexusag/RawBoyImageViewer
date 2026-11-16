@@ -8,29 +8,66 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate {
     var onClose: (() -> Void)?
     private var isScreenFilling = true
     private let options: ViewerOptions
+    let root: NSView
+    /// The panes are a view in the host's window: no window of ours.
+    let isEmbedded: Bool
     private var windowedFrame: NSRect?
 
     init(screen: NSScreen, count: Int, options: ViewerOptions) {
         self.options = options
+        isEmbedded = options.viewerInHostWindow
+        isScreenFilling = !options.viewerInHostWindow
         canvases = (0..<count).map { _ in ImageCanvasView(frame: .zero) }
         let root = ComparePanesView(panes: canvases)
-        let window = ViewerWindow(
-            contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false, screen: screen)
-        window.backgroundColor = NSColor(hex: DesignTokens.Colour.inkBlack)
-        window.isReleasedWhenClosed = false
-        window.collectionBehavior = [.fullScreenNone, .managed]
-        window.acceptsMouseMovedEvents = true
-        window.contentView = root
-        window.title = "Compare"
-        super.init(window: window)
-        window.delegate = self
-        window.setFrame(screen.frame, display: false)
+        self.root = root
+        if options.viewerInHostWindow {
+            super.init(window: nil)
+        } else {
+            let window = ViewerWindow(
+                contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false, screen: screen)
+            window.backgroundColor = NSColor(hex: DesignTokens.Colour.inkBlack)
+            window.isReleasedWhenClosed = false
+            window.collectionBehavior = [.fullScreenNone, .managed]
+            window.acceptsMouseMovedEvents = true
+            window.contentView = root
+            window.title = "Compare"
+            super.init(window: window)
+            window.delegate = self
+            window.setFrame(screen.frame, display: false)
+            observers = ScreenWatch.observe(window: window, hidesDock: options.hidesDockAndMenuBar) { [weak self] in
+                self?.refit()
+            }
+        }
+    }
+
+    private var observers: [NSObjectProtocol] = []
+
+    /// Our own window, or the host's the panes are in.
+    override var window: NSWindow? {
+        get { super.window ?? (isEmbedded ? root.window : nil) }
+        set { super.window = newValue }
+    }
+
+    override func close() {
+        guard isEmbedded else { return super.close() }
+        windowWillClose(Notification(name: NSWindow.willCloseNotification))
+    }
+
+    /// The display went or changed: back onto one that exists.
+    private func refit() {
+        guard !isEmbedded, let window else { return }
+        ScreenWatch.refit(window, filling: isScreenFilling, windowedFrame: &windowedFrame)
+        updatePresentation()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     func present() {
+        if isEmbedded {
+            window?.makeFirstResponder(canvases.first)
+            return
+        }
         NSApp.activate()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -39,7 +76,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func toggleScreenFilling() {
-        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        guard !isEmbedded, let window, let screen = window.screen ?? NSScreen.main else { return }
         isScreenFilling.toggle()
         if isScreenFilling {
             windowedFrame = window.frame
@@ -54,7 +91,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func updatePresentation() {
-        guard options.hidesDockAndMenuBar else { return }
+        guard options.hidesDockAndMenuBar, !isEmbedded else { return }
         let hide = isScreenFilling && (window?.isKeyWindow ?? false)
         let asked: NSApplication.PresentationOptions = hide ? [.hideDock, .hideMenuBar] : []
         if NSApp.presentationOptions != asked { NSApp.presentationOptions = asked }
@@ -64,13 +101,15 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate {
     func windowDidResignKey(_ notification: Notification) { updatePresentation() }
 
     func windowWillClose(_ notification: Notification) {
-        if options.hidesDockAndMenuBar { NSApp.presentationOptions = [] }
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        if options.hidesDockAndMenuBar && !isEmbedded { NSApp.presentationOptions = [] }
         onClose?()
     }
 }
 
 /// The panes, with a hairline between them.
-private final class ComparePanesView: NSView {
+final class ComparePanesView: NSView {
     let panes: [ImageCanvasView]
 
     init(panes: [ImageCanvasView]) {
