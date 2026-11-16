@@ -12,6 +12,8 @@ final class ViewerRootView: NSView {
     private var reserved: Set<PanelEdge> = []
     /// Called with the pointer (nil: it left the window) on every move.
     var onPointer: ((Point2D?) -> Void)?
+    /// Called when the view enters or leaves a window (a host's, when the viewer isn't in a window of its own).
+    var onWindowChange: ((NSWindow?) -> Void)?
 
     static let margin = 12.0
     static let sideWidth: [PanelEdge: Double] = [.left: 280, .right: 320]
@@ -40,6 +42,11 @@ final class ViewerRootView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override var isFlipped: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onWindowChange?(window)
+    }
 
     // MARK: Layout
 

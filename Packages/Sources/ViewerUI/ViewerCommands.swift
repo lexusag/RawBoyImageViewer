@@ -135,3 +135,36 @@ public struct ViewerSettingsRoot: View {
             .preferredColorScheme(.dark)
     }
 }
+
+/// The viewer as a view, for a host that places it in its own window (`ViewerOptions.viewerInHostWindow`): shows the
+/// open viewer, nothing while none is open. The host decides where it goes and when it is on screen.
+public struct ViewerView: View {
+    let app: AppModel
+
+    public init(app: AppModel) { self.app = app }
+
+    public var body: some View {
+        EmbeddedViewer(root: app.viewer.model.isPresented ? app.viewer.rootView : nil)
+            .background(
+                WindowReader { _ in
+                    app.viewAppeared(browserIn: nil)
+                } onDisappear: {
+                    app.viewDisappeared()
+                })
+    }
+}
+
+private struct EmbeddedViewer: NSViewRepresentable {
+    let root: NSView?
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ container: NSView, context: Context) {
+        guard container.subviews.first !== root else { return }
+        container.subviews.forEach { $0.removeFromSuperview() }
+        guard let root else { return }
+        root.frame = container.bounds
+        root.autoresizingMask = [.width, .height]
+        container.addSubview(root)
+    }
+}

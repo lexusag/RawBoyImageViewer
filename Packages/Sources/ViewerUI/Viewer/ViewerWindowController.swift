@@ -18,7 +18,10 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     var onClose: (() -> Void)?
     private let model: ViewerModel
     private let options: ViewerOptions
-    private(set) var isScreenFilling = true
+    private(set) var isScreenFilling: Bool
+    /// The root view is in the host's window (`ViewerOptions.viewerInHostWindow`): there is no window of ours.
+    let isEmbedded: Bool
+    private var keyObservers: [NSObjectProtocol] = []
     private var windowedFrame: NSRect?
 
     private var zones: EdgeZones
@@ -34,21 +37,28 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     init(screen: NSScreen, model: ViewerModel, options: ViewerOptions) {
         self.model = model
         self.options = options
+        isEmbedded = options.viewerInHostWindow
+        isScreenFilling = !options.viewerInHostWindow
         let pinned = Set((ViewerSettings.current.stringArray(forKey: Self.pinnedKey) ?? []).compactMap(PanelEdge.init))
         zones = EdgeZones(pinned: pinned)
         root = ViewerRootView(model: model)
-        let window = ViewerWindow(
-            contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false, screen: screen)
-        window.backgroundColor = NSColor(hex: DesignTokens.Colour.inkBlack)
-        window.isReleasedWhenClosed = false
-        window.collectionBehavior = [.fullScreenNone, .managed]
-        window.acceptsMouseMovedEvents = true
-        window.contentView = root
-        window.title = "RawBoy Viewer"
-        super.init(window: window)
-        window.delegate = self
-        window.setFrame(screen.frame, display: false)
+        if options.viewerInHostWindow {
+            super.init(window: nil)
+        } else {
+            let window = ViewerWindow(
+                contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false, screen: screen)
+            window.backgroundColor = NSColor(hex: DesignTokens.Colour.inkBlack)
+            window.isReleasedWhenClosed = false
+            window.collectionBehavior = [.fullScreenNone, .managed]
+            window.acceptsMouseMovedEvents = true
+            window.contentView = root
+            window.title = "RawBoy Viewer"
+            super.init(window: window)
+            window.delegate = self
+            window.setFrame(screen.frame, display: false)
+        }
         root.onPointer = { [weak self] in self?.pointerMoved($0) }
+        root.onWindowChange = { [weak self] in self?.rootMovedToWindow($0) }
         // Drags (mouse button down) don't reach mouseMoved; edges must still respond while dragging a photo.
         moveMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged]) { [weak self] event in
             if event.window === self?.window { self?.root.report(event) }
@@ -89,7 +99,35 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    /// Our own window, or the host's window the root view is in.
+    override var window: NSWindow? {
+        get { super.window ?? (isEmbedded ? root.window : nil) }
+        set { super.window = newValue }
+    }
+
+    /// The root view is in a window of the host's: it takes the keyboard, and hears when that window loses it.
+    func rootMovedToWindow(_ window: NSWindow?) {
+        keyObservers.forEach(NotificationCenter.default.removeObserver)
+        keyObservers = []
+        guard isEmbedded, let window else { return }
+        keyObservers = [
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didResignKeyNotification, object: window, queue: .main
+            ) { [weak self] _ in MainActor.assumeIsolated { self?.pointerMoved(nil) } }
+        ]
+        focusCanvas()
+    }
+
+    override func close() {
+        guard isEmbedded else { return super.close() }
+        windowWillClose(Notification(name: NSWindow.willCloseNotification))
+    }
+
     func present() {
+        if isEmbedded {
+            focusCanvas()
+            return
+        }
         // Opened from Finder or a shell, the app may not be frontmost yet; the viewer must be the key window.
         NSApp.activate()
         showWindow(nil)
@@ -200,7 +238,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     /// Screen-filling ↔ an ordinary titled window.
     func toggleScreenFilling() {
-        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        guard !isEmbedded, let window, let screen = window.screen ?? NSScreen.main else { return }
         isScreenFilling.toggle()
         model.isScreenFilling = isScreenFilling
         if isScreenFilling {
@@ -224,7 +262,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// The menu bar and Dock stay away only while a screen-filling viewer is the key window, so switching to another
     /// app brings them back.
     private func updatePresentation() {
-        guard options.hidesDockAndMenuBar else { return }
+        guard options.hidesDockAndMenuBar, !isEmbedded else { return }
         let hide = isScreenFilling && (window?.isKeyWindow ?? false)
         let asked: NSApplication.PresentationOptions = hide ? [.hideDock, .hideMenuBar] : []
         if NSApp.presentationOptions != asked {
@@ -256,7 +294,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         if let wheelMonitor { NSEvent.removeMonitor(wheelMonitor) }
         moveMonitor = nil
         wheelMonitor = nil
-        if options.hidesDockAndMenuBar { NSApp.presentationOptions = [] }
+        keyObservers.forEach(NotificationCenter.default.removeObserver)
+        keyObservers = []
+        if options.hidesDockAndMenuBar && !isEmbedded { NSApp.presentationOptions = [] }
         onClose?()
     }
 }

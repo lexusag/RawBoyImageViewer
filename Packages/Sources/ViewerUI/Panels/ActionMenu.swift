@@ -30,10 +30,12 @@ struct ActionMenu: View {
                         icon: model.isFit ? "plus.magnifyingglass" : "arrow.down.right.and.arrow.up.left",
                         title: model.isFit ? "Zoom to 1:1" : "Fit to screen", key: "Z"
                     ) { model.send(.toggleZoom) }
-                    ActionRow(
-                        icon: model.isScreenFilling ? "macwindow" : "rectangle.inset.filled",
-                        title: model.isScreenFilling ? "Show in a window" : "Fill the screen", key: "F"
-                    ) { model.send(.toggleFullScreen) }
+                    if model.canFillScreen {
+                        ActionRow(
+                            icon: model.isScreenFilling ? "macwindow" : "rectangle.inset.filled",
+                            title: model.isScreenFilling ? "Show in a window" : "Fill the screen", key: "F"
+                        ) { model.send(.toggleFullScreen) }
+                    }
                     ActionRow(
                         icon: "exclamationmark.triangle",
                         title: model.showClipping ? "Hide clipping" : "Show clipping", key: "J"

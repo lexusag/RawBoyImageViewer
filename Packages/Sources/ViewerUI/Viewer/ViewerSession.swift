@@ -359,6 +359,8 @@ final class ViewerSession {
     /// The window to put sheets on, and the view to anchor the share menu to.
     var window: NSWindow? { controller?.window }
     var canvasView: NSView? { controller?.canvas }
+    /// The viewer's view, for `ViewerView` (nil when it is not open).
+    var rootView: NSView? { controller?.root }
 
     func close() {
         stopSlideshow()
@@ -376,10 +378,13 @@ final class ViewerSession {
             controller.onClose = { [weak self] in
                 guard let self else { return }
                 self.controller = nil
+                self.model.isPresented = false
                 self.onClose?(model.current?.main)
             }
             self.controller = controller
             model.isScreenFilling = controller.isScreenFilling
+            model.canFillScreen = !controller.isEmbedded
+            model.isPresented = true
             previewPixelSize = Self.previewPixelSize(for: screen)
         }
         controller?.present()

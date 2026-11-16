@@ -30,6 +30,10 @@ final class ViewerModel {
     var pinned: Set<PanelEdge> = []
     var isFit = true
     var isScreenFilling = true
+    /// The viewer can fill the screen (not when it is a view in the host window).
+    var canFillScreen = true
+    /// The viewer is open: a host that places `ViewerView` shows it then.
+    var isPresented = false
 
     let thumbnails = ThumbnailStore()
     let culling: CullingStore
