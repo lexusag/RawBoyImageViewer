@@ -286,6 +286,40 @@ final class AppModel {
         }
     }
 
+    /// Asks first, then moves [ids]' XMP sidecar files to the Trash and clears their ratings, rotations and crops.
+    /// ⌘Z puts the sidecar files back.
+    func resetSidecars(_ ids: [String]) {
+        let targets = ids.filter { culling.hasSidecar($0) || culling.isBusy($0) }
+        guard !targets.isEmpty, let current = browser.folder else { return }
+        let sidecarCount = targets.reduce(0) { $0 + (culling.sidecars[$1]?.count ?? 0) }
+        let synced =
+            CullingStore.isSyncedFolder(current)
+            && !UserDefaults.standard.bool(forKey: CullingStore.Keys.trashNotice)
+        let alert = NSAlert()
+        alert.messageText =
+            targets.count == 1
+            ? "Reset sidecar for 1 photo?"
+            : "Reset sidecars for \(targets.count) photos?"
+        var lines: [String] = []
+        if sidecarCount > 0 {
+            lines.append(
+                "Ratings, rotations and crops will be cleared, and "
+                    + "\(sidecarCount == 1 ? "its XMP sidecar" : "\(sidecarCount) XMP sidecars") moved to the Trash."
+            )
+            lines.append("⌘Z puts \(sidecarCount == 1 ? "it" : "them") back.")
+            if synced {
+                lines.append("This folder syncs with the cloud: the Trash deletes there and on your other devices too.")
+            }
+        } else {
+            lines.append("Pending ratings, rotations and crops will be cleared.")
+        }
+        alert.informativeText = lines.joined(separator: " ")
+        alert.addButton(withTitle: "Reset Sidecars")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task { await culling.resetSidecars(targets) }
+    }
+
     /// The browser's rating keys (by physical key, as the viewer's): 1–5, 0, P, X, U on the selection.
     func browserKey(_ event: NSEvent) -> Bool {
         // ⌦ (Fn-⌫ on a laptop) trashes the selection; plain ⌫ goes up a folder. Here rather than in the views, so it
