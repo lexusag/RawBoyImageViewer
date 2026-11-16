@@ -29,3 +29,20 @@ public enum RawDeveloper {
         return ImageLoader.oriented(developed, url: url, orientation: orientation)
     }
 }
+
+/// Where "real preview" pictures come from: a raw developed instead of the camera's embedded JPEG. The viewer's is
+/// Core Image's RAW filter; a host with RawBoy's own engine can give that instead.
+public protocol RealPreviewProvider: Sendable {
+    /// The raw at [url] developed, its long edge at most [maxPixelSize] (nil: full size), turned as [orientation] says.
+    /// Nil when it can't be developed (not a raw).
+    func develop(_ url: URL, maxPixelSize: Int?, orientation: Int?) -> LoadedImage?
+}
+
+/// macOS's own raw development (`RawDeveloper`).
+public struct CoreImageRealPreview: RealPreviewProvider {
+    public init() {}
+
+    public func develop(_ url: URL, maxPixelSize: Int?, orientation: Int?) -> LoadedImage? {
+        RawDeveloper.develop(url, maxPixelSize: maxPixelSize, orientation: orientation)
+    }
+}

@@ -24,11 +24,17 @@ public actor ImageStore {
     private var inFlight: [Key: Task<LoadedImage?, Never>] = [:]
     private var prefetchTask: Task<Void, Never>?
     private var previewPixelSize: Int
+    private let realPreview: any RealPreviewProvider
 
-    /// [budget] in bytes; [previewPixelSize] is the long edge previews are decoded to (the screen's, in pixels).
-    public init(budget: Int = 1_500_000_000, previewPixelSize: Int = 3840) {
+    /// [budget] in bytes; [previewPixelSize] is the long edge previews are decoded to (the screen's, in pixels);
+    /// [realPreview] develops the raws of `.developed` and `.developedFull`.
+    public init(
+        budget: Int = 1_500_000_000, previewPixelSize: Int = 3840,
+        realPreview: any RealPreviewProvider = CoreImageRealPreview()
+    ) {
         cache = LRUCache(budget: budget)
         self.previewPixelSize = previewPixelSize
+        self.realPreview = realPreview
     }
 
     /// Changes the preview size (another screen); cached previews of another size are dropped.
@@ -49,12 +55,13 @@ public actor ImageStore {
         if let hit = cache.value(for: key) { return hit }
         if let running = inFlight[key] { return await running.value }
         let size = previewPixelSize
+        let realPreview = realPreview
         let task = Task.detached(priority: .userInitiated) { () -> LoadedImage? in
             switch kind {
             case .preview: ImageLoader.preview(of: url, maxPixelSize: size, orientation: orientation)
             case .full: ImageLoader.fullResolution(of: url, orientation: orientation)
-            case .developed: RawDeveloper.develop(url, maxPixelSize: size, orientation: orientation)
-            case .developedFull: RawDeveloper.develop(url, maxPixelSize: nil, orientation: orientation)
+            case .developed: realPreview.develop(url, maxPixelSize: size, orientation: orientation)
+            case .developedFull: realPreview.develop(url, maxPixelSize: nil, orientation: orientation)
             }
         }
         inFlight[key] = task

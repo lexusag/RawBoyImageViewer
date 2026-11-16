@@ -1,10 +1,11 @@
 import Sparkle
 import SwiftUI
+import ViewerUI
 
 /// Auto-update through Sparkle: the feed is appcast.xml in the repository, updates are signed with the owner's key
 /// (SUPublicEDKey). Debug builds don't check by themselves (they'd offer the release over the build being worked on).
 @MainActor
-final class Updater {
+final class Updater: AppUpdating {
     static let shared = Updater()
 
     #if DEBUG

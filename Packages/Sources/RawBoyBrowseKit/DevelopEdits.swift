@@ -45,32 +45,46 @@ public enum DevelopEdits {
             rotation: rotation, mirrored: flag("flipHorizontal") != flipV, crop: crop, isStraightened: straightened)
     }
 
-    /// [json] (nil: none yet) with [geometry]'s turn, mirror and crop; nil when no edits are left.
+    /// The keys `write` owns. Every other key of the edits is RawBoy's own and is never touched.
+    static let geometryKeys = [
+        "rotation", "flipHorizontal", "flipVertical", "cropLeft", "cropTop", "cropRight", "cropBottom",
+    ]
+
+    /// [json] (nil: none yet) with [geometry]'s turn, mirror and crop; nil when no edits are left. Only the geometry
+    /// keys are edited, in the text: every other key (RawBoy's masks, strokes, curves...) keeps its bytes, order and
+    /// number formatting, as a RawBoy web write has them.
     public static func write(_ json: String?, _ geometry: DevelopGeometry) -> String? {
-        var values = json.flatMap(values) ?? [:]
-        func set(_ key: String, _ value: Any?) {
-            if let value { values[key] = value } else { values.removeValue(forKey: key) }
-        }
-        set("rotation", geometry.rotation == 0 ? nil : geometry.rotation)
-        set("flipHorizontal", geometry.mirrored ? true : nil)
-        set("flipVertical", nil)
         let c = geometry.crop
-        set("cropLeft", c.isFull || c.left <= 0 ? nil : tidy(c.left))
-        set("cropTop", c.isFull || c.top <= 0 ? nil : tidy(c.top))
-        set("cropRight", c.isFull || c.right >= 1 ? nil : tidy(c.right))
-        set("cropBottom", c.isFull || c.bottom >= 1 ? nil : tidy(c.bottom))
-        guard !values.isEmpty else { return nil }
-        let object: [String: Any] = ["format": format, "version": version, "values": values]
-        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return nil }
-        return String(decoding: data, as: UTF8.self)
+        let wanted: [(key: String, raw: String?)] = [
+            ("rotation", geometry.rotation == 0 ? nil : String(geometry.rotation)),
+            ("flipHorizontal", geometry.mirrored ? "true" : nil),
+            ("flipVertical", nil),
+            ("cropLeft", c.isFull || c.left <= 0 ? nil : tidy(c.left)),
+            ("cropTop", c.isFull || c.top <= 0 ? nil : tidy(c.top)),
+            ("cropRight", c.isFull || c.right >= 1 ? nil : tidy(c.right)),
+            ("cropBottom", c.isFull || c.bottom >= 1 ? nil : tidy(c.bottom)),
+        ]
+        guard var text = json, values(text) != nil else { return fresh(wanted) }
+        for (key, raw) in wanted {
+            guard let next = JSONMembers.set(text, in: "values", key: key, raw: raw) else { return fresh(wanted) }
+            text = next
+        }
+        return JSONMembers.isEmpty(text, in: "values") == true ? nil : text
+    }
+
+    /// Edits holding just [wanted] (nil: none left), as RawBoy writes a first one.
+    private static func fresh(_ wanted: [(key: String, raw: String?)]) -> String? {
+        let members = wanted.compactMap { w in w.raw.map { "\"\(w.key)\":\($0)" } }
+        guard !members.isEmpty else { return nil }
+        return #"{"format":"\#(format)","version":\#(version),"values":{"# + members.joined(separator: ",") + "}}"
     }
 
     /// [v] to 6 decimals, written as such ("0.65", not "0.65000000000000002"): far below a pixel.
-    static func tidy(_ v: Double) -> NSDecimalNumber {
-        NSDecimalNumber(string: String(format: "%.6f", v)).rounding(
-            accordingToBehavior: NSDecimalNumberHandler(
-                roundingMode: .plain, scale: 6, raiseOnExactness: false, raiseOnOverflow: false,
-                raiseOnUnderflow: false, raiseOnDivideByZero: false))
+    static func tidy(_ v: Double) -> String {
+        var s = String(format: "%.6f", v)
+        while s.hasSuffix("0") { s.removeLast() }
+        if s.hasSuffix(".") { s.removeLast() }
+        return s == "-0" ? "0" : s
     }
 
     static func values(_ json: String) -> [String: Any]? {
@@ -81,49 +95,134 @@ public enum DevelopEdits {
     }
 }
 
-extension XmpSidecar {
-    /// RawBoy's edits (`rawboy:Develop`, escaped JSON) in a sidecar's text, or nil.
-    public static func readDevelop(_ text: String) -> String? {
-        fieldValue(text, "rawboy:Develop").map(unescapeXml)
+/// Edits of one member of a JSON object nested in the document's top-level object, made in the text so that nothing
+/// else in it changes by a byte. Just enough JSON scanning for that; text that doesn't scan answers nil.
+enum JSONMembers {
+    struct Member {
+        var key: String
+        var start: Int  // the key's opening quote
+        var valueStart: Int
+        var valueEnd: Int
     }
 
-    /// [text] (nil: a new sidecar) with RawBoy's edits set to [json]; nil removes them.
-    public static func writeDevelop(_ text: String?, _ json: String?) throws -> String {
-        try setField(text ?? empty, "rawboy:Develop", "rawboy", rawboyNS, json.map(escapeXml))
-    }
-
-    static func escapeXml(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&apos;")
-    }
-
-    static func unescapeXml(_ s: String) -> String {
-        guard s.contains("&") else { return s }
-        var out = ""
-        var rest = Substring(s)
-        while let amp = rest.firstIndex(of: "&") {
-            out += rest[..<amp]
-            guard let semi = rest[amp...].firstIndex(of: ";") else { break }
-            let entity = rest[rest.index(after: amp)..<semi]
-            switch entity {
-            case "amp": out += "&"
-            case "lt": out += "<"
-            case "gt": out += ">"
-            case "quot": out += "\""
-            case "apos": out += "'"
-            default:
-                let code: UInt32? =
-                    entity.hasPrefix("#x") || entity.hasPrefix("#X")
-                    ? UInt32(entity.dropFirst(2), radix: 16) : entity.hasPrefix("#") ? UInt32(entity.dropFirst()) : nil
-                if let code, let scalar = Unicode.Scalar(code) {
-                    out.unicodeScalars.append(scalar)
-                } else {
-                    out += rest[amp...semi]
-                }
-            }
-            rest = rest[rest.index(after: semi)...]
+    /// [text] with member [key] of the object [container] (a member of the top-level object) set to the JSON [raw]
+    /// (nil removes it). A value that already means [raw] is left as it is.
+    static func set(_ text: String, in container: String, key: String, raw: String?) -> String? {
+        let bytes = Array(text.utf8)
+        guard let top = members(bytes, objectAt: skipSpace(bytes, 0)),
+            let box = top.members.first(where: { $0.key == container }), bytes[box.valueStart] == UInt8(ascii: "{"),
+            let inner = members(bytes, objectAt: box.valueStart)
+        else { return nil }
+        let at = inner.members.firstIndex { $0.key == key }
+        func make(_ edit: (inout [UInt8]) -> Void) -> String {
+            var out = bytes
+            edit(&out)
+            return String(decoding: out, as: UTF8.self)
         }
-        return out + rest
+        switch (at, raw) {
+        case (nil, nil): return text
+        case (let i?, let raw?):
+            let m = inner.members[i]
+            let old = String(decoding: bytes[m.valueStart..<m.valueEnd], as: UTF8.self)
+            if old == raw || sameNumber(old, raw) { return text }
+            return make { $0.replaceSubrange(m.valueStart..<m.valueEnd, with: Array(raw.utf8)) }
+        case (let i?, nil):
+            let all = inner.members
+            let m = all[i]
+            if i + 1 < all.count { return make { $0.removeSubrange(m.start..<all[i + 1].start) } }
+            if i > 0 { return make { $0.removeSubrange(all[i - 1].valueEnd..<m.valueEnd) } }
+            return make { $0.removeSubrange(m.start..<m.valueEnd) }
+        case (nil, let raw?):
+            let member = Array("\"\(key)\":\(raw)".utf8)
+            if let last = inner.members.last {
+                return make { $0.insert(contentsOf: [UInt8(ascii: ",")] + member, at: last.valueEnd) }
+            }
+            return make { $0.insert(contentsOf: member, at: inner.open + 1) }
+        }
+    }
+
+    /// Whether the object [container] has no members, or nil when [text] doesn't scan.
+    static func isEmpty(_ text: String, in container: String) -> Bool? {
+        let bytes = Array(text.utf8)
+        guard let top = members(bytes, objectAt: skipSpace(bytes, 0)),
+            let box = top.members.first(where: { $0.key == container }), bytes[box.valueStart] == UInt8(ascii: "{"),
+            let inner = members(bytes, objectAt: box.valueStart)
+        else { return nil }
+        return inner.members.isEmpty
+    }
+
+    private static func sameNumber(_ a: String, _ b: String) -> Bool {
+        guard let x = Double(a), let y = Double(b) else { return false }
+        return x == y
+    }
+
+    private static func skipSpace(_ b: [UInt8], _ from: Int) -> Int {
+        var i = from
+        while i < b.count, b[i] == 0x20 || b[i] == 0x0A || b[i] == 0x0D || b[i] == 0x09 { i += 1 }
+        return i
+    }
+
+    /// The end (exclusive) of the string starting at the quote [from].
+    private static func stringEnd(_ b: [UInt8], _ from: Int) -> Int? {
+        var i = from + 1
+        while i < b.count {
+            if b[i] == UInt8(ascii: "\\") { i += 2; continue }
+            if b[i] == UInt8(ascii: "\"") { return i + 1 }
+            i += 1
+        }
+        return nil
+    }
+
+    /// The end (exclusive) of the value starting at [from].
+    private static func valueEnd(_ b: [UInt8], _ from: Int) -> Int? {
+        guard from < b.count else { return nil }
+        switch b[from] {
+        case UInt8(ascii: "\""): return stringEnd(b, from)
+        case UInt8(ascii: "{"), UInt8(ascii: "["):
+            var depth = 0
+            var i = from
+            while i < b.count {
+                switch b[i] {
+                case UInt8(ascii: "\""):
+                    guard let e = stringEnd(b, i) else { return nil }
+                    i = e
+                    continue
+                case UInt8(ascii: "{"), UInt8(ascii: "["): depth += 1
+                case UInt8(ascii: "}"), UInt8(ascii: "]"):
+                    depth -= 1
+                    if depth == 0 { return i + 1 }
+                default: break
+                }
+                i += 1
+            }
+            return nil
+        default:
+            var i = from
+            while i < b.count, !",}] \n\r\t".utf8.contains(b[i]) { i += 1 }
+            return i > from ? i : nil
+        }
+    }
+
+    /// The members of the object whose `{` is at [open].
+    private static func members(_ b: [UInt8], objectAt open: Int) -> (open: Int, members: [Member])? {
+        guard open < b.count, b[open] == UInt8(ascii: "{") else { return nil }
+        var out: [Member] = []
+        var i = skipSpace(b, open + 1)
+        if i < b.count, b[i] == UInt8(ascii: "}") { return (open, out) }
+        while i < b.count, b[i] == UInt8(ascii: "\"") {
+            guard let keyEnd = stringEnd(b, i) else { return nil }
+            let key = String(decoding: b[(i + 1)..<(keyEnd - 1)], as: UTF8.self)
+            var j = skipSpace(b, keyEnd)
+            guard j < b.count, b[j] == UInt8(ascii: ":") else { return nil }
+            j = skipSpace(b, j + 1)
+            guard let end = valueEnd(b, j) else { return nil }
+            out.append(Member(key: key, start: i, valueStart: j, valueEnd: end))
+            i = skipSpace(b, end)
+            guard i < b.count else { return nil }
+            if b[i] == UInt8(ascii: "}") { return (open, out) }
+            guard b[i] == UInt8(ascii: ",") else { return nil }
+            i = skipSpace(b, i + 1)
+        }
+        return nil
     }
 }

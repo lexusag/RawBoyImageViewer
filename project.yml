@@ -27,8 +27,6 @@ targets:
       Release: Config/RawBoyViewer.xcconfig
     sources:
       - App
-      - Features
-      - Theme
     dependencies:
       - package: RawBoyViewerPackages
         product: RawBoyBrowseKit
@@ -36,6 +34,8 @@ targets:
         product: ViewerFiles
       - package: RawBoyViewerPackages
         product: ViewerImaging
+      - package: RawBoyViewerPackages
+        product: ViewerUI
       - package: Sparkle
         product: Sparkle
     info:
