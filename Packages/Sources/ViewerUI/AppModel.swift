@@ -410,6 +410,12 @@ public final class AppModel {
     /// Ratings still waiting to be written go to disk now (quitting).
     public func writePendingNow() { culling.writePendingNow() }
 
+    /// The folder the browser shows, for a host's window title.
+    public var folder: URL? { browser.folder }
+
+    /// The viewer is open (observed: a host places `ViewerView` while this is true).
+    public var isViewerOpen: Bool { viewer.model.isPresented }
+
     /// Whether the browser's window is the key window.
     public var browserWindowIsKey: Bool {
         guard let window = browserWindow else { return false }
