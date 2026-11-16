@@ -68,7 +68,7 @@ show up by themselves (⌘R reloads by hand).
 
 Opening a photo from Finder goes straight to the viewer, which fills the screen.
 
-**⌘/ or ?** (or the ? button in the browser toolbar) shows every key. **Settings** (⌘,): open the last folder at launch, interface size (85-150%, browser window), what the mouse wheel does, slideshow
+**⌘/ or ?** (or the ? button in the browser toolbar) shows every key, with the app's version and build on top (also a disabled line at the top of the Help menu; the standard About panel is in the app menu). **Settings** (⌘,): open the last folder at launch, interface size (85-150%, browser window), what the mouse wheel does, slideshow
 speed, real preview, next photo after rating, the external editor, the export folder, the thumbnail cache.
 
 Move the pointer to an edge and rest it there for a moment: the **left** edge shows actions, the **right** edge the
