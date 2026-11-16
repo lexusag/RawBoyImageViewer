@@ -33,6 +33,13 @@ public protocol PhotoHandOff {
     var canSendToAuto: Bool { get }
     /// Adds [urls] (photos and folders) to Auto's batch as [how]; throws when it can't be opened.
     func sendToAuto(_ urls: [URL], as how: AutoImport) async throws
+    /// Opens [url] in the host's own editor and returns true; false when the host has none in-process (the viewer
+    /// then opens the photo in `editor`'s app).
+    func openInEditor(_ url: URL) async -> Bool
+}
+
+extension PhotoHandOff {
+    public func openInEditor(_ url: URL) async -> Bool { false }
 }
 
 /// A host with nowhere to hand photos to.

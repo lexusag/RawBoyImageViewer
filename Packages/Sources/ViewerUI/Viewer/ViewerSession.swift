@@ -657,6 +657,7 @@ final class ViewerSession {
         // The editor reads the sidecar when it opens the photo: a rating, turn or crop made a moment ago goes first.
         Task {
             await culling.finishWrites()
+            if await ViewerHost.handOff.openInEditor(url) { return }
             if let app {
                 // The async variant, not a completion handler: a closure written here is @MainActor, and
                 // LaunchServices calls handlers on its own queue, where Swift's isolation check traps (macOS 27).

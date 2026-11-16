@@ -151,7 +151,7 @@ public final class AppModel {
     var viewerIsKey: Bool { viewer.isKey || compare.isKey }
 
     /// Compare [ids] (2–4); one photo is compared with the one after it in the browser.
-    func openCompare(_ ids: [String]) {
+    public func openCompare(_ ids: [String]) {
         guard let folder = browser.folder else { return }
         var ids = ids
         if ids.count == 1, let i = browser.visible.firstIndex(where: { $0.id == ids[0] }),
@@ -165,7 +165,7 @@ public final class AppModel {
     }
 
     /// ⌘Z: text editing in a text field, else the last rating or file move.
-    func undo() {
+    public func undo() {
         if NSApp.keyWindow?.firstResponder is NSTextView {
             NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
             return
@@ -178,7 +178,7 @@ public final class AppModel {
     }
 
     /// ⌘[ / ⌘]: the photo in the viewer, else the browser's selection.
-    func rotate(clockwise: Bool) {
+    public func rotate(clockwise: Bool) {
         if viewerIsKey {
             viewer.handle(.rotate(clockwise: clockwise))
         } else {
@@ -187,7 +187,7 @@ public final class AppModel {
     }
 
     /// ⌘⌫ and ⌦: the photo in the viewer, else the browser's selection.
-    func moveToTrash() {
+    public func moveToTrash() {
         if NSApp.keyWindow?.firstResponder is NSTextView {
             NSApp.sendAction(#selector(NSResponder.deleteToBeginningOfLine(_:)), to: nil, from: nil)
             return
@@ -463,7 +463,7 @@ public final class AppModel {
         return browserKey(event)
     }
 
-    func openFolderPanel() {
+    public func openFolderPanel() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = true

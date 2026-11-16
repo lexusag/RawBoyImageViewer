@@ -20,47 +20,7 @@ public struct ViewerCommands: Commands {
             Button("Move to Trash") { app.moveToTrash() }
                 .keyboardShortcut(.delete, modifiers: .command)
         }
-        CommandMenu("Photo") {
-            Button("Rotate Left") { app.rotate(clockwise: false) }
-                .keyboardShortcut("[")
-            Button("Rotate Right") { app.rotate(clockwise: true) }
-                .keyboardShortcut("]")
-            Button("Crop… (K, in the viewer)") { app.viewer.handle(.crop) }
-                .disabled(!app.viewer.isOpen)
-            Divider()
-            Button("Rename… (F2)") { app.rename() }
-                .disabled(app.browser.folder == nil)
-            Button("Export…") { app.perform(.export) }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
-            Button("Copy to Folder…") { app.perform(.copyTo) }
-            Button("Move to Folder…") { app.perform(.moveTo) }
-            Menu("Move to Recent Folder") {
-                ForEach(app.recentDestinations, id: \.self) { url in
-                    Button(url.lastPathComponent) {
-                        if let folder = app.browser.folder {
-                            app.copyOrMove(app.actionTargets, folder, move: true, to: url)
-                        }
-                    }
-                }
-            }
-            Button("Compare (C)") { app.openCompare(app.browser.ratingTargets) }
-            Button("Slideshow (S)") {
-                if let first = app.browser.ratingTargets.first ?? app.browser.visible.first?.id {
-                    app.openViewer(at: first)
-                    app.viewer.startSlideshow()
-                }
-            }
-            Divider()
-            Button("Copy Photo") { app.perform(.clipboard) }
-                .keyboardShortcut("c", modifiers: [.command, .option])
-            Button("Share…") { app.perform(.share) }
-            SendToMenu(app: app)
-            Button("Send to RawBoy Auto…") { app.perform(.sendToAuto(nil)) }
-                .keyboardShortcut("a", modifiers: [.command, .shift])
-                .disabled(!ViewerHost.handOff.canSendToAuto)
-            Divider()
-            Toggle("Go to the Next Photo After Rating", isOn: Bindable(app.culling).autoAdvance)
-        }
+        ViewerPhotoCommands(app: app)
         CommandGroup(after: .toolbar) {
             Button("Reload Folder") { app.browser.reload() }
                 .keyboardShortcut("r")
@@ -166,5 +126,66 @@ private struct EmbeddedViewer: NSViewRepresentable {
         root.frame = container.bounds
         root.autoresizingMask = [.width, .height]
         container.addSubview(root)
+    }
+}
+
+/// The viewer's Photo menu (rotate, rename, export, copy and move, compare, slideshow, share, send to Auto). A host
+/// with a "Photo" menu of its own gives another [title] and turns the items off [enabled] while its other modes show.
+public struct ViewerPhotoCommands: Commands {
+    let app: AppModel
+    let title: String
+    let enabled: Bool
+
+    public init(app: AppModel, title: String = "Photo", enabled: Bool = true) {
+        self.app = app
+        self.title = title
+        self.enabled = enabled
+    }
+
+    public var body: some Commands {
+        CommandMenu(title) {
+            Group {
+                Button("Rotate Left") { app.rotate(clockwise: false) }
+                    .keyboardShortcut("[")
+                Button("Rotate Right") { app.rotate(clockwise: true) }
+                    .keyboardShortcut("]")
+                Button("Crop… (K, in the viewer)") { app.viewer.handle(.crop) }
+                    .disabled(!app.viewer.isOpen)
+                Divider()
+                Button("Rename… (F2)") { app.rename() }
+                    .disabled(app.browser.folder == nil)
+                Button("Export…") { app.perform(.export) }
+                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                Button("Copy to Folder…") { app.perform(.copyTo) }
+                Button("Move to Folder…") { app.perform(.moveTo) }
+                Menu("Move to Recent Folder") {
+                    ForEach(app.recentDestinations, id: \.self) { url in
+                        Button(url.lastPathComponent) {
+                            if let folder = app.browser.folder {
+                                app.copyOrMove(app.actionTargets, folder, move: true, to: url)
+                            }
+                        }
+                    }
+                }
+                Button("Compare (C)") { app.openCompare(app.browser.ratingTargets) }
+                Button("Slideshow (S)") {
+                    if let first = app.browser.ratingTargets.first ?? app.browser.visible.first?.id {
+                        app.openViewer(at: first)
+                        app.viewer.startSlideshow()
+                    }
+                }
+                Divider()
+                Button("Copy Photo") { app.perform(.clipboard) }
+                    .keyboardShortcut("c", modifiers: [.command, .option])
+                Button("Share…") { app.perform(.share) }
+                SendToMenu(app: app)
+                Button("Send to RawBoy Auto…") { app.perform(.sendToAuto(nil)) }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                    .disabled(!ViewerHost.handOff.canSendToAuto)
+                Divider()
+                Toggle("Go to the Next Photo After Rating", isOn: Bindable(app.culling).autoAdvance)
+            }
+            .disabled(!enabled)
+        }
     }
 }

@@ -30,6 +30,10 @@ struct HostTests {
         let sent: Memory
         var editor: (name: String, url: URL?) { ("Pro", URL(fileURLWithPath: "/Apps/Pro.app")) }
         var canSendToAuto: Bool { true }
+        func openInEditor(_ url: URL) async -> Bool {
+            sent.values["editor"] = url.lastPathComponent
+            return true
+        }
         func sendToAuto(_ urls: [URL], as how: AutoImport) async throws {
             sent.values["urls"] = urls.map(\.lastPathComponent)
             sent.values["how"] = how.rawValue
@@ -95,6 +99,25 @@ struct HostTests {
         try await Task.sleep(for: .milliseconds(300))
         #expect(sent.values["urls"] as? [String] == ["a.DNG"])
         #expect(sent.values["how"] as? String == AutoImport.film.rawValue)
+    }
+
+    @Test func theEditorKeyOpensThePhotoInTheHostsOwnEditor() async throws {
+        let sent = Memory()
+        let old = ViewerHost.handOff
+        ViewerHost.handOff = RecordingHandOff(sent: sent)
+        defer { ViewerHost.handOff = old }
+        _ = NSApplication.shared
+        var options = ViewerOptions()
+        options.viewerInHostWindow = true
+        let app = withStore(Memory()) { AppModel(options: options) }
+        let dir = try photoFolder(["a.jpg"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        app.viewer.show(
+            folder: dir, groups: [PhotoGroup(stem: "a", main: "a.jpg", companions: [], sidecars: [])], at: 0)
+        app.viewer.handle(.openInEditor)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(sent.values["editor"] as? String == "a.jpg")
+        app.viewer.close()
     }
 
     private func photoFolder(_ names: [String]) throws -> URL {
