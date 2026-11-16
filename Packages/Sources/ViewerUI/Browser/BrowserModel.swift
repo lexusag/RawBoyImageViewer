@@ -404,7 +404,7 @@ final class BrowserModel {
     /// The Recent list as the sidebar shows it: pinned folders, then the latest others.
     var recentListed: [URL] { RecentFolders.listed(recent: recent, pinned: pinnedRecent) }
 
-    func isPinnedRecent(_ url: URL) -> Bool { pinnedRecent.contains(url.standardizedFileURL) }
+    func isPinnedRecent(_ url: URL) -> Bool { pinnedRecent.contains { RecentFolders.same($0, url) } }
 
     func togglePinnedRecent(_ url: URL) {
         pinnedRecent = RecentFolders.toggling(url, in: pinnedRecent)
