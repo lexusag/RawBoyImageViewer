@@ -181,6 +181,7 @@ private struct BrowserToolbar: View {
         .padding(.horizontal, DesignTokens.Spacing.md)
         .padding(.top, 34 / min(max(uiScale, 0.5), 2))  // under the window's traffic lights
         .padding(.bottom, 10)
+        .titleBarZoom()  // double-click expands the window, as on a title bar
     }
 
     private func summary(_ browser: BrowserModel) -> String {

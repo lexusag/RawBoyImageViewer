@@ -15,7 +15,7 @@ struct Sidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Fixed strip under the window's traffic lights (scaled back to real points), so nothing scrolls under them.
-            Color.clear.frame(height: 38 / min(max(uiScale, 0.5), 2))
+            Color.clear.frame(height: 38 / min(max(uiScale, 0.5), 2)).titleBarZoom()
             if pinFavourites {
                 let count = max(app.browser.favourites.count, 1)
                 PanelScroll { favourites }

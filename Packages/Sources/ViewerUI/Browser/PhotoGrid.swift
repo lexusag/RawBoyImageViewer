@@ -373,6 +373,9 @@ struct FolderMenu: View {
         Button("New Folder…") { app.newFolder(in: url) }
         SendToMenu(app: app, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        Divider()
+        Button("Copy Folder Name") { FolderCopy.copy(FolderCopy.name(of: url)) }
+        Button("Copy Folder Path") { FolderCopy.copy(FolderCopy.path(of: url)) }
         if let trash {
             Divider()
             Button("Move to Trash…", action: trash)
