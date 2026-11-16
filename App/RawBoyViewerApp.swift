@@ -67,7 +67,7 @@ struct RawBoyViewerApp: App {
                     .keyboardShortcut("c", modifiers: [.command, .option])
                 Button("Share…") { AppModel.shared.perform(.share) }
                 SendToMenu(app: AppModel.shared)
-                Button("Send to RawBoy Auto") { AppModel.shared.perform(.sendToAuto) }
+                Button("Send to RawBoy Auto…") { AppModel.shared.perform(.sendToAuto(nil)) }
                     .keyboardShortcut("a", modifiers: [.command, .shift])
                     .disabled(SendToApps.rawBoyDesktop == nil)
                 Divider()
