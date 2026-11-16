@@ -77,7 +77,7 @@ struct ActionMenu: View {
                     ActionRow(icon: "square.and.arrow.up", title: "Share…", key: nil) { model.send(.file(.share)) }
                     if SendToApps.rawBoyDesktop != nil {
                         ActionRow(icon: "wand.and.stars", title: "Send to RawBoy Auto", key: "⇧⌘A") {
-                            model.send(.file(.sendToAuto))
+                            model.send(.file(.sendToAuto(nil)))
                         }
                     }
                     ForEach(SendToApps.apps, id: \.self) { target in

@@ -1,10 +1,37 @@
+import Foundation
+
 /// What can be done with photos' files (the app decides how: sheets, panels, the system's share menu).
 public enum FileAction: Equatable, Sendable {
     case export, copyTo, moveTo, clipboard, share
     /// Open in the app at this path (Send to).
     case sendTo(String)
-    /// Add to RawBoy Desktop's Auto batch.
-    case sendToAuto
+    /// Add to RawBoy Desktop's Auto batch as Looks, Film or As is; nil asks.
+    case sendToAuto(AutoImport?)
+}
+
+/// How RawBoy Auto takes photos sent to it (its "New photos" choice): a film LUT on the automatic develop, developed as
+/// film, or as they are (no automatic edits; raws get only their measured denoise).
+public enum AutoImport: String, CaseIterable, Equatable, Sendable {
+    case looks, film, plain
+
+    public var label: String {
+        switch self {
+        case .looks: "Looks"
+        case .film: "Film"
+        case .plain: "As is"
+        }
+    }
+
+    /// RawBoy Desktop's link for adding [paths] (photos and folders) to Auto's batch this way:
+    /// `rawboy-desktop://auto?as=film&path=/a/b.RAF&path=…`.
+    public func link(_ paths: [String]) -> URL? {
+        var link = URLComponents()
+        link.scheme = "rawboy-desktop"
+        link.host = "auto"
+        link.queryItems =
+            [URLQueryItem(name: "as", value: rawValue)] + paths.map { URLQueryItem(name: "path", value: $0) }
+        return link.url
+    }
 }
 
 /// What the viewer can be asked to do, whatever the input (keys, mouse, trackpad, touch, a panel's button). Each

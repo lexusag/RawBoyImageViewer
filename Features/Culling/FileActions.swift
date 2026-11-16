@@ -29,7 +29,7 @@ extension AppModel {
         case .moveTo: copyOrMove(ids, folder, move: true, to: nil)
         case .clipboard: copyToClipboard(ids, folder)
         case .share: share(ids, folder)
-        case .sendToAuto: sendToAuto(ids.map { folder.appendingPathComponent($0) })
+        case .sendToAuto(let how): sendToAuto(ids.map { folder.appendingPathComponent($0) }, as: how)
         case .sendTo(let path): send(ids.map { folder.appendingPathComponent($0) }, to: URL(fileURLWithPath: path))
         }
     }
@@ -413,23 +413,41 @@ extension AppModel {
         }
     }
 
-    /// Adds photos to RawBoy Desktop's Auto batch. Pending ratings and turns are written first, as Auto reads sidecars.
-    func sendToAuto(_ urls: [URL]) {
+    /// Adds photos to RawBoy Desktop's Auto batch as Looks, Film or As is ([how]; nil asks, the last choice first).
+    /// Pending ratings and turns are written first, as Auto reads sidecars.
+    func sendToAuto(_ urls: [URL], as how: AutoImport? = nil) {
         guard !urls.isEmpty else { return }
         guard let app = SendToApps.rawBoyDesktop else {
             say("RawBoy Desktop isn't installed")
             return
         }
+        guard let how = how ?? askAutoImport(count: urls.count) else { return }
+        SendToApps.lastAutoImport = how
         Task { @MainActor in
             await culling.finishWrites()
             do {
-                try await SendToApps.sendToAuto(urls, app: app)
+                try await SendToApps.sendToAuto(urls, as: how, app: app)
                 let what = urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) photos"
-                say("Sent \(what) to RawBoy Auto")
+                say("Sent \(what) to RawBoy Auto as \(how.label)")
             } catch {
                 say("Couldn't open RawBoy Desktop")
             }
         }
+    }
+
+    /// ⇧⌘A and the panel's button: Looks, Film or As is, the last one chosen as the default button.
+    private func askAutoImport(count: Int) -> AutoImport? {
+        let alert = NSAlert()
+        alert.messageText = count == 1 ? "Send 1 photo to RawBoy Auto" : "Send \(count) photos to RawBoy Auto"
+        alert.informativeText =
+            "Looks: developed automatically with a film look. Film: developed as film. "
+            + "As is: no automatic edits (raws get only their measured denoise)."
+        let last = SendToApps.lastAutoImport
+        let order = [last] + AutoImport.allCases.filter { $0 != last }
+        for how in order { alert.addButton(withTitle: how.label) }
+        alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+        let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        return order.indices.contains(index) ? order[index] : nil
     }
 
     private func share(_ ids: [String], _ folder: URL) {

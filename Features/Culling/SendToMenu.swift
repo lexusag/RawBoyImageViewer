@@ -1,3 +1,4 @@
+import RawBoyBrowseKit
 import SwiftUI
 
 /// "Send to ▸": the apps from Settings, for the photos in [ids], or for a folder when [folder] is set.
@@ -19,11 +20,16 @@ struct SendToMenu: View {
                 }
             }
             if SendToApps.rawBoyDesktop != nil {
-                Button("RawBoy Auto") {
-                    if let folder {
-                        app.sendToAuto([folder])
-                    } else if let base = app.browser.folder {
-                        app.sendToAuto((ids ?? app.actionTargets).map { base.appendingPathComponent($0) })
+                Menu("RawBoy Auto") {
+                    ForEach(AutoImport.allCases, id: \.self) { how in
+                        Button(how.label) {
+                            if let folder {
+                                app.sendToAuto([folder], as: how)
+                            } else if let base = app.browser.folder {
+                                let urls = (ids ?? app.actionTargets).map { base.appendingPathComponent($0) }
+                                app.sendToAuto(urls, as: how)
+                            }
+                        }
                     }
                 }
             }
