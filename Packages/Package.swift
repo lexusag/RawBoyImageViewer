@@ -14,12 +14,17 @@ let package = Package(
         .library(name: "RawBoyBrowseKit", targets: ["RawBoyBrowseKit"]),
         .library(name: "ViewerImaging", targets: ["ViewerImaging"]),
         .library(name: "ViewerFiles", targets: ["ViewerFiles"]),
+        .library(name: "ViewerUI", targets: ["ViewerUI"]),
     ],
     targets: [
         .target(name: "RawBoyBrowseKit", swiftSettings: optimised),
         .target(name: "ViewerImaging", dependencies: ["RawBoyBrowseKit"], swiftSettings: optimised),
         .target(name: "ViewerFiles", dependencies: ["RawBoyBrowseKit"], swiftSettings: optimised),
         // Fixtures/Xmp is read from the source tree (shared with RawBoy's engine tests), not bundled.
+        // The browser, viewer, compare and culling screens (SwiftUI/AppKit), without the app shell: no engine code.
+        .target(
+            name: "ViewerUI", dependencies: ["RawBoyBrowseKit", "ViewerFiles", "ViewerImaging"],
+            swiftSettings: optimised),
         .testTarget(name: "RawBoyBrowseKitTests", dependencies: ["RawBoyBrowseKit"], exclude: ["Fixtures"]),
         .testTarget(name: "ViewerImagingTests", dependencies: ["ViewerImaging"]),
         .testTarget(name: "ViewerFilesTests", dependencies: ["ViewerFiles"]),

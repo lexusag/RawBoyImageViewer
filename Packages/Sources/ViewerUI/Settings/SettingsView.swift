@@ -40,7 +40,7 @@ struct SettingsView: View {
     @AppStorage(CullingStore.Keys.trashPhotosWithoutAsking) private var trashPhotosWithoutAsking = false
     @State private var cacheSize: Int64 = 0
     @State private var sendApps = SendToApps.apps
-    @State private var autoUpdate = Updater.shared.checksAutomatically
+    @State private var autoUpdate = HostInfo.updater?.checksAutomatically ?? false
 
     var body: some View {
         Form {
@@ -73,10 +73,12 @@ struct SettingsView: View {
                 Toggle("Develop raws (real preview, R)", isOn: Bindable(app.viewer.model).realPreview)
                 Toggle("Go to the next photo after rating", isOn: Bindable(app.culling).autoAdvance)
             }
-            Section("Updates") {
-                Toggle("Check for updates automatically", isOn: $autoUpdate)
-                    .onChange(of: autoUpdate) { _, on in Updater.shared.checksAutomatically = on }
-                Button("Check Now") { Updater.shared.checkForUpdates() }
+            if let updater = HostInfo.updater {
+                Section("Updates") {
+                    Toggle("Check for updates automatically", isOn: $autoUpdate)
+                        .onChange(of: autoUpdate) { _, on in updater.checksAutomatically = on }
+                    Button("Check Now") { updater.checkForUpdates() }
+                }
             }
             Section("Files") {
                 LabeledContent("External editor (E)") {

@@ -7,12 +7,12 @@ import ViewerFiles
 /// App-wide state shared by the browser and the viewer.
 @MainActor
 @Observable
-final class AppModel {
+public final class AppModel {
     /// The grid items being dragged to a folder in Places (see `beginDrag`).
     var drag: DragSet?
     /// The export running now, or the last one until it is dismissed.
     var exportJob: ExportJob?
-    static let shared = AppModel()
+    public static let shared = AppModel()
 
     let culling = CullingStore()
     let browser: BrowserModel
@@ -59,7 +59,7 @@ final class AppModel {
 
     /// Opens what Finder, a drop or the Open dialog handed over: a folder in the browser, a photo in the viewer (with
     /// its folder in the browser behind it).
-    func open(_ url: URL) {
+    public func open(_ url: URL) {
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
         if isDirectory.boolValue {
@@ -340,7 +340,7 @@ final class AppModel {
     }
 
     /// The browser's rating keys (by physical key, as the viewer's): 1–5, 0, P, X, U on the selection.
-    func browserKey(_ event: NSEvent) -> Bool {
+    public func browserKey(_ event: NSEvent) -> Bool {
         // ⌦ (Fn-⌫ on a laptop) trashes the selection; plain ⌫ goes up a folder. Here rather than in the views, so it
         // works whichever view (grid, list, preview) has the focus. ⌘⌫ is the menu's.
         if !viewerIsKey, event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
@@ -392,6 +392,19 @@ final class AppModel {
         }
         return true
     }
+
+    /// Back in the folder the last session left, when Settings say so and nothing else was opened.
+    public func openLastFolderIfWanted() {
+        if SettingsKeys.opensLastFolder, browser.folder == nil, let last = BrowserModel.lastFolder {
+            browser.load(last)
+        }
+    }
+
+    /// Ratings still waiting to be written go to disk now (quitting).
+    public func writePendingNow() { culling.writePendingNow() }
+
+    /// Whether [window] is a viewer or Compare window (the screen-filling ones), not the browser.
+    public static func isViewerWindow(_ window: NSWindow?) -> Bool { window is ViewerWindow }
 
     func openFolderPanel() {
         let panel = NSOpenPanel()

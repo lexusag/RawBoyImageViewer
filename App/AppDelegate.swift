@@ -1,4 +1,5 @@
 import AppKit
+import ViewerUI
 
 /// Opens what Finder hands over ("Open With", dropping on the Dock icon) and paths given on the command line.
 ///
@@ -10,7 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pending: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        _ = MainActor.assumeIsolated { Updater.shared }
+        MainActor.assumeIsolated {
+            HostInfo.updater = Updater.shared
+            HostInfo.versionLine = AppVersion.line
+        }
         // The browser's rating keys, by physical key (SwiftUI's key presses are characters, Cyrillic on a Ukrainian
         // layout).
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -40,11 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ready = true
             if let url = pending.first {
                 AppModel.shared.open(url)
-            } else if SettingsKeys.opensLastFolder, AppModel.shared.browser.folder == nil,
-                let last = BrowserModel.lastFolder
-            {
+            } else {
                 // Back where the last session left off, as RawBoy Browser does.
-                AppModel.shared.browser.load(last)
+                AppModel.shared.openLastFolderIfWanted()
             }
             pending = []
         }
@@ -64,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Ratings still waiting to be written go to disk first. Synchronously: while termination waits
     /// (`.terminateLater`) AppKit runs its own event loop, where main-actor tasks never run, and quitting hung.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        MainActor.assumeIsolated { AppModel.shared.culling.writePendingNow() }
+        MainActor.assumeIsolated { AppModel.shared.writePendingNow() }
         return .terminateNow
     }
 
@@ -72,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func waitForBrowserWindow() async {
         for _ in 0..<50 {
-            if let key = NSApp.keyWindow, !(key is ViewerWindow), key.isVisible { return }
+            if let key = NSApp.keyWindow, !AppModel.isViewerWindow(key), key.isVisible { return }
             try? await Task.sleep(for: .milliseconds(20))
         }
     }
