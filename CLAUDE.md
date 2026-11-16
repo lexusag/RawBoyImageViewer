@@ -126,8 +126,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   SwiftPM needs one at the root of a git dependency: RawBoy Desktop depends on this repository by tag (`from: 0.2.1`;
   a tag has to include the root manifest, so v0.2.0 can't be pinned). Change both together: `tools/check-root-package.sh`
   (CI) compares targets, products, dependencies and platforms. A checkout fetched from git gets no `-O` (SwiftPM forbids
-  `unsafeFlags` there: the root manifest tests `Context.packageDirectory` for `/checkouts/`); the consumer sets
-  SWIFT_OPTIMIZATION_LEVEL. `swift build` at the root builds what a dependant sees.
+  `unsafeFlags` there: the root manifest tests `Context.packageDirectory` for `/checkouts/`); so a consumer's Debug
+  build runs the libraries unoptimised (Release is fine; a path dependency keeps `-O`). `swift build` at the root builds what a dependant sees.
 - `swift test --package-path Packages`: unit tests (Swift Testing). `ViewerUITests` run `AppModel`s with a prefixed
   store, a fake hand-off and the viewer inside an `NSWindow`; they change `ViewerSettings.store` / `ViewerHost`, so they run serially.
 - `xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer build`: the app.

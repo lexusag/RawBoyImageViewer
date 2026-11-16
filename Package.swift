@@ -9,8 +9,9 @@ import PackageDescription
 //
 // Optimisation: Packages/Package.swift builds the libraries with `-O` even in Debug (pixel loops are ~10x slower
 // otherwise). SwiftPM forbids `unsafeFlags` in a dependency fetched from git, so a checkout (`.build/checkouts`,
-// SourcePackages/checkouts) gets none: the consuming project sets SWIFT_OPTIMIZATION_LEVEL itself (RawBoy's project.yml
-// does). A local `.package(path:)` dependency, as in development, keeps the flag.
+// SourcePackages/checkouts) gets none, and Xcode builds package targets unoptimised in Debug whatever the consuming
+// project sets (measured: -Onone with a project-level SWIFT_OPTIMIZATION_LEVEL). Release builds are optimised. A local
+// `.package(path:)` dependency, as in development, keeps the flag. Follow-up: `@_optimize(speed)` on the hot loops.
 let isCheckout = Context.packageDirectory.contains("/checkouts/")
 let optimised: [SwiftSetting] = isCheckout ? [] : [.unsafeFlags(["-O"])]
 
