@@ -82,7 +82,7 @@ private struct Filmstrip: View {
         ScrollViewReader { proxy in
             PanelScroll(axis: .horizontal) {
                 LazyHStack(spacing: 6) {
-                    ForEach(Array(model.groups.enumerated()), id: \.offset) { offset, group in
+                    ForEach(Array(model.groups.enumerated()), id: \.element.main) { offset, group in
                         FilmstripCell(
                             url: model.url(of: group), isRaw: PhotoFileType(fileName: group.main) == .raw,
                             isCurrent: offset == model.index, rating: model.culling.rating(group.main),
@@ -90,16 +90,18 @@ private struct Filmstrip: View {
                             crop: model.culling.crop(group.main),
                             store: model.thumbnails
                         )
-                        .id(offset)
+                        .id(group.main)
                         .onTapGesture { model.send(.go(to: offset)) }
                     }
                 }
                 .padding(.horizontal, DesignTokens.Spacing.sm)
             }
             .frame(height: 76)
-            .onAppear { proxy.scrollTo(model.index, anchor: .center) }
-            .onChange(of: model.index) { _, index in
-                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(index, anchor: .center) }
+            .onAppear {
+                if let id = model.current?.main { proxy.scrollTo(id, anchor: .center) }
+            }
+            .onChange(of: model.current?.main) { _, id in
+                if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) } }
             }
         }
     }

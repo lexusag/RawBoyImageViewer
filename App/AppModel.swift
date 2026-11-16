@@ -44,6 +44,11 @@ final class AppModel {
             self?.browser.foldersChanged()
         }
         browser.onLoad = { [weak self] folder in self?.watch(folder) }
+        browser.onOrderChanged = { [weak self] in
+            guard let self else { return }
+            if viewer.isOpen { viewer.replace(groups: browser.visible.map(\.group)) }
+            if compare.isOpen { compare.replace(order: browser.visible.map(\.group)) }
+        }
         viewer.onClose = { [weak self] current in
             // Back in the browser on the photo the viewer showed last.
             if let current { self?.browser.select(current) }
@@ -88,7 +93,14 @@ final class AppModel {
     /// left (or is back).
     func folderContentsChanged() {
         browser.reload()
-        if viewer.isOpen { viewer.replace(groups: browser.visible.map(\.group)) }
+        if viewer.isOpen {
+            viewer.replace(groups: browser.visible.map(\.group))
+            if let current = viewer.model.current?.main { browser.select(current) }
+        }
+        if compare.isOpen {
+            compare.replace(order: browser.visible.map(\.group))
+            if let current = compare.chosenID { browser.select(current) }
+        }
     }
 
     /// Watches the open folder, so changes made elsewhere (new photos, darktable or RawBoy Web rating) show up here.
@@ -174,7 +186,7 @@ final class AppModel {
             return
         }
         if viewerIsKey {
-            viewer.handle(.moveToTrash)
+            if viewer.isOpen { viewer.handle(.moveToTrash) } else { compare.handle(.moveToTrash) }
         } else {
             // Only what is selected: with nothing selected, the anchor isn't something to delete.
             guard !browser.selection.isEmpty else { return }
@@ -279,6 +291,13 @@ final class AppModel {
             if alert.suppressionButton?.state == .on {
                 defaults.set(true, forKey: CullingStore.Keys.trashPhotosWithoutAsking)
             }
+        }
+        let trashedIDs = Set(ids + folders.map(GridEntry.folderID))
+        if browser.selection.isDisjoint(with: trashedIDs),
+            let first = ids.first ?? folders.first.map(GridEntry.folderID)
+        {
+            browser.selection = trashedIDs
+            browser.anchor = first
         }
         Task {
             await culling.moveToTrash(ids, syncedNoticeShown: !skip)

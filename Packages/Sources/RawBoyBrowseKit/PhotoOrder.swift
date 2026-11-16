@@ -49,4 +49,80 @@ public enum PhotoOrder {
         let first = sort == .date ? byDate : byName
         return (first != .orderedSame ? first : (sort == .date ? byName : byDate)) == .orderedAscending
     }
+
+    /// The photo to show when [previous] (at [index], [current]) becomes [remaining]: [current] when it is still
+    /// there, else the first photo from [index] onwards in [previous] that remains, else the last one before [index].
+    public static func nextAfterRemoval(
+        previous: [String], remaining: [String], current: String?, index: Int
+    ) -> String? {
+        guard !remaining.isEmpty else { return nil }
+        let kept = Set(remaining)
+        if let current, kept.contains(current) { return current }
+        if previous.indices.contains(index) {
+            if let next = previous[index...].first(where: { kept.contains($0) }) { return next }
+            if let before = previous[..<index].last(where: { kept.contains($0) }) { return before }
+        }
+        return remaining[min(max(index, 0), remaining.count - 1)]
+    }
+
+    /// The browser's selection and anchor after the folder or filter changes: what remains of [selection], or, when
+    /// all of it was removed, the next photo (or item) after where the selection stood.
+    public static func selectionAfterRemoval(
+        previousPhotos: [String],
+        remainingPhotos: [String],
+        previousItems: [String] = [],
+        remainingItems: [String] = [],
+        selection: Set<String>,
+        anchor: String?
+    ) -> (selection: Set<String>, anchor: String?) {
+        let prevItems = previousItems.isEmpty ? previousPhotos : previousItems
+        let remItems = remainingItems.isEmpty ? remainingPhotos : remainingItems
+        let keptItems = Set(remItems)
+        let keptPhotos = Set(remainingPhotos)
+
+        if !selection.isEmpty {
+            let surviving = selection.intersection(keptItems)
+            if !surviving.isEmpty {
+                let newAnchor =
+                    anchor.flatMap { surviving.contains($0) ? $0 : nil }
+                    ?? remItems.first { surviving.contains($0) }
+                return (surviving, newAnchor)
+            }
+            let photoStart =
+                anchor.flatMap { previousPhotos.firstIndex(of: $0) }
+                ?? previousPhotos.firstIndex { selection.contains($0) }
+            if let photoStart {
+                if let next = previousPhotos[photoStart...].first(where: { keptPhotos.contains($0) })
+                    ?? previousPhotos[..<photoStart].last(where: { keptPhotos.contains($0) })
+                    ?? remainingPhotos.first
+                {
+                    return ([next], next)
+                }
+                return ([], remItems.first)
+            }
+            let itemStart =
+                anchor.flatMap { prevItems.firstIndex(of: $0) }
+                ?? prevItems.firstIndex { selection.contains($0) }
+            if let itemStart,
+                let next = prevItems[itemStart...].first(where: { keptItems.contains($0) })
+                    ?? prevItems[..<itemStart].last(where: { keptItems.contains($0) })
+            {
+                return ([next], next)
+            }
+            return ([], remainingPhotos.first ?? remItems.first)
+        }
+
+        if let anchor {
+            if keptItems.contains(anchor) {
+                return ([], anchor)
+            }
+            if let photoStart = previousPhotos.firstIndex(of: anchor),
+                let next = previousPhotos[photoStart...].first(where: { keptPhotos.contains($0) })
+                    ?? previousPhotos[..<photoStart].last(where: { keptPhotos.contains($0) })
+            {
+                return ([], next)
+            }
+        }
+        return ([], remainingPhotos.first ?? remItems.first)
+    }
 }

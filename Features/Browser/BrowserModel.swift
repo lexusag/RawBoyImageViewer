@@ -135,7 +135,21 @@ final class BrowserModel {
 
     /// Ratings changed: a rating filter may show other photos now.
     func ratingsChanged() {
-        if isRatingFiltered { reorder() }
+        guard isRatingFiltered else { return }
+        let oldVisible = visible.map(\.id)
+        let oldItems = selectableIDs
+        let oldSelection = selection
+        let oldAnchor = anchor
+        reorder()
+        applySelectionAfterChange(
+            oldVisible: oldVisible, oldItems: oldItems, oldSelection: oldSelection, oldAnchor: oldAnchor)
+    }
+
+    private var selectableIDs: [String] {
+        items.compactMap { entry -> String? in
+            if case .parent = entry { return nil }
+            return entry.id
+        }
     }
 
     /// The photos a rating key acts on: the selected ones in grid order, else the one at the anchor.
@@ -197,6 +211,13 @@ final class BrowserModel {
     /// to select (and scroll to), [selectID] a grid entry's id.
     func load(_ folder: URL, select: String? = nil, selectID: String? = nil) {
         let folder = folder.standardizedFileURL
+        let sameFolder = folder == self.folder
+        let knownDates: [String: (modified: Date?, date: String)] =
+            sameFolder
+            ? Dictionary(
+                photos.compactMap { photo in photo.date.map { (photo.id, (photo.modified, $0)) } },
+                uniquingKeysWith: { a, _ in a })
+            : [:]
         generation += 1
         let generation = generation
         self.folder = folder
@@ -207,34 +228,59 @@ final class BrowserModel {
             let byName = Dictionary(files.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { a, _ in a })
             photos = PhotoGroups.group(files.map(\.url.lastPathComponent) + sidecars).compactMap { group in
                 guard let file = byName[group.main] else { return nil }
+                let date = knownDates[group.main].flatMap { $0.modified == file.modified ? $0.date : nil }
                 return BrowsePhoto(
                     group: group, url: file.url, isRaw: file.type == .raw, size: file.size, modified: file.modified,
-                    isOnlineOnly: file.isOnlineOnly, date: nil)
+                    isOnlineOnly: file.isOnlineOnly, date: date)
             }
         } catch {
             photos = []
             loadError = "Can't read \(folder.lastPathComponent): \(error.localizedDescription)"
         }
         subfolders = FolderScanner.subfolders(of: folder)
-        let wanted = select.map { PhotoGroups.stem(of: $0).lowercased() }
-        let selected = selectID ?? wanted.flatMap { w in photos.first { $0.group.stem.lowercased() == w }?.id }
-        selection = selected.map { [$0] } ?? []
-        anchor = selected ?? photos.first?.id
         culling.load(folder: folder, groups: photos.map(\.group))
         reorder()
+        let ids = Set(items.map(\.id))
+        let wanted = select.map { PhotoGroups.stem(of: $0).lowercased() }
+        let selected =
+            selectID.flatMap { ids.contains($0) ? $0 : nil }
+            ?? wanted.flatMap { w in visible.first { $0.group.stem.lowercased() == w }?.id }
+            ?? wanted.flatMap { w in photos.first { $0.group.stem.lowercased() == w }?.id }
+        selection = selected.map { [$0] } ?? []
+        anchor = selected ?? visible.first?.id ?? items.first?.id
         scrollRequest += 1
         remember(folder)
         onLoad?(folder)
         readDates(generation)
     }
 
-    /// Reads the folder again, keeping the selection (what is still there of it) and the scroll position's photo.
+    /// Reads the folder again, keeping the selection (what is still there of it, else the next photo) and the scroll
+    /// position's photo.
     func reload() {
         guard let folder else { return }
-        let kept = selection
+        let oldVisible = visible.map(\.id)
+        let oldItems = selectableIDs
+        let oldSelection = selection
+        let oldAnchor = anchor
         load(folder, selectID: anchor)
-        let ids = Set(items.map(\.id))
-        selection = kept.intersection(ids).isEmpty ? selection : kept.intersection(ids)
+        applySelectionAfterChange(
+            oldVisible: oldVisible, oldItems: oldItems, oldSelection: oldSelection, oldAnchor: oldAnchor)
+    }
+
+    private func applySelectionAfterChange(
+        oldVisible: [String], oldItems: [String], oldSelection: Set<String>, oldAnchor: String?
+    ) {
+        let after = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: oldVisible,
+            remainingPhotos: visible.map(\.id),
+            previousItems: oldItems,
+            remainingItems: selectableIDs,
+            selection: oldSelection,
+            anchor: oldAnchor
+        )
+        selection = after.selection
+        anchor = after.anchor
+        scrollRequest += 1
     }
 
     /// Something outside the app may have made or removed folders: the Places tree rereads (no folder is opened).
@@ -256,6 +302,8 @@ final class BrowserModel {
 
     /// A folder was loaded (the app watches it).
     var onLoad: ((URL) -> Void)?
+    /// Capture dates were read and the folder reordered.
+    var onOrderChanged: (() -> Void)?
 
     private func remember(_ folder: URL) {
         UserDefaults.standard.set(folder.path, forKey: Keys.last)
@@ -266,8 +314,11 @@ final class BrowserModel {
     /// Capture dates, read in the background (headers only; online-only files get their file date, since reading them
     /// would download them), then one reorder.
     private func readDates(_ generation: Int) {
-        let items = photos.map { ($0.id, $0.url, $0.isOnlineOnly, $0.modified) }
-        guard !items.isEmpty else { return }
+        let items = photos.filter { $0.date == nil }.map { ($0.id, $0.url, $0.isOnlineOnly, $0.modified) }
+        guard !items.isEmpty else {
+            isLoading = false
+            return
+        }
         isLoading = true
         Task.detached(priority: .userInitiated) {
             let dates = await withTaskGroup(of: (String, String?).self) { group in
@@ -290,9 +341,14 @@ final class BrowserModel {
             }
             await MainActor.run {
                 guard generation == self.generation else { return }
-                for i in self.photos.indices { self.photos[i].date = dates[self.photos[i].id] }
+                let wasFirstAnchor = self.selection.isEmpty && self.anchor == self.visible.first?.id
+                for i in self.photos.indices where self.photos[i].date == nil {
+                    self.photos[i].date = dates[self.photos[i].id]
+                }
                 self.isLoading = false
                 self.reorder()
+                if wasFirstAnchor { self.anchor = self.visible.first?.id ?? self.items.first?.id }
+                self.onOrderChanged?()
             }
         }
     }
