@@ -26,6 +26,7 @@ let package = Package(
             name: "ViewerUI", dependencies: ["RawBoyBrowseKit", "ViewerFiles", "ViewerImaging"],
             swiftSettings: optimised),
         .testTarget(name: "RawBoyBrowseKitTests", dependencies: ["RawBoyBrowseKit"], exclude: ["Fixtures"]),
+        .testTarget(name: "ViewerUITests", dependencies: ["ViewerUI"]),
         .testTarget(name: "ViewerImagingTests", dependencies: ["ViewerImaging"]),
         .testTarget(name: "ViewerFilesTests", dependencies: ["ViewerFiles"]),
     ]
