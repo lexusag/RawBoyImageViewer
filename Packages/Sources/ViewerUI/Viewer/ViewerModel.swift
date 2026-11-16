@@ -58,18 +58,6 @@ final class ViewerModel {
             let url = URL(fileURLWithPath: path)
             return (url.deletingPathExtension().lastPathComponent, url)
         }
-        return Self.installedEditor
+        return ViewerHost.handOff.editor
     }
-
-    /// Bundle ids tried in order: RawBoy Desktop, then darktable.
-    static let editorBundleIds = ["app.rawboy.desktop", "org.darktable.darktable", "org.darktable"]
-
-    private static let installedEditor: (name: String, url: URL?) = {
-        for id in editorBundleIds {
-            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
-                return (url.deletingPathExtension().lastPathComponent, url)
-            }
-        }
-        return ("default app", nil)
-    }()
 }

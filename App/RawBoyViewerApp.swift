@@ -1,9 +1,20 @@
 import SwiftUI
+import ViewerImaging
 import ViewerUI
 
 @main
 struct RawBoyViewerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    /// What the screens take from this app, before the first of them (`AppModel.shared`) is made.
+    init() {
+        MainActor.assumeIsolated {
+            ViewerHost.updater = Updater.shared
+            ViewerHost.versionLine = AppVersion.line
+            ViewerHost.handOff = DesktopHandOff()
+            ViewerHost.realPreview = CoreImageRealPreview()
+        }
+    }
 
     var body: some Scene {
         // One browser window (Window, not WindowGroup): opening files from Finder must not spawn new ones.

@@ -57,7 +57,7 @@ public struct ViewerCommands: Commands {
             SendToMenu(app: AppModel.shared)
             Button("Send to RawBoy Auto…") { AppModel.shared.perform(.sendToAuto(nil)) }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
-                .disabled(SendToApps.rawBoyDesktop == nil)
+                .disabled(!ViewerHost.handOff.canSendToAuto)
             Divider()
             Toggle("Go to the Next Photo After Rating", isOn: Bindable(AppModel.shared.culling).autoAdvance)
         }

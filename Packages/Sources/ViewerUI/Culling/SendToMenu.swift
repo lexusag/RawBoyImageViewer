@@ -19,7 +19,7 @@ struct SendToMenu: View {
                     }
                 }
             }
-            if SendToApps.rawBoyDesktop != nil {
+            if ViewerHost.handOff.canSendToAuto {
                 Menu("RawBoy Auto") {
                     ForEach(AutoImport.allCases, id: \.self) { how in
                         Button(how.label) {

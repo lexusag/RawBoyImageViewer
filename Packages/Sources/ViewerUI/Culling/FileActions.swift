@@ -426,7 +426,7 @@ extension AppModel {
     /// Pending ratings and turns are written first, as Auto reads sidecars.
     func sendToAuto(_ urls: [URL], as how: AutoImport? = nil) {
         guard !urls.isEmpty else { return }
-        guard let app = SendToApps.rawBoyDesktop else {
+        guard ViewerHost.handOff.canSendToAuto else {
             say("RawBoy Desktop isn't installed")
             return
         }
@@ -435,7 +435,7 @@ extension AppModel {
         Task { @MainActor in
             await culling.finishWrites()
             do {
-                try await SendToApps.sendToAuto(urls, as: how, app: app)
+                try await ViewerHost.handOff.sendToAuto(urls, as: how)
                 let what = urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) photos"
                 say("Sent \(what) to RawBoy Auto as \(how.label)")
             } catch {

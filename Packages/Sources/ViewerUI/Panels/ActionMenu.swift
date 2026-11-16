@@ -75,7 +75,7 @@ struct ActionMenu: View {
                     }
                     ActionRow(icon: "doc.on.doc", title: "Copy photo", key: "⌥⌘C") { model.send(.file(.clipboard)) }
                     ActionRow(icon: "square.and.arrow.up", title: "Share…", key: nil) { model.send(.file(.share)) }
-                    if SendToApps.rawBoyDesktop != nil {
+                    if ViewerHost.handOff.canSendToAuto {
                         ActionRow(icon: "wand.and.stars", title: "Send to RawBoy Auto", key: "⇧⌘A") {
                             model.send(.file(.sendToAuto(nil)))
                         }

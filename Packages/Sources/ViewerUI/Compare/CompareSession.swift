@@ -12,7 +12,7 @@ import ViewerImaging
 final class CompareSession {
     private let culling: CullingStore
     private var controller: CompareWindowController?
-    private let store = ImageStore(budget: 800_000_000)
+    private let store = ImageStore(budget: 800_000_000, realPreview: ViewerHost.realPreview)
     private var folder: URL?
     /// The browser's photos, for the challengers.
     private var order: [PhotoGroup] = []

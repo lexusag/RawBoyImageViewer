@@ -11,10 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pending: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        MainActor.assumeIsolated {
-            HostInfo.updater = Updater.shared
-            HostInfo.versionLine = AppVersion.line
-        }
+        _ = MainActor.assumeIsolated { Updater.shared }
         // The browser's rating keys, by physical key (SwiftUI's key presses are characters, Cyrillic on a Ukrainian
         // layout).
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in

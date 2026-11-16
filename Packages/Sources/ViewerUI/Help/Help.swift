@@ -106,11 +106,11 @@ struct HelpView: View {
         PanelScroll {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                 // The version first: what people look for in Help when they report something.
-                Text(HostInfo.versionLine)
+                Text(ViewerHost.versionLine)
                     .font(Theme.label)
                     .foregroundStyle(Theme.ashMuted)
                     .textSelection(.enabled)
-                    .accessibilityLabel("Version: \(HostInfo.versionLine)")
+                    .accessibilityLabel("Version: \(ViewerHost.versionLine)")
                 Text("Keys and gestures")
                     .font(Theme.display)
                     .foregroundStyle(Theme.paperWhite)

@@ -17,7 +17,7 @@ final class ViewerSession {
         set { model.index = newValue }
     }
 
-    private let store = ImageStore()
+    private let store = ImageStore(realPreview: ViewerHost.realPreview)
     private var controller: ViewerWindowController?
     private var forward = true
     /// Bumped on every navigation: loads that finish for an older photo are dropped.

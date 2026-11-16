@@ -41,7 +41,7 @@ struct SettingsView: View {
         false
     @State private var cacheSize: Int64 = 0
     @State private var sendApps = SendToApps.apps
-    @State private var autoUpdate = HostInfo.updater?.checksAutomatically ?? false
+    @State private var autoUpdate = ViewerHost.updater?.checksAutomatically ?? false
 
     var body: some View {
         Form {
@@ -74,7 +74,7 @@ struct SettingsView: View {
                 Toggle("Develop raws (real preview, R)", isOn: Bindable(app.viewer.model).realPreview)
                 Toggle("Go to the next photo after rating", isOn: Bindable(app.culling).autoAdvance)
             }
-            if let updater = HostInfo.updater {
+            if let updater = ViewerHost.updater {
                 Section("Updates") {
                     Toggle("Check for updates automatically", isOn: $autoUpdate)
                         .onChange(of: autoUpdate) { _, on in updater.checksAutomatically = on }
