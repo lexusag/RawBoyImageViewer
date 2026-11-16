@@ -240,19 +240,21 @@ Most sync clients use macOS File Provider, so a file can be a **dataless placeho
 
 ```
 RawBoyImageViewer/
-├── App/                 entry point, AppDelegate (Finder, keys, launch), AppModel, Updater (Sparkle), Trace, icon
+├── App/                 the app shell (~230 lines): entry point, AppDelegate (Finder, key monitor, launch, quit), Updater
+│                        (Sparkle), AppVersion/About, DesktopHandOff (Open With + rawboy-desktop://), icon
 ├── Config/              signing (ad hoc; Signing.local.xcconfig, git-ignored, names this Mac's certificate)
-├── Features/
-│   ├── Browser/         model, toolbar, grid, sidebar
-│   ├── Viewer/          session, window, root view, canvas, keys, crop tool
-│   ├── Panels/          details, actions, browser strip, histogram
-│   ├── Culling/         CullingStore (ratings, rotation, crop, undo, bin, Trash), file actions, rating control
-│   ├── Compare/  Help/  Settings/
-├── Theme/               RawBoy tokens as SwiftUI/AppKit colours, button styles
-├── Packages/            RawBoyBrowseKit (pure Swift, portable) · ViewerImaging (ImageIO, Core Image) · ViewerFiles
+├── Packages/            RawBoyBrowseKit (pure Swift, portable) · ViewerImaging (ImageIO, Core Image) · ViewerFiles ·
+│   └── Sources/ViewerUI the screens, no app shell and no RawBoy engine code:
+│       AppModel, Trace, ViewerHost (what the host gives it), ViewerSettingsStore, ViewerCommands (menus),
+│       Browser/ Viewer/ Panels/ Culling/ Compare/ Help/ Settings/ Theme/
 ├── branding/  docs/  tools/   (icon source, releasing guide and notes, smoke tests, release, icons, tokens check)
 ├── PLAN.md  CLAUDE.md  README.md  LICENSE  appcast.xml (the update feed)
 ```
+- ViewerUI takes three things from its host (step 3 of merging into RawBoy Desktop, `ViewerHost`): `PhotoHandOff`
+  (open in an editor, send to Auto), `RealPreviewProvider` (the R key; `ViewerImaging`, default Core Image) and
+  `ViewerSettingsStore` (UserDefaults with a key prefix). Still global in ViewerUI, for step 4: `AppModel.shared`
+  (singleton), the key monitor's target (`AppModel.browserKey`), `NSApp.presentationOptions` and the key-window
+  tests in the window controllers, `@AppStorage` (always `UserDefaults`, keys through `ViewerSettings.key`).
 - XcodeGen (`project.yml`), like RawBoy iOS; the `.xcodeproj` is git-ignored. CI: lint, package tests, app build.
 - 110 unit tests (Swift Testing). `tools/smoke.sh` drives the debug app through a folder for timing and checks
   (`CULL`, `M7`, `WATCH`, `CROP` scripts, on copies only) and draws panels to PNG.

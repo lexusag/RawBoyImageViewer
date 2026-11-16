@@ -20,17 +20,25 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 ## Layout
 
 - `project.yml`: XcodeGen spec. Run `xcodegen` after adding or removing files; the `.xcodeproj` is git-ignored.
-- `App/`: entry point (`RawBoyViewerApp`, one `Window` scene so opening files never spawns windows), `AppDelegate`
-  (Finder "Open With", Dock drops, a path on the command line, the last folder at launch; all held until the browser
-  window is key), `AppModel` (the browser and the viewer, and what opens where), `Trace` (dev log).
-- `Features/Browser/`: `MarqueeSelection` (rubber-band: a drag surface behind the cells, rectangle in content coordinates, auto-scroll by timer), `BrowserModel` (folder → `BrowsePhoto`s via `FolderScanner` + `PhotoGroups`, capture dates read
+- `App/`: the app shell. Entry point (`RawBoyViewerApp`, one `Window` scene so opening files never spawns windows; it
+  sets `ViewerHost` before the first screen), `AppDelegate` (Finder "Open With", Dock drops, a path on the command line,
+  the last folder at launch; all held until the browser window is key; the key monitor), `Updater` (Sparkle),
+  `AppVersion` (About line), `DesktopHandOff` (`PhotoHandOff`: editor, `rawboy-desktop://auto`).
+- Everything below, `Features/` and `Theme/` of old, is the package target `Packages/Sources/ViewerUI` (paths are
+  relative to it; no engine code in it). It takes its host's choices through `ViewerHost` (`PhotoHandOff`, the
+  `RealPreviewProvider` of `ViewerImaging`, `AppUpdating`, the version line) and `ViewerSettings.store`
+  (`ViewerSettingsStore`: UserDefaults with a key prefix; `@AppStorage` keys go through `ViewerSettings.key`). Public API
+  is only what the shell uses: `AppModel.shared` (+ `open`, `browserKey`, `openLastFolderIfWanted`, `writePendingNow`),
+  `ViewerCommands`, `BrowserRoot`, `ViewerSettingsRoot`, `HelpWindow`. `AppModel` (the browser and the viewer, and what
+  opens where) and `Trace` (dev log) are in it, with the app-global state: step 4 of the merge.
+- `Browser/`: `MarqueeSelection` (rubber-band: a drag surface behind the cells, rectangle in content coordinates, auto-scroll by timer), `BrowserModel` (folder → `BrowsePhoto`s via `FolderScanner` + `PhotoGroups`, capture dates read
   in the background then one reorder, sort/filter/size/recent/last folder in UserDefaults `browser.*`, selection as in
   RawBoy Browser), `BrowserView` (toolbar, `Segmented`), `PhotoGrid` (LazyVGrid, keys, `ThumbnailStore` at 480 px),
   `GridEntry` (parent / folder / photo tiles: folders only with `showFolders`, off by default), favourites (UserDefaults
   `browser.favourites`, toolbar star or right-click `FolderMenu`), `Sidebar` (favourites, recent, places incl. ~/Library/CloudStorage and volumes, lazy folder tree). The viewer gets the browser's
   order (`AppModel.openViewer`) and hands back the photo it ended on. `Theme/`: tokens as SwiftUI/AppKit colours,
   RawBoy button styles.
-- `Features/Viewer/`: `ViewerSession` (open folder, photo list from `PhotoGroups`, every `ViewerCommand`, load +
+- `Viewer/`: `ViewerSession` (open folder, photo list from `PhotoGroups`, every `ViewerCommand`, load +
   prefetch through `ImageStore`, full resolution on zoom), `ViewerModel` (@Observable state the panels show and their
   `send`), `ViewerWindowController` (screen-filling borderless window ↔ titled window; owns `EdgeZones`, feeds it the
   pointer and wakes it at `nextDeadline`; pins saved in UserDefaults `viewer.pinnedEdges`), `ViewerRootView` (flipped,
@@ -40,24 +48,24 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   `peekDelay`, at once on drag; release → fit); the wheel/trackpad don't change photos for `navigationPause` after
   zooming or panning, so zooming out to fit doesn't run on into the next photos; mouse/trackpad/keys → `ViewerCommand`),
   `ViewerKeys` (physical key codes).
-- `Features/Culling/`: `FileActions` (AppModel: export sheet, Copy/Move to with recent destinations, clipboard,
+- `Culling/`: `FileActions` (AppModel: export sheet, Copy/Move to with recent destinations, clipboard,
   Share, for `actionTargets` = the viewer's photo or the browser's selection), `CullingStore` (orientations
   alongside ratings: rotate, undo, written with them; ratings by photo id, read from sidecars when a folder opens, written 0.4 s
   after a change through one serial chain, undo stack of ratings and file moves, `_bin` and Trash, synced-folder
   Trash notice, `autoAdvance`), `RatingControl` / `RatingBadge`. `AppModel` routes ⌘Z / ⌘⌫ (menus) to the viewer or
   the browser, and the browser's rating keys come through `AppDelegate`'s key monitor by key code.
-- `Features/Viewer/CropTool.swift`: `CropToolState` (shared with the toolbar), `CropOverlayView` (AppKit drawing over
+- `Viewer/CropTool.swift`: `CropToolState` (shared with the toolbar), `CropOverlayView` (AppKit drawing over
   the uncropped photo; `ViewerWindowController.beginCrop/endCrop`), `CropToolbar`. The canvas shows a crop through
   `contentsRect` (layers count from the bottom-left, crops from the top-left).
-- `Features/Compare/`: `CompareSession` (2–4 panes; with two, choosing one brings the next challenger in the
+- `Compare/`: `CompareSession` (2–4 panes; with two, choosing one brings the next challenger in the
   other; zoom shared through `SharedZoom`; rating keys on the chosen pane), `CompareWindowController` (screen-filling
   like the viewer, `ViewerWindow`, panes side by side or 2 × 2). Canvases there have `navigationEnabled = false`.
-- `Features/Help/`: `HelpContent` (every key; keep it in step with the controls and README's tables), `AppVersion` (name, version and build from the bundle: the first line of `HelpView` and the disabled "About …" item at the top of the Help menu; the plist follows `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, which `tools/release.sh` sets), `HelpView`,
+- `Help/`: `HelpContent` (every key; keep it in step with the controls and README's tables), `AppVersion` (in `App/`: name, version and build from the bundle: the first line of `HelpView` and the disabled "About …" item at the top of the Help menu; the plist follows `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, which `tools/release.sh` sets), `HelpView`,
   `HelpWindow` (a floating panel, so it shows over the screen-filling viewer; ⌘/ and ? via `AppDelegate`).
-- `Features/Settings/`: `SettingsKeys` (the few personal choices, read where they apply) and `SettingsView`.
+- `Settings/`: `SettingsKeys` (the few personal choices, read where they apply) and `SettingsView`.
 - `App/Assets.xcassets`: the icon (made by `swift tools/icons/make-icons.swift` from `branding/viewer.svg`, RawBoy's
   logo in the viewer's colours) and the amber `AccentColor` for native controls.
-- `Features/Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right; `HistogramView`, a port of
+- `Panels/`: SwiftUI. `PanelCard` (RawBoy card + pin), `InfoPanel` (right; `HistogramView`, a port of
   RawBoy's, clicking it toggles clipping), `ActionMenu` (left),
   `BrowserStrip` (top: breadcrumb + filmstrip from `ThumbnailStore`). Scrolling goes through `PanelScroll`, because
   `ImageRenderer` (debug snapshots) draws nothing inside a ScrollView.
@@ -85,6 +93,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
     sidecar rotation, metadata kept, GPS optional, never overwrites), `ImageAnalysis` (histogram from a 512 px
     nearest-neighbour copy, as RawBoy; clip overlay up to 4096 px), `ThumbnailStore` (actor: memory → `DiskThumbnailCache` in ~/Library/Caches/RawBoy Viewer/Thumbnails, keyed by
     path + size + mtime + pixels, 1 GB → made: a raw's embedded JPEG when ≥ 400 px, else ImageIO), `Thumbnailer`.
+  - `ViewerUI`: see above (needs `ViewerHost`/`ViewerSettings` set by the host; `swift build --arch arm64 --arch x86_64`
+    keeps the package universal).
   - `ViewerFiles`: `FolderWatcher` (FSEvents on the open folder only: structural vs modified names, hidden files
     left out), `FileMoves` (bin with one suffix per photo, Trash, move back), `SidecarFiles` (read; atomic
     writes into every sidecar a photo has; rating from the first one that has it), `FolderScanner` (photos with size, date and `isOnlineOnly`; sidecar names; subfolders without
@@ -96,7 +106,7 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 
 - `swift test --package-path Packages`: unit tests (Swift Testing).
 - `xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer build`: the app.
-- `swift format lint --strict -r App Features Theme Packages/Sources Packages/Tests Packages/Package.swift`: CI runs it;
+- `swift format lint --strict -r App Packages/Sources Packages/Tests Packages/Package.swift`: CI runs it;
   `swift format format -i -r …` fixes most of it.
 - Real raw test files go in `.raw/` (git-ignored), as in RawBoy.
 
