@@ -25,12 +25,24 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   the last folder at launch; all held until the browser window is key; the key monitor), `Updater` (Sparkle),
   `AppVersion` (About line), `DesktopHandOff` (`PhotoHandOff`: editor, `rawboy-desktop://auto`).
 - Everything below, `Features/` and `Theme/` of old, is the package target `Packages/Sources/ViewerUI` (paths are
-  relative to it; no engine code in it). It takes its host's choices through `ViewerHost` (`PhotoHandOff`, the
-  `RealPreviewProvider` of `ViewerImaging`, `AppUpdating`, the version line) and `ViewerSettings.store`
-  (`ViewerSettingsStore`: UserDefaults with a key prefix; `@AppStorage` keys go through `ViewerSettings.key`). Public API
-  is only what the shell uses: `AppModel.shared` (+ `open`, `browserKey`, `openLastFolderIfWanted`, `writePendingNow`),
-  `ViewerCommands`, `BrowserRoot`, `ViewerSettingsRoot`, `HelpWindow`. `AppModel` (the browser and the viewer, and what
-  opens where) and `Trace` (dev log) are in it, with the app-global state: step 4 of the merge.
+  relative to it; no engine code in it). It is embeddable: the host owns an `AppModel(options:)` (no singleton; the shell
+  keeps it in `AppState.model`) and passes it to `BrowserRoot(app:)`, `ViewerCommands(app:)`, `ViewerSettingsRoot(app:)`
+  and, when the viewer lives in its window, `ViewerView(app:)`. What it takes from the host:
+  - `ViewerHost` (set before the first model is made): `PhotoHandOff`, the `RealPreviewProvider` of `ViewerImaging`,
+    `AppUpdating`, the version line.
+  - `ViewerSettings.store` (`ViewerSettingsStore`; `UserDefaultsSettings(prefix:)` by default). Every setting goes
+    through it, views too: `@ViewerSetting` replaces `@AppStorage` (changes reach the views through `SettingChanges`;
+    a change made outside the store, e.g. `defaults write`, is not seen until the view next updates).
+  - `ViewerOptions` (per model): `hidesDockAndMenuBar` (`NSApp.presentationOptions` while the screen-filling viewer or
+    Compare is key; off for a host with its own chrome), `viewerInHostWindow` (no borderless window: `ViewerView` shows
+    the viewer, `ViewerModel.canFillScreen` is false, the root view reports its window), `quit` (debug smoke scripts).
+  - Keys: the model installs its own monitor (`viewAppeared`/`viewDisappeared`, counted per shown `BrowserRoot` /
+    `ViewerView`) and handles only events in its browser window, viewer, Compare and Help windows. "Is the viewer key"
+    is the window's own state (`ViewerSession.isKey`: key window, and in a host window the focus inside the viewer).
+    Compare still has its own window (`CompareWindowController`) in every mode.
+  Public API is only what a host uses: `AppModel` (`open`, `openLastFolderIfWanted`, `writePendingNow`,
+  `browserWindowIsKey`, `options`), `ViewerCommands`, `BrowserRoot`, `ViewerView`, `ViewerSettingsRoot`, `HelpWindow`,
+  `ViewerHost`, `ViewerSettings`, `ViewerOptions`, `PhotoHandOff`, `AppUpdating`. `AppModel` and `Trace` are in it.
 - `Browser/`: `MarqueeSelection` (rubber-band: a drag surface behind the cells, rectangle in content coordinates, auto-scroll by timer), `BrowserModel` (folder → `BrowsePhoto`s via `FolderScanner` + `PhotoGroups`, capture dates read
   in the background then one reorder, sort/filter/size/recent/last folder in UserDefaults `browser.*`, selection as in
   RawBoy Browser), `BrowserView` (toolbar, `Segmented`), `PhotoGrid` (LazyVGrid, keys, `ThumbnailStore` at 480 px),
@@ -104,7 +116,8 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 
 ## Testing
 
-- `swift test --package-path Packages`: unit tests (Swift Testing).
+- `swift test --package-path Packages`: unit tests (Swift Testing). `ViewerUITests` run `AppModel`s with a prefixed
+  store, a fake hand-off and the viewer inside an `NSWindow`; they change `ViewerSettings.store` / `ViewerHost`, so they run serially.
 - `xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer build`: the app.
 - `swift format lint --strict -r App Packages/Sources Packages/Tests Packages/Package.swift`: CI runs it;
   `swift format format -i -r …` fixes most of it.

@@ -250,11 +250,15 @@ RawBoyImageViewer/
 ├── branding/  docs/  tools/   (icon source, releasing guide and notes, smoke tests, release, icons, tokens check)
 ├── PLAN.md  CLAUDE.md  README.md  LICENSE  appcast.xml (the update feed)
 ```
-- ViewerUI takes three things from its host (step 3 of merging into RawBoy Desktop, `ViewerHost`): `PhotoHandOff`
-  (open in an editor, send to Auto), `RealPreviewProvider` (the R key; `ViewerImaging`, default Core Image) and
-  `ViewerSettingsStore` (UserDefaults with a key prefix). Still global in ViewerUI, for step 4: `AppModel.shared`
-  (singleton), the key monitor's target (`AppModel.browserKey`), `NSApp.presentationOptions` and the key-window
-  tests in the window controllers, `@AppStorage` (always `UserDefaults`, keys through `ViewerSettings.key`).
+- ViewerUI is embeddable (steps 3 and 4 of merging into RawBoy Desktop). The host owns the `AppModel` and takes
+  nothing global from it except what it sets once: `ViewerHost` (`PhotoHandOff`: open in an editor, send to Auto;
+  `RealPreviewProvider`: the R key, `ViewerImaging`, default Core Image; updater; version line),
+  `ViewerSettings.store` (`ViewerSettingsStore`, UserDefaults with a key prefix by default; `@ViewerSetting` instead of
+  `@AppStorage`) and per-model `ViewerOptions` (menu bar/Dock hiding, the viewer as a `ViewerView` in the host's
+  window, quit). The key monitor and the "viewer is key" tests live in ViewerUI and use its own windows.
+  Left as it is: Compare is always its own window; `NSApp.activate`, the sheets' `NSApp.keyWindow`, the menu actions'
+  `NSApp.keyWindow` (⌘Z in a text field) and `NSAlert.runModal` are the host app's, `Trace` logs under
+  `app.rawboy.viewer`; `ViewerSettings.store` and `ViewerHost` are process-wide (one set per process).
 - XcodeGen (`project.yml`), like RawBoy iOS; the `.xcodeproj` is git-ignored. CI: lint, package tests, app build.
 - 110 unit tests (Swift Testing). `tools/smoke.sh` drives the debug app through a folder for timing and checks
   (`CULL`, `M7`, `WATCH`, `CROP` scripts, on copies only) and draws panels to PNG.
