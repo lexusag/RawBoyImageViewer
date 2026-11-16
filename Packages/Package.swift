@@ -19,7 +19,8 @@ let package = Package(
         .target(name: "RawBoyBrowseKit", swiftSettings: optimised),
         .target(name: "ViewerImaging", dependencies: ["RawBoyBrowseKit"], swiftSettings: optimised),
         .target(name: "ViewerFiles", dependencies: ["RawBoyBrowseKit"], swiftSettings: optimised),
-        .testTarget(name: "RawBoyBrowseKitTests", dependencies: ["RawBoyBrowseKit"]),
+        // Fixtures/Xmp is read from the source tree (shared with RawBoy's engine tests), not bundled.
+        .testTarget(name: "RawBoyBrowseKitTests", dependencies: ["RawBoyBrowseKit"], exclude: ["Fixtures"]),
         .testTarget(name: "ViewerImagingTests", dependencies: ["ViewerImaging"]),
         .testTarget(name: "ViewerFilesTests", dependencies: ["ViewerFiles"]),
     ]
