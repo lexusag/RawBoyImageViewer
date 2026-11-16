@@ -52,7 +52,7 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - `Features/Compare/`: `CompareSession` (2–4 panes; with two, choosing one brings the next challenger in the
   other; zoom shared through `SharedZoom`; rating keys on the chosen pane), `CompareWindowController` (screen-filling
   like the viewer, `ViewerWindow`, panes side by side or 2 × 2). Canvases there have `navigationEnabled = false`.
-- `Features/Help/`: `HelpContent` (every key; keep it in step with the controls and README's tables), `HelpView`,
+- `Features/Help/`: `HelpContent` (every key; keep it in step with the controls and README's tables), `AppVersion` (name, version and build from the bundle: the first line of `HelpView` and the disabled "About …" item at the top of the Help menu; the plist follows `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, which `tools/release.sh` sets), `HelpView`,
   `HelpWindow` (a floating panel, so it shows over the screen-filling viewer; ⌘/ and ? via `AppDelegate`).
 - `Features/Settings/`: `SettingsKeys` (the few personal choices, read where they apply) and `SettingsView`.
 - `App/Assets.xcassets`: the icon (made by `swift tools/icons/make-icons.swift` from `branding/viewer.svg`, RawBoy's

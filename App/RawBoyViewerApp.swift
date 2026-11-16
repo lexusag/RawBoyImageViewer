@@ -74,6 +74,10 @@ struct RawBoyViewerApp: App {
                 Toggle("Go to the Next Photo After Rating", isOn: Bindable(AppModel.shared.culling).autoAdvance)
             }
             CommandGroup(replacing: .help) {
+                // The version, at the top of the Help menu (the standard About panel stays in the app menu).
+                Button("About \(AppVersion.line)") {}
+                    .disabled(true)
+                Divider()
                 Button("RawBoy Viewer Keys") { HelpWindow.toggle() }
                     .keyboardShortcut("/")
             }
