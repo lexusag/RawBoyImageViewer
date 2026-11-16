@@ -646,6 +646,8 @@ final class ViewerSession {
             close()
             return
         }
+        // Nothing changed (a date read that kept the order): no reload, no flicker.
+        if groups == model.groups { return }
         let current = model.current?.main
         let target = PhotoOrder.nextAfterRemoval(
             previous: model.groups.map(\.main), remaining: groups.map(\.main), current: current, index: index)

@@ -199,13 +199,6 @@ extension AppModel {
                 ? "\(verb) \(what) to \(destination.lastPathComponent)"
                 : "\(verb) to \(destination.lastPathComponent); \(failed) file\(failed == 1 ? "" : "s") failed")
         if move {
-            let movedIDs = Set(ids + folders.map(GridEntry.folderID))
-            if browser.selection.isDisjoint(with: movedIDs),
-                let first = ids.first ?? folders.first.map(GridEntry.folderID)
-            {
-                browser.selection = movedIDs
-                browser.anchor = first
-            }
             culling.recordMoves(moves, what: "Move to \(destination.lastPathComponent)")
         }
     }
