@@ -121,10 +121,17 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 
 ## Testing
 
+- **Two manifests.** `Packages/Package.swift` is the Viewer app's package (the Xcode project and `swift test --package-path
+  Packages` use it); `Package.swift` at the repository root declares the same libraries from `Packages/` (`path:`) because
+  SwiftPM needs one at the root of a git dependency: RawBoy Desktop depends on this repository by tag (`from: 0.2.1`;
+  a tag has to include the root manifest, so v0.2.0 can't be pinned). Change both together: `tools/check-root-package.sh`
+  (CI) compares targets, products, dependencies and platforms. A checkout fetched from git gets no `-O` (SwiftPM forbids
+  `unsafeFlags` there: the root manifest tests `Context.packageDirectory` for `/checkouts/`); the consumer sets
+  SWIFT_OPTIMIZATION_LEVEL. `swift build` at the root builds what a dependant sees.
 - `swift test --package-path Packages`: unit tests (Swift Testing). `ViewerUITests` run `AppModel`s with a prefixed
   store, a fake hand-off and the viewer inside an `NSWindow`; they change `ViewerSettings.store` / `ViewerHost`, so they run serially.
 - `xcodebuild -project RawBoyViewer.xcodeproj -scheme RawBoyViewer build`: the app.
-- `swift format lint --strict -r App Packages/Sources Packages/Tests Packages/Package.swift`: CI runs it;
+- `swift format lint --strict -r App Packages/Sources Packages/Tests Packages/Package.swift Package.swift`: CI runs it;
   `swift format format -i -r …` fixes most of it.
 - Real raw test files go in `.raw/` (git-ignored), as in RawBoy.
 
