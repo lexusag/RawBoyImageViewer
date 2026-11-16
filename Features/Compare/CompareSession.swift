@@ -198,7 +198,10 @@ final class CompareSession {
 
     // MARK: Keys and ratings
 
-    func handle(_ command: ViewerCommand, from pane: Int = 0) {
+    /// A command from outside the panes (⌘⌫ in the menu): acts on the chosen pane.
+    func handle(_ command: ViewerCommand) { handle(command, from: chosen) }
+
+    private func handle(_ command: ViewerCommand, from pane: Int) {
         guard panes.indices.contains(chosen) else { return }
         let id = panes[chosen]
         switch command {

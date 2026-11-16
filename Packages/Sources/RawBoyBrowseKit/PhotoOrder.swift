@@ -70,13 +70,13 @@ public enum PhotoOrder {
     public static func selectionAfterRemoval(
         previousPhotos: [String],
         remainingPhotos: [String],
-        previousItems: [String] = [],
-        remainingItems: [String] = [],
+        previousItems: [String]? = nil,
+        remainingItems: [String]? = nil,
         selection: Set<String>,
         anchor: String?
     ) -> (selection: Set<String>, anchor: String?) {
-        let prevItems = previousItems.isEmpty ? previousPhotos : previousItems
-        let remItems = remainingItems.isEmpty ? remainingPhotos : remainingItems
+        let prevItems = previousItems ?? previousPhotos
+        let remItems = remainingItems ?? remainingPhotos
         let keptItems = Set(remItems)
         let keptPhotos = Set(remainingPhotos)
 

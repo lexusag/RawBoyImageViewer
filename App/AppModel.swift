@@ -292,13 +292,6 @@ final class AppModel {
                 defaults.set(true, forKey: CullingStore.Keys.trashPhotosWithoutAsking)
             }
         }
-        let trashedIDs = Set(ids + folders.map(GridEntry.folderID))
-        if browser.selection.isDisjoint(with: trashedIDs),
-            let first = ids.first ?? folders.first.map(GridEntry.folderID)
-        {
-            browser.selection = trashedIDs
-            browser.anchor = first
-        }
         Task {
             await culling.moveToTrash(ids, syncedNoticeShown: !skip)
             culling.moveFoldersToTrash(folders)
