@@ -258,7 +258,7 @@ private struct FolderRow: View {
             }
             .onTapGesture { app.browse(url) }
             .onHover { hovered = $0 }
-            .contextMenu { FolderMenu(url: url, browser: app.browser) }
+            .contextMenu { FolderMenu(url: url, app: app) }
             .help(url.path)
             .task(id: CheckKey(url: url, change: app.browser.treeChange)) {
                 guard tree else { return }

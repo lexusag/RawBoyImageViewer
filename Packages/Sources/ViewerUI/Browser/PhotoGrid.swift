@@ -48,7 +48,7 @@ struct PhotoGrid: View {
                                     )
                                     .contextMenu {
                                         FolderMenu(
-                                            url: url, browser: browser,
+                                            url: url, app: app,
                                             trash: { app.trashFolder(url, entryID: entry.id) })
                                     }
                                 case .parent:
@@ -361,7 +361,8 @@ private struct PhotoMenu: View {
 /// Right-click on a folder, in the grid or the sidebar.
 struct FolderMenu: View {
     let url: URL
-    let browser: BrowserModel
+    let app: AppModel
+    var browser: BrowserModel { app.browser }
     /// Set where the folder is a tile in the browser (not in the sidebar): offers Move to Trash….
     var trash: (() -> Void)?
 
@@ -369,8 +370,8 @@ struct FolderMenu: View {
         Button(browser.isFavourite(url) ? "Remove from Favourites" : "Add to Favourites") {
             browser.toggleFavourite(url)
         }
-        Button("New Folder…") { AppModel.shared.newFolder(in: url) }
-        SendToMenu(app: AppModel.shared, folder: url)
+        Button("New Folder…") { app.newFolder(in: url) }
+        SendToMenu(app: app, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         if let trash {
             Divider()

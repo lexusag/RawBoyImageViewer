@@ -23,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     HelpWindow.toggle()
                     return true
                 }
-                return AppModel.shared.browserKey(event)
+                return AppState.model.browserKey(event)
             } ? nil : event
         }
         // `RawBoy Viewer <folder or photo>`: skip AppKit's own -Flag value pairs.
@@ -40,10 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await waitForBrowserWindow()
             ready = true
             if let url = pending.first {
-                AppModel.shared.open(url)
+                AppState.model.open(url)
             } else {
                 // Back where the last session left off, as RawBoy Browser does.
-                AppModel.shared.openLastFolderIfWanted()
+                AppState.model.openLastFolderIfWanted()
             }
             pending = []
         }
@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         guard let url = urls.first else { return }
         if ready {
-            MainActor.assumeIsolated { AppModel.shared.open(url) }
+            MainActor.assumeIsolated { AppState.model.open(url) }
         } else {
             pending = [url]
         }
@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Ratings still waiting to be written go to disk first. Synchronously: while termination waits
     /// (`.terminateLater`) AppKit runs its own event loop, where main-actor tasks never run, and quitting hung.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        MainActor.assumeIsolated { AppModel.shared.writePendingNow() }
+        MainActor.assumeIsolated { AppState.model.writePendingNow() }
         return .terminateNow
     }
 

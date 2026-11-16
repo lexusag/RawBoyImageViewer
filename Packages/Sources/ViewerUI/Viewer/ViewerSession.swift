@@ -42,8 +42,13 @@ final class ViewerSession {
     /// A folder in the breadcrumb was clicked: the browser shows it.
     var onBrowse: ((URL) -> Void)?
 
-    init(culling: CullingStore) {
+    let options: ViewerOptions
+    /// For the debug smoke scripts, which look at the whole app.
+    weak var app: AppModel?
+
+    init(culling: CullingStore, options: ViewerOptions) {
         self.culling = culling
+        self.options = options
         model = ViewerModel(culling: culling)
         model.send = { [weak self] command in
             self?.handle(command)
@@ -82,17 +87,17 @@ final class ViewerSession {
                 if ProcessInfo.processInfo.environment["RAWBOY_CULL"] != nil { await cullTest() }
                 if ProcessInfo.processInfo.environment["RAWBOY_CROP"] != nil {
                     await cropTest()
-                    NSApp.terminate(nil)
+                    options.quit()
                     return
                 }
                 if ProcessInfo.processInfo.environment["RAWBOY_WATCH"] != nil {
                     await watchTest()
-                    NSApp.terminate(nil)
+                    options.quit()
                     return
                 }
                 if ProcessInfo.processInfo.environment["RAWBOY_M7"] != nil {
                     await m7Test()
-                    NSApp.terminate(nil)
+                    options.quit()
                     return
                 }
                 for edge in PanelEdge.allCases {
@@ -113,7 +118,7 @@ final class ViewerSession {
                 handle(.toggleZoom)
                 try? await Task.sleep(for: .seconds(4))
                 Trace.log("autoplay done at photo \(index + 1) of \(photos.count)")
-                NSApp.terminate(nil)
+                options.quit()
             }
         }
 
@@ -281,12 +286,12 @@ final class ViewerSession {
             try? FileManager.default.copyItem(at: folder.appendingPathComponent(own), to: copy)
             try? await Task.sleep(for: .seconds(1.5))
             Trace.log(
-                "watch: after copying a photo in: browser \(AppModel.shared.browser.photos.count), viewer \(photos.count)"
+                "watch: after copying a photo in: browser \((app?.browser.photos.count ?? 0)), viewer \(photos.count)"
             )
             try? FileManager.default.removeItem(at: copy)
             try? await Task.sleep(for: .seconds(1.5))
             Trace.log(
-                "watch: after removing it: browser \(AppModel.shared.browser.photos.count), viewer \(photos.count)")
+                "watch: after removing it: browser \((app?.browser.photos.count ?? 0)), viewer \(photos.count)")
             culling.autoAdvance = true
         }
 
@@ -305,7 +310,7 @@ final class ViewerSession {
             handle(.toggleSlideshow)
             handle(.compare)
             try? await Task.sleep(for: .milliseconds(1500))
-            let compare = AppModel.shared.compare
+            guard let compare = app?.compare else { return }
             Trace.log("compare open \(compare.isOpen), viewer open \(isOpen): \(compare.debugState)")
             compare.debugChoose(1)
             try? await Task.sleep(for: .milliseconds(800))
@@ -325,7 +330,7 @@ final class ViewerSession {
             await culling.finishWrites()
             compare.close()
             try? await Task.sleep(for: .milliseconds(500))
-            Trace.log("compare closed \(!compare.isOpen); browser selection \(AppModel.shared.browser.anchor ?? "")")
+            Trace.log("compare closed \(!compare.isOpen); browser selection \((app?.browser.anchor ?? ""))")
         }
 
         private func snapshot(_ edge: PanelEdge) {

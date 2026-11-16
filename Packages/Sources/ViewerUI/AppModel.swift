@@ -12,7 +12,6 @@ public final class AppModel {
     var drag: DragSet?
     /// The export running now, or the last one until it is dismissed.
     var exportJob: ExportJob?
-    public static let shared = AppModel()
 
     let culling = CullingStore()
     let browser: BrowserModel
@@ -20,10 +19,14 @@ public final class AppModel {
     let compare: CompareSession
     @ObservationIgnored private var watcher: FolderWatcher?
 
-    init() {
+    public let options: ViewerOptions
+
+    public init(options: ViewerOptions = ViewerOptions()) {
+        self.options = options
         browser = BrowserModel(culling: culling)
-        viewer = ViewerSession(culling: culling)
-        compare = CompareSession(culling: culling)
+        viewer = ViewerSession(culling: culling, options: options)
+        compare = CompareSession(culling: culling, options: options)
+        viewer.app = self
         compare.onClose = { [weak self] chosen in
             if let chosen { self?.browser.select(chosen) }
             NSApp.windows.first { !($0 is ViewerWindow) && $0.isVisible }?.makeKeyAndOrderFront(nil)

@@ -170,7 +170,7 @@ private struct ListRow: View {
             switch entry {
             case .photo(let photo): ListPhotoMenu(id: photo.id, url: photo.url, app: app)
             case .folder(let url):
-                FolderMenu(url: url, browser: browser, trash: { app.trashFolder(url, entryID: entry.id) })
+                FolderMenu(url: url, app: app, trash: { app.trashFolder(url, entryID: entry.id) })
             case .parent: EmptyView()
             }
         }

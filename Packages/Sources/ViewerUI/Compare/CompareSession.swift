@@ -24,8 +24,11 @@ final class CompareSession {
     /// Closed, on the chosen photo.
     var onClose: ((String?) -> Void)?
 
-    init(culling: CullingStore) {
+    let options: ViewerOptions
+
+    init(culling: CullingStore, options: ViewerOptions) {
         self.culling = culling
+        self.options = options
     }
 
     var isOpen: Bool { controller != nil }

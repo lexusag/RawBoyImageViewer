@@ -34,7 +34,7 @@ public struct UserDefaultsSettings: ViewerSettingsStore, @unchecked Sendable {
     public func set(_ value: Any?, forKey key: String) { defaults.set(value, forKey: self.key(key)) }
 }
 
-/// The settings the screens use. Set once at launch, before `AppModel.shared` is first used.
+/// The settings the screens use. Set once at launch, before the first `AppModel` is made.
 public enum ViewerSettings {
     nonisolated(unsafe) public static var store: any ViewerSettingsStore = UserDefaultsSettings()
 

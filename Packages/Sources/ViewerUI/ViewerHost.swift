@@ -4,7 +4,7 @@ import ViewerImaging
 
 /// What the host app gives the screens: its name and updater, and the three things that depend on what it is built
 /// with (hand-off to RawBoy's apps, the raw preview, the settings store: see `ViewerSettings`). Set at launch, before
-/// `AppModel.shared` is first used.
+/// the first `AppModel` is made.
 public enum ViewerHost {
     /// "RawBoy Viewer 1.2.3 (45)": the first line of Help. Set once at launch.
     @MainActor public static var versionLine = "RawBoy Viewer"
