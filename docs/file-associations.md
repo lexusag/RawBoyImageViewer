@@ -65,3 +65,7 @@ Decision for the owner: step 1's rank change (Viewer `Default` for RAW) is the o
 does on a fresh Mac. Everything else is additive. Apps need a re-launch (and sometimes
 `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f <app>`)
 after a plist change before Finder shows it.
+
+## Update 2026-11-16 (later)
+
+The Viewer's plist now lists the exact types it shows (JPEG, HEIC, HEIF, PNG, TIFF, WebP, AVIF, JPEG XL, all camera raws) instead of `public.image`, and imports types for `kdc` and `x3f`, which macOS has no UTI for. Rank stays Alternate (listed in Open With, choosable with Change All). Desktop lists the same types at rank **None** so the OS never offers it first or defaults to it; while Browse shows, Finder opens go to Browse.
