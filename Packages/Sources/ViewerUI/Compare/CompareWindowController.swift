@@ -7,9 +7,11 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate {
     let canvases: [ImageCanvasView]
     var onClose: (() -> Void)?
     private var isScreenFilling = true
+    private let options: ViewerOptions
     private var windowedFrame: NSRect?
 
-    init(screen: NSScreen, count: Int) {
+    init(screen: NSScreen, count: Int, options: ViewerOptions) {
+        self.options = options
         canvases = (0..<count).map { _ in ImageCanvasView(frame: .zero) }
         let root = ComparePanesView(panes: canvases)
         let window = ViewerWindow(
@@ -52,16 +54,17 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func updatePresentation() {
+        guard options.hidesDockAndMenuBar else { return }
         let hide = isScreenFilling && (window?.isKeyWindow ?? false)
-        let options: NSApplication.PresentationOptions = hide ? [.hideDock, .hideMenuBar] : []
-        if NSApp.presentationOptions != options { NSApp.presentationOptions = options }
+        let asked: NSApplication.PresentationOptions = hide ? [.hideDock, .hideMenuBar] : []
+        if NSApp.presentationOptions != asked { NSApp.presentationOptions = asked }
     }
 
     func windowDidBecomeKey(_ notification: Notification) { updatePresentation() }
     func windowDidResignKey(_ notification: Notification) { updatePresentation() }
 
     func windowWillClose(_ notification: Notification) {
-        NSApp.presentationOptions = []
+        if options.hidesDockAndMenuBar { NSApp.presentationOptions = [] }
         onClose?()
     }
 }

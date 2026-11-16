@@ -369,7 +369,7 @@ final class ViewerSession {
         if controller == nil {
             let mouse = NSEvent.mouseLocation
             let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main!
-            let controller = ViewerWindowController(screen: screen, model: model)
+            let controller = ViewerWindowController(screen: screen, model: model, options: options)
             controller.canvas.onCommand = { [weak self] in self?.handle($0) }
             controller.canvas.onNeedsFullResolution = { [weak self] in self?.loadFullResolution() }
             controller.canvas.onFitChanged = { [weak self] in self?.model.isFit = $0 }

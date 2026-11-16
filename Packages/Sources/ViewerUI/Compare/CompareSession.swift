@@ -49,7 +49,7 @@ final class CompareSession {
         controller?.close()
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main!
-        let controller = CompareWindowController(screen: screen, count: ids.count)
+        let controller = CompareWindowController(screen: screen, count: ids.count, options: options)
         self.controller = controller
         Task {
             let columns = ids.count == 4 ? 2 : ids.count

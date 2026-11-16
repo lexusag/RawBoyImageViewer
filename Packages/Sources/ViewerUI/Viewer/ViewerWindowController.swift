@@ -17,6 +17,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     var canvas: ImageCanvasView { root.canvas }
     var onClose: (() -> Void)?
     private let model: ViewerModel
+    private let options: ViewerOptions
     private(set) var isScreenFilling = true
     private var windowedFrame: NSRect?
 
@@ -30,8 +31,9 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
 
     private static let pinnedKey = "viewer.pinnedEdges"
 
-    init(screen: NSScreen, model: ViewerModel) {
+    init(screen: NSScreen, model: ViewerModel, options: ViewerOptions) {
         self.model = model
+        self.options = options
         let pinned = Set((ViewerSettings.store.stringArray(forKey: Self.pinnedKey) ?? []).compactMap(PanelEdge.init))
         zones = EdgeZones(pinned: pinned)
         root = ViewerRootView(model: model)
@@ -222,13 +224,14 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// The menu bar and Dock stay away only while a screen-filling viewer is the key window, so switching to another
     /// app brings them back.
     private func updatePresentation() {
+        guard options.hidesDockAndMenuBar else { return }
         let hide = isScreenFilling && (window?.isKeyWindow ?? false)
-        let options: NSApplication.PresentationOptions = hide ? [.hideDock, .hideMenuBar] : []
-        if NSApp.presentationOptions != options {
-            NSApp.presentationOptions = options
+        let asked: NSApplication.PresentationOptions = hide ? [.hideDock, .hideMenuBar] : []
+        if NSApp.presentationOptions != asked {
+            NSApp.presentationOptions = asked
         }
         Trace.log(
-            "presentation options: \(NSApp.currentSystemPresentationOptions.rawValue) (asked \(options.rawValue))")
+            "presentation options: \(NSApp.currentSystemPresentationOptions.rawValue) (asked \(asked.rawValue))")
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
@@ -253,7 +256,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
         if let wheelMonitor { NSEvent.removeMonitor(wheelMonitor) }
         moveMonitor = nil
         wheelMonitor = nil
-        NSApp.presentationOptions = []
+        if options.hidesDockAndMenuBar { NSApp.presentationOptions = [] }
         onClose?()
     }
 }
