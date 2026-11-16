@@ -39,7 +39,12 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
   - Keys: the model installs its own monitor (`viewAppeared`/`viewDisappeared`, counted per shown `BrowserRoot` /
     `ViewerView`) and handles only events in its browser window, viewer, Compare and Help windows. "Is the viewer key"
     is the window's own state (`ViewerSession.isKey`: key window, and in a host window the focus inside the viewer).
-    Compare still has its own window (`CompareWindowController`) in every mode.
+    Compare is a view in the host's window too (`CompareView`, `AppModel.compareOpen`) under the same option.
+  - Options are read each time something opens (`ViewerOptionsBox`; `AppModel.options` is settable,
+    `openSelectedInViewer(inHostWindow:)` overrides one opening, `closeOwnWindows()` closes windows of ours when the host
+    leaves). `opensOnHostScreen`: open on the host window's display. `PhotoHandOff.openInEditor` returning true closes a
+    window of our own viewer (a viewer in the host's window stays). `ScreenWatch`: display changes refit a screen-filling
+    window (`screenIndex`, pure, tested), and resign active / quit restore the menu bar and Dock.
   Public API is only what a host uses: `AppModel` (`open`, `openLastFolderIfWanted`, `writePendingNow`,
   `browserWindowIsKey`, `options`), `ViewerCommands`, `BrowserRoot`, `ViewerView`, `ViewerSettingsRoot`, `HelpWindow`,
   `ViewerHost`, `ViewerSettings`, `ViewerOptions`, `PhotoHandOff`, `AppUpdating`. `AppModel` and `Trace` are in it.

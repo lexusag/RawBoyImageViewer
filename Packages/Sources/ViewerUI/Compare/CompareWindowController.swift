@@ -56,8 +56,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate {
     /// The display went or changed: back onto one that exists.
     private func refit() {
         guard !isEmbedded, let window else { return }
-        ScreenWatch.refit(window, filling: isScreenFilling, windowedFrame: &windowedFrame)
-        updatePresentation()
+        if ScreenWatch.refit(window, filling: isScreenFilling, windowedFrame: &windowedFrame) { updatePresentation() }
     }
 
     @available(*, unavailable)

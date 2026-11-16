@@ -290,8 +290,7 @@ final class ViewerWindowController: NSWindowController, NSWindowDelegate {
     /// A display was unplugged or changed: the window goes back onto one that exists, and fills it again.
     private func refit() {
         guard !isEmbedded, let window else { return }
-        ScreenWatch.refit(window, filling: isScreenFilling, windowedFrame: &windowedFrame)
-        updatePresentation()
+        if ScreenWatch.refit(window, filling: isScreenFilling, windowedFrame: &windowedFrame) { updatePresentation() }
     }
 
     func windowDidChangeScreen(_ notification: Notification) {

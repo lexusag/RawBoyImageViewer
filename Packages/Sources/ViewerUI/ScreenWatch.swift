@@ -40,16 +40,23 @@ enum ScreenWatch {
     }
 
     /// Puts [window] on a display that exists (the one it is on, else the main one): filling it, or, as an ordinary
-    /// window, inside its visible area.
+    /// window, inside its visible area. True when the window moved or changed size.
     @MainActor
-    static func refit(_ window: NSWindow, filling: Bool, windowedFrame: inout NSRect?) {
+    @discardableResult
+    static func refit(_ window: NSWindow, filling: Bool, windowedFrame: inout NSRect?) -> Bool {
         let screens = NSScreen.screens
         let index = screenIndex(for: window.frame, among: screens.map(\.frame))
-        guard let screen = index.map({ screens[$0] }) ?? NSScreen.main ?? screens.first else { return }
+        guard let screen = index.map({ screens[$0] }) ?? NSScreen.main ?? screens.first else { return false }
+        let target: NSRect
         if filling {
-            window.setFrame(screen.frame, display: true)
+            target = screen.frame
         } else if index == nil {
-            window.setFrame(screen.visibleFrame.insetBy(dx: 80, dy: 60), display: true)
+            target = screen.visibleFrame.insetBy(dx: 80, dy: 60)
+        } else {
+            return false
         }
+        guard window.frame != target else { return false }
+        window.setFrame(target, display: true)
+        return true
     }
 }

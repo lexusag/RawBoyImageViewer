@@ -256,7 +256,9 @@ RawBoyImageViewer/
   `ViewerSettings.store` (`ViewerSettingsStore`, UserDefaults with a key prefix by default; `@ViewerSetting` instead of
   `@AppStorage`) and per-model `ViewerOptions` (menu bar/Dock hiding, the viewer as a `ViewerView` in the host's
   window, quit). The key monitor and the "viewer is key" tests live in ViewerUI and use its own windows.
-  Left as it is: Compare is always its own window; `NSApp.activate`, the sheets' `NSApp.keyWindow`, the menu actions'
+  Compare is a view in the host's window under the same option (step 7); windows of our own follow display changes and restore the
+  menu bar and Dock on every exit (multi-display is unit-tested for the placement rule only: a second display needs a human).
+  Left as it is: `NSApp.activate`, the sheets' `NSApp.keyWindow`, the menu actions'
   `NSApp.keyWindow` (⌘Z in a text field) and `NSAlert.runModal` are the host app's, `Trace` logs under
   `app.rawboy.viewer`; `ViewerSettings.store` and `ViewerHost` are process-wide (one set per process).
 - XcodeGen (`project.yml`), like RawBoy iOS; the `.xcodeproj` is git-ignored. CI: lint, package tests, app build.
