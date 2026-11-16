@@ -53,6 +53,24 @@ public enum FileMoves {
         return moves
     }
 
+    /// Moves [names] in [folder] to the Trash, skipping missing files.
+    public static func trashFiles(_ names: [String], in folder: URL) -> (moves: [FileMove], failed: Int) {
+        var moves: [FileMove] = []
+        var failed = 0
+        for name in names {
+            let url = folder.appendingPathComponent(name)
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            var trashed: NSURL?
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+                if let trashed = trashed as URL? { moves.append(FileMove(from: url, to: trashed)) }
+            } catch {
+                failed += 1
+            }
+        }
+        return (moves, failed)
+    }
+
     /// Moves [moves] back (`to` → `from`), under another name when `from` is taken now. Returns how many failed.
     @discardableResult
     public static func moveBack(_ moves: [FileMove]) -> Int {

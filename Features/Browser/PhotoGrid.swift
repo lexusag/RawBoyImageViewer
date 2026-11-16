@@ -350,6 +350,8 @@ private struct PhotoMenu: View {
         SendToMenu(app: app, ids: ids)
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        Button("Reset Sidecars…") { app.resetSidecars(ids) }
+            .disabled(!app.culling.hasAnySidecar(ids))
         Button("Move to Trash…") {
             app.trash(photos: ids, folders: app.browser.selection.contains(id) ? app.browser.selectedFolders : [])
         }

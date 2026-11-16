@@ -36,6 +36,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px long edge, or a 1440 px short edge, with optional Instagram crop (3:4 by default with the Instagram button, or 4:5, 1:1, 1.91:1, 9:16; the Instagram button also sets sRGB JPEG, and photos are never enlarged), location kept or left out; optionally replacing same-named files (the old ones go to the Trash); saved to the same folder, one of its subfolders, a new subfolder or anywhere; named presets keep size, crop, format, quality and subfolder. The export runs in the background: the browser bar shows its progress with Stop, then Show in Finder |
 | ⌥⌘C | Copy the photo (its file) |
 | Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share, Send to RawBoy Auto (⇧⌘A, adds the selection to RawBoy Desktop's Auto batch as Looks, Film or As is: asked each time, the last choice first; Send to › RawBoy Auto lists the three), Send to an app (Reblum when installed, others added in Settings › Files; on a folder it sends the photos directly inside it) |
+| Right-click › Reset Sidecars… | Moves the selected photos' XMP sidecars to the Trash after asking, clearing ratings, rotations and crops; ⌘Z puts them back |
 | Drag photos or folders onto a folder in the sidebar | Moves the selection there (with JPEGs and sidecars; undoes). Copies instead with Option held, or across drives |
 | ⌘↑, ⌫ | Up a folder |
 | C | Compare the selection (2–4 photos; one photo is compared with the next) |

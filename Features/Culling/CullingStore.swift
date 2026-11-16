@@ -493,6 +493,62 @@ final class CullingStore {
         filesChanged()
     }
 
+    /// Whether any of [ids] has a sidecar on disk or a sidecar change waiting to be written.
+    func hasAnySidecar(_ ids: [String]) -> Bool {
+        ids.contains { hasSidecar($0) || isBusy($0) }
+    }
+
+    /// Moves [ids]' sidecar files to the Trash and clears their ratings, orientations and crops; undoable.
+    func resetSidecars(_ ids: [String]) async {
+        guard let folder, !ids.isEmpty else { return }
+        for id in ids {
+            writeTimers[id]?.cancel()
+            writeTimers[id] = nil
+        }
+        await writes?.value
+        var moves: [FileMove] = []
+        var failed = 0
+        var resetPhotos = 0
+        var turnedIDs: [String] = []
+        var rated = false
+        for id in ids {
+            let names = sidecars[id] ?? []
+            let result = FileMoves.trashFiles(names, in: folder)
+            moves += result.moves
+            failed += result.failed
+            noteOwnChanges(result.moves)
+            guard result.failed == 0 else { continue }
+            localChanges[id, default: 0] += 1
+            if ratings[id] != nil {
+                ratings[id] = nil
+                rated = true
+            }
+            if orientations[id] != nil || crops[id] != nil {
+                turnedIDs.append(id)
+            }
+            orientations[id] = nil
+            crops[id] = nil
+            hasDevelop.remove(id)
+            straightened.remove(id)
+            sidecars[id] = []
+            if !names.isEmpty || !result.moves.isEmpty { resetPhotos += 1 }
+        }
+        if !moves.isEmpty { push(.moves(moves, what: "Reset sidecars")) }
+        if !turnedIDs.isEmpty { onOrientationsChanged?(turnedIDs) }
+        if rated { onRatingsChanged?() }
+        if !moves.isEmpty {
+            message =
+                failed == 0
+                ? "Reset sidecars for \(resetPhotos) photo\(resetPhotos == 1 ? "" : "s")"
+                : "Reset sidecars; \(failed) file\(failed == 1 ? "" : "s") couldn't be moved to the Trash"
+            filesChanged()
+        } else if failed > 0 {
+            message = "\(failed) sidecar\(failed == 1 ? "" : "s") couldn't be moved to the Trash"
+        } else {
+            message = "Cleared pending sidecar changes"
+        }
+    }
+
     /// Moves [ids] (with their companions and sidecars) to the Trash; undoable. In a cloud sync folder the first time
     /// asks first, because the Trash there deletes from every device too.
     /// [syncedNoticeShown]: the caller's own question already carried the synced-folder warning.
