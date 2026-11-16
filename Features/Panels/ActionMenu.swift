@@ -75,6 +75,11 @@ struct ActionMenu: View {
                     }
                     ActionRow(icon: "doc.on.doc", title: "Copy photo", key: "⌥⌘C") { model.send(.file(.clipboard)) }
                     ActionRow(icon: "square.and.arrow.up", title: "Share…", key: nil) { model.send(.file(.share)) }
+                    if SendToApps.rawBoyDesktop != nil {
+                        ActionRow(icon: "wand.and.stars", title: "Send to RawBoy Auto", key: "⇧⌘A") {
+                            model.send(.file(.sendToAuto))
+                        }
+                    }
                     ForEach(SendToApps.apps, id: \.self) { target in
                         ActionRow(icon: "paperplane", title: "Send to \(SendToApps.name(of: target))", key: nil) {
                             model.send(.file(.sendTo(target.path)))
