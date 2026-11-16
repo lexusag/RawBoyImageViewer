@@ -81,6 +81,30 @@ struct PhotoOrderTests {
             previousPhotos: ["a"], remainingPhotos: [], selection: ["a"], anchor: "a")
         #expect(empty.selection.isEmpty && empty.anchor == nil)
     }
+
+    @Test func selectionAfterRemovalWithFolders() {
+        let photos = ["a", "b", "c"]
+        let items = ["folder:x", "a", "b", "c"]
+        // A folder item whose folder survives keeps the selection.
+        let kept = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: photos, remainingPhotos: ["a", "c"], previousItems: items,
+            remainingItems: ["folder:x", "a", "c"], selection: ["folder:x", "b"], anchor: "b")
+        #expect(kept.selection == ["folder:x"] && kept.anchor == "folder:x")
+        // A removed folder alone selects the next remaining item.
+        let folder = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: photos, remainingPhotos: photos, previousItems: items,
+            remainingItems: ["a", "b", "c"], selection: ["folder:x"], anchor: "folder:x")
+        #expect(folder.selection == ["a"] && folder.anchor == "a")
+        // No selection and the anchor's photo removed: the anchor moves to the next photo, selection stays empty.
+        let anchored = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: photos, remainingPhotos: ["a", "c"], selection: [], anchor: "b")
+        #expect(anchored.selection.isEmpty && anchored.anchor == "c")
+        // An empty item list is not replaced by the photo list.
+        let none = PhotoOrder.selectionAfterRemoval(
+            previousPhotos: photos, remainingPhotos: [], previousItems: items, remainingItems: [],
+            selection: ["b"], anchor: "b")
+        #expect(none.selection.isEmpty && none.anchor == nil)
+    }
 }
 
 struct CaptureDateTests {
