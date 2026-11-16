@@ -212,10 +212,10 @@ final class BrowserModel {
     func load(_ folder: URL, select: String? = nil, selectID: String? = nil) {
         let folder = folder.standardizedFileURL
         let sameFolder = folder == self.folder
-        let knownDates: [String: (modified: Date?, date: String)] =
+        let knownDates: [String: (modified: Date?, size: Int64?, date: String)] =
             sameFolder
             ? Dictionary(
-                photos.compactMap { photo in photo.date.map { (photo.id, (photo.modified, $0)) } },
+                photos.compactMap { photo in photo.date.map { (photo.id, (photo.modified, photo.size, $0)) } },
                 uniquingKeysWith: { a, _ in a })
             : [:]
         generation += 1
@@ -228,7 +228,7 @@ final class BrowserModel {
             let byName = Dictionary(files.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { a, _ in a })
             photos = PhotoGroups.group(files.map(\.url.lastPathComponent) + sidecars).compactMap { group in
                 guard let file = byName[group.main] else { return nil }
-                let date = knownDates[group.main].flatMap { $0.modified == file.modified ? $0.date : nil }
+                let date = knownDates[group.main].flatMap { $0.modified == file.modified && $0.size == file.size ? $0.date : nil }
                 return BrowsePhoto(
                     group: group, url: file.url, isRaw: file.type == .raw, size: file.size, modified: file.modified,
                     isOnlineOnly: file.isOnlineOnly, date: date)
