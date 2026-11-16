@@ -70,7 +70,7 @@ extension ViewerSettings {
 }
 
 /// A value a setting can hold.
-protocol ViewerSettingValue {
+protocol ViewerSettingValue: Sendable {
     static func read(_ store: any ViewerSettingsStore, _ key: String) -> Self?
 }
 
@@ -90,6 +90,8 @@ extension String: ViewerSettingValue {
 
 /// `@AppStorage` for the settings store: reads and writes [ViewerSettings.store] (not `UserDefaults` itself), and the
 /// view updates when any screen changes a setting.
+/// Main-actor, as the views that use it are: `ObservedObject` is main-actor-isolated on older SDKs.
+@MainActor
 @propertyWrapper
 struct ViewerSetting<Value: ViewerSettingValue>: DynamicProperty {
     private let name: String
@@ -110,7 +112,12 @@ struct ViewerSetting<Value: ViewerSettingValue>: DynamicProperty {
         nonmutating set { ViewerSettings.current.set(newValue, forKey: name) }
     }
 
+    /// A binding that reads and writes the store itself, capturing only the key and the default (both `Sendable`).
     var projectedValue: Binding<Value> {
-        Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
+        let name = name
+        let fallback = fallback
+        return Binding(
+            get: { Value.read(ViewerSettings.store, name) ?? fallback },
+            set: { ViewerSettings.current.set($0, forKey: name) })
     }
 }
