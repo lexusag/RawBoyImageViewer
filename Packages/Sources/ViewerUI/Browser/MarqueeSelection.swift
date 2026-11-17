@@ -13,6 +13,8 @@ final class Marquee {
     var position = ScrollPosition()
     /// The scroll view's height, so the content is never shorter than it (empty space below the cells is ours too).
     var viewportHeight = 0.0
+    /// Where the scroll view is, for the scroll bar (observed, unlike the plain copies below).
+    var info = MarqueeScrollInfo(offset: 0, viewport: 0, content: 0)
 
     @ObservationIgnored var offset = 0.0
     @ObservationIgnored var maxOffset = 0.0
@@ -161,6 +163,80 @@ extension View {
                 marquee.offset = info.offset
                 marquee.viewportHeight = info.viewport
                 marquee.maxOffset = max(info.content - info.viewport, 0)
+                marquee.info = info
             }
+    }
+}
+
+/// A scroll bar that is always there when the photos don't fit: the system's overlay bar hides itself and is hard to
+/// find with a mouse. A thin track at the right edge with a pill to drag; a click on the track jumps a page.
+struct BrowserScrollBar: View {
+    let marquee: Marquee
+    @State private var dragStart: Double?
+    @State private var hovered = false
+
+    nonisolated static let width = 14.0
+    nonisolated static let minThumb = 36.0
+
+    /// The pill's length and top for a track of [track] points; nil when everything fits.
+    nonisolated static func thumb(_ info: MarqueeScrollInfo, track: Double) -> (length: Double, top: Double)? {
+        let range = info.content - info.viewport
+        guard info.viewport > 0, range > 1, track > 0 else { return nil }
+        let length = min(max(track * info.viewport / info.content, minThumb), track)
+        let progress = min(max(info.offset / range, 0), 1)
+        return (length, (track - length) * progress)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let info = marquee.info
+            let track = geometry.size.height
+            if let thumb = Self.thumb(info, track: track) {
+                let range = info.content - info.viewport
+                let free = max(track - thumb.length, 1)
+                ZStack(alignment: .top) {
+                    Rectangle().fill(Theme.hairline).frame(width: 1).frame(maxWidth: .infinity, alignment: .trailing)
+                    Capsule()
+                        .fill(Theme.ashMuted.opacity(dragStart != nil || hovered ? 0.9 : 0.55))
+                        .frame(width: hovered || dragStart != nil ? 8 : 6, height: thumb.length)
+                        .frame(maxWidth: .infinity)
+                        .offset(y: thumb.top)
+                }
+                .contentShape(Rectangle())
+                .onHover { hovered = $0 }
+                .gesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .named("scrollbar"))
+                        .onChanged { value in
+                            let y = value.startLocation.y
+                            let onThumb = y >= thumb.top && y <= thumb.top + thumb.length
+                            if dragStart == nil {
+                                if onThumb {
+                                    dragStart = info.offset
+                                } else {
+                                    // A click beside the pill: a page towards it.
+                                    let page = info.viewport * 0.9
+                                    let up = y < thumb.top
+                                    let target = up ? info.offset - page : info.offset + page
+                                    scroll(to: target, range: range)
+                                    dragStart = -1
+                                }
+                            }
+                            if let start = dragStart, start >= 0 {
+                                scroll(to: start + value.translation.height * range / free, range: range)
+                            }
+                        }
+                        .onEnded { _ in dragStart = nil }
+                )
+            }
+        }
+        .coordinateSpace(name: "scrollbar")
+        .frame(width: Self.width)
+        .accessibilityHidden(true)
+    }
+
+    private func scroll(to target: Double, range: Double) {
+        let clamped = min(max(target, 0), range)
+        marquee.offset = clamped
+        marquee.position.scrollTo(y: clamped)
     }
 }
