@@ -19,17 +19,12 @@ struct SendToMenu: View {
                     }
                 }
             }
-            if ViewerHost.handOff.canSendToAuto {
+            // Photos have RawBoy Auto at the top of their menus (`EditorAndAutoMenu`, the Edit menu's entry): only a
+            // folder has no other way to it.
+            if let folder, ViewerHost.handOff.canSendToAuto {
                 Menu("RawBoy Auto") {
                     ForEach(AutoImport.allCases, id: \.self) { how in
-                        Button(how.label) {
-                            if let folder {
-                                app.sendToAuto([folder], as: how)
-                            } else if let base = app.browser.folder {
-                                let urls = (ids ?? app.actionTargets).map { base.appendingPathComponent($0) }
-                                app.sendToAuto(urls, as: how)
-                            }
-                        }
+                        Button(how.label) { app.sendToAuto([folder], as: how) }
                     }
                 }
             }
