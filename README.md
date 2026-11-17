@@ -36,7 +36,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | ⇧⌘E | Export as JPEG or HEIC, full size or 3000 / 2048 / 1080 px long edge, or a 1440 px short edge, with optional Instagram crop (3:4 by default with the Instagram button, or 4:5, 1:1, 1.91:1, 9:16; the Instagram button also sets sRGB JPEG, and photos are never enlarged), location kept or left out; optionally replacing same-named files (the old ones go to the Trash); saved to the same folder, one of its subfolders, a new subfolder or anywhere; named presets keep size, crop, format, quality and subfolder. The export runs in the background: the browser bar shows its progress with Stop, then Show in Finder |
 | ⌘C (viewer) | Copy the picture on screen to the clipboard as an image, to paste into a document, chat or editor |
 | ⌥⌘C | Copy the photo (its file) |
-| Photo menu, right-click | Copy to / Move to a folder (recent ones remembered; moves undo), Share, Send to RawBoy Auto (⇧⌘A, adds the selection to RawBoy Desktop's Auto batch as Looks, Film or As is: asked each time, the last choice first; Send to › RawBoy Auto lists the three), Send to an app (Reblum when installed, others added in Settings › Files; on a folder it sends the photos directly inside it) |
+| Photo menu, right-click | Send to RawBoy Pro (opens the first selected photo in the editor) and Send to RawBoy Auto (Looks, Film or As is) at the top, for raws, JPEG, HEIC, PNG and TIFF; Copy to / Move to a folder (recent ones remembered; moves undo), Share, Send to RawBoy Auto (⇧⌘A, adds the selection to RawBoy Desktop's Auto batch as Looks, Film or As is: asked each time, the last choice first; Send to › RawBoy Auto lists the three), Send to an app (Reblum when installed, others added in Settings › Files; on a folder it sends the photos directly inside it) |
 | Right-click › Reset Sidecars… | Moves the selected photos' XMP sidecars to the Trash after asking, clearing ratings, rotations and crops; ⌘Z puts them back |
 | Drag photos or folders onto a folder in the sidebar | Moves the selection there (with JPEGs and sidecars; undoes). Copies instead with Option held, or across drives |
 | ⌘↑, ⌫ | Up a folder |
@@ -85,7 +85,9 @@ photo and the right half to the next (hold to keep going).
 | → ↓ Space, wheel down, swipe left, bottom right | Next photo |
 | ← ↑ ⌫, wheel up, swipe right, bottom left | Previous photo |
 | Home / End | First / last photo |
-| Z, double-click, smart zoom | Fit ↔ 1:1 at the pointer |
+| Z, smart zoom | Fit ↔ 1:1 at the pointer |
+| Double-click | Back to the browser (Compare and the crop tool keep the zoom toggle) |
+| Right-click | Send to RawBoy Pro (the editor) or RawBoy Auto (Looks, Film, As is), any file type; Send to an app, Rotate, Export…, Show in Finder, Back to Browser, Move to Trash… |
 | Press and hold | 1:1 at the pointer while held; drag to look around, release to fit again |
 | Pinch, wheel (zoomed in) | Zoom (once zoomed back out to fit, the wheel waits for a pause before changing photos) |
 | Drag, two-finger scroll (zoomed in) | Pan |

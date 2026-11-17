@@ -38,6 +38,8 @@ final class ImageCanvasView: NSView {
 
     /// A quick click (not a hold, not a double-click): Compare chooses the pane.
     var onClick: (() -> Void)?
+    /// The right-click menu (nil: none).
+    var onContextMenu: (() -> NSMenu?)?
     /// The bottom band, the wheel and swipes change photos. Off in Compare, which has its own keys.
     var navigationEnabled = true {
         didSet {
@@ -514,6 +516,11 @@ final class ImageCanvasView: NSView {
                 owner: self))
     }
 
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard navigationEnabled, image != nil else { return nil }
+        return onContextMenu?()
+    }
+
     override func mouseMoved(with event: NSEvent) {
         setBandSide(bandCommand(event))
         super.mouseMoved(with: event)
@@ -534,7 +541,13 @@ final class ImageCanvasView: NSView {
         }
         if event.clickCount == 2 {
             cancelPeek()
-            toggleZoom(at: anchor(event))
+            if navigationEnabled {
+                // A double click leaves the photo for the browser (mouse-only use); zoom stays on the wheel, a
+                // press-and-hold and the pinch. Compare and the crop tool (navigation off) keep the zoom toggle.
+                onCommand?(.close)
+            } else {
+                toggleZoom(at: anchor(event))
+            }
             return
         }
         if fitted, image != nil {
