@@ -207,15 +207,15 @@ struct BrowserScrollBar: View {
                 .gesture(
                     DragGesture(minimumDistance: 0, coordinateSpace: .named("scrollbar"))
                         .onChanged { value in
-                            let onThumb = value.startLocation.y >= thumb.top
-                                && value.startLocation.y <= thumb.top + thumb.length
+                            let y = value.startLocation.y
+                            let onThumb = y >= thumb.top && y <= thumb.top + thumb.length
                             if dragStart == nil {
                                 if onThumb {
                                     dragStart = info.offset
                                 } else {
                                     // A click beside the pill: a page towards it.
                                     let page = info.viewport * 0.9
-                                    let up = value.startLocation.y < thumb.top
+                                    let up = y < thumb.top
                                     let target = up ? info.offset - page : info.offset + page
                                     scroll(to: target, range: range)
                                     dragStart = -1
