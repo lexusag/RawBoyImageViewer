@@ -12,7 +12,7 @@ Ratings go into XMP sidecars that RawBoy Browser, Lightroom, Capture One and dar
 
 ## Using it
 
-The browser opens on the last folder you looked at. Pick a folder on the left (recent folders (with up to three parent folders shown; right-click › Pin to Recent keeps a folder at the top), then Pictures, Desktop,
+The browser opens on the last folder you looked at. Pick a folder on the left (recent folders (with up to three parent folders shown; right-click › Pin to Recent keeps a folder at the top; the pin beside Recent (and Favourites) keeps that list in view while the rest scrolls), then Pictures, Desktop,
 cloud storage and other drives, each opening into its subfolders), drop one on the window, or press ⌘O. Photos show
 in the order they were shot (or by name), from the cameras' own previews, so a folder of raws appears in seconds; a
 RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and aren't downloaded until opened.

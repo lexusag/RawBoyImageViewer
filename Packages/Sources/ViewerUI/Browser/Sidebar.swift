@@ -8,6 +8,7 @@ struct Sidebar: View {
     let app: AppModel
     @ViewerSetting(SettingsKeys.uiScale) private var uiScale = 1.0
     @ViewerSetting("browser.pinFavourites") private var pinFavourites = true
+    @ViewerSetting("browser.pinRecent") private var pinRecent = false
 
     /// A row is about 28 pt high; the pinned list stops growing at [pinnedMaxHeight] and scrolls inside itself.
     private static let pinnedMaxHeight = 220.0
@@ -16,26 +17,26 @@ struct Sidebar: View {
         VStack(alignment: .leading, spacing: 0) {
             // Fixed strip under the window's traffic lights (scaled back to real points), so nothing scrolls under them.
             Color.clear.frame(height: 38 / min(max(uiScale, 0.5), 2)).titleBarZoom()
-            if pinFavourites {
-                let count = max(app.browser.favourites.count, 1)
-                PanelScroll { favourites }
-                    .frame(height: min(Double(count) * 28 + 44, Self.pinnedMaxHeight + 44))
-                    .padding(.horizontal, DesignTokens.Spacing.sm)
+            if pinFavourites || showsPinnedRecent {
+                // Favourites and Recent, whichever are pinned, share one strip above the scrolling list.
+                let rows =
+                    (pinFavourites ? Double(max(app.browser.favourites.count, 1)) * 28 + 44 : 0)
+                    + (showsPinnedRecent ? Double(app.browser.recentListed.count) * 38 + 44 : 0)
+                PanelScroll {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if pinFavourites { favourites }
+                        if showsPinnedRecent { recent }
+                    }
+                }
+                .frame(height: min(rows, Self.pinnedMaxHeight + 44))
+                .padding(.horizontal, DesignTokens.Spacing.sm)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
             }
             PanelScroll {
                 ScrollViewReader { proxy in
                     VStack(alignment: .leading, spacing: 2) {
                         if !pinFavourites { favourites }
-                        if !app.browser.recentListed.isEmpty {
-                            SidebarHeading(title: "Recent")
-                            ForEach(app.browser.recentListed, id: \.self) { url in
-                                FolderRow(
-                                    url: url, title: url.lastPathComponent,
-                                    icon: app.browser.isPinnedRecent(url) ? "pin.fill" : "clock", depth: 0, app: app,
-                                    tree: false, subtitle: Self.parents(of: url))
-                            }
-                        }
+                        if !showsPinnedRecent && !app.browser.recentListed.isEmpty { recent }
                         SidebarHeading(title: "Places")
                         ForEach(Self.places(), id: \.url) { place in
                             FolderRow(
@@ -62,6 +63,35 @@ struct Sidebar: View {
                 try? await Task.sleep(for: .seconds(delay))
                 guard app.browser.folder?.standardizedFileURL.path == path else { return }
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(FolderRow.scrollID(path), anchor: .center) }
+            }
+        }
+    }
+
+    /// Recent is in the pinned strip when asked for, and only while it has rows.
+    private var showsPinnedRecent: Bool { pinRecent && !app.browser.recentListed.isEmpty }
+
+    private var recent: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            SidebarHeading(title: "Recent") {
+                Button {
+                    pinRecent.toggle()
+                } label: {
+                    Image(systemName: pinRecent ? "pin.fill" : "pin")
+                        .font(.system(size: 10))
+                        .foregroundStyle(pinRecent ? Theme.amber : Theme.ashMuted)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(
+                    pinRecent
+                        ? "Recent stays in view while the rest scrolls: click to unpin" : "Keep recent in view")
+            }
+            ForEach(app.browser.recentListed, id: \.self) { url in
+                FolderRow(
+                    url: url, title: url.lastPathComponent,
+                    icon: app.browser.isPinnedRecent(url) ? "pin.fill" : "clock", depth: 0, app: app,
+                    tree: false, subtitle: Self.parents(of: url))
             }
         }
     }
