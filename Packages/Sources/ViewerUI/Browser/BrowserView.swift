@@ -155,6 +155,20 @@ private struct BrowserToolbar: View {
                         browser.filter = ""
                         searchFocused = false
                     }
+                if !browser.filter.isEmpty {
+                    Button {
+                        browser.filter = ""
+                        searchFocused = true
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.ashMuted)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear the search")
+                    .accessibilityLabel("Clear the search")
+                }
             }
             .padding(.horizontal, 10)
             .frame(width: 200, height: 28)
@@ -179,7 +193,8 @@ private struct BrowserToolbar: View {
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
-        .padding(.top, 34 / min(max(uiScale, 0.5), 2))  // under the window's traffic lights
+        // Under the window's traffic lights (and a host's own bar).
+        .padding(.top, (34 + app.options.toolbarTopInset) / min(max(uiScale, 0.5), 2))
         .padding(.bottom, 10)
         .titleBarZoom()  // double-click expands the window, as on a title bar
     }
