@@ -175,11 +175,11 @@ struct BrowserScrollBar: View {
     @State private var dragStart: Double?
     @State private var hovered = false
 
-    static let width = 14.0
-    static let minThumb = 36.0
+    nonisolated static let width = 14.0
+    nonisolated static let minThumb = 36.0
 
     /// The pill's length and top for a track of [track] points; nil when everything fits.
-    static func thumb(_ info: MarqueeScrollInfo, track: Double) -> (length: Double, top: Double)? {
+    nonisolated static func thumb(_ info: MarqueeScrollInfo, track: Double) -> (length: Double, top: Double)? {
         let range = info.content - info.viewport
         guard info.viewport > 0, range > 1, track > 0 else { return nil }
         let length = min(max(track * info.viewport / info.content, minThumb), track)

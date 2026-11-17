@@ -2,6 +2,7 @@ import Testing
 
 @testable import ViewerUI
 
+@MainActor
 struct ScrollBarTests {
     @Test func noThumbWhenEverythingFits() {
         let info = MarqueeScrollInfo(offset: 0, viewport: 800, content: 800)
