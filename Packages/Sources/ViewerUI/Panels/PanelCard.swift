@@ -128,6 +128,7 @@ struct PanelScroll<Content: View>: View {
         } else {
             if let marquee {
                 ScrollView(axis, showsIndicators: false) { content }.marqueeScrolling(marquee)
+                    .overlay(alignment: .trailing) { BrowserScrollBar(marquee: marquee) }
             } else {
                 ScrollView(axis, showsIndicators: false) { content }
             }
