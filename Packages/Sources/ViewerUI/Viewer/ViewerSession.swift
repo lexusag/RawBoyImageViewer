@@ -354,6 +354,18 @@ final class ViewerSession {
         }
     #endif
 
+    /// ⌘C in the viewer: the photo on screen (as shown: its orientation, real preview if on) as an image on the
+    /// pasteboard, to paste into a chat, a document or an editor. Returns false when no photo is showing.
+    func copyImageToPasteboard() -> Bool {
+        guard let image = controller?.canvas.image?.cgImage else { return false }
+        let pixels = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+        let board = NSPasteboard.general
+        board.clearContents()
+        board.writeObjects([pixels])
+        flash("Copied picture")
+        return true
+    }
+
     /// A short note over the photo.
     func flash(_ text: String) {
         controller?.canvas.flash(text)

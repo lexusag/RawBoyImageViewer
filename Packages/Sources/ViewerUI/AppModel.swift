@@ -380,6 +380,10 @@ public final class AppModel {
             return true
         }
         let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        // ⌘C in the viewer (by physical key): the photo on screen as an image.
+        if viewer.isKey, viewer.isOpen, mods == .command, event.keyCode == 8 {
+            return viewer.copyImageToPasteboard()
+        }
         // F2 renames the selection (any layout: key code 120).
         if !viewerIsKey, event.keyCode == 120, mods.isEmpty, !(event.window is NSPanel),
             event.window?.sheetParent == nil,
