@@ -686,9 +686,18 @@ final class ViewerSession {
             item.submenu = auto
             menu.addItem(item)
         }
-        for target in SendToApps.apps {
-            add("Send to \(SendToApps.name(of: target))", to: menu, .file(.sendTo(target.path)))
+        // The same "Send to ▸" submenu as the browser's menus, right under the RawBoy entries.
+        let apps = SendToApps.apps
+        let sendTo = NSMenu()
+        for target in apps { add(SendToApps.name(of: target), to: sendTo, .file(.sendTo(target.path))) }
+        if apps.isEmpty {
+            let none = NSMenuItem(title: "No apps yet: add them in Settings", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            sendTo.addItem(none)
         }
+        let sendToItem = NSMenuItem(title: "Send to", action: nil, keyEquivalent: "")
+        sendToItem.submenu = sendTo
+        menu.addItem(sendToItem)
         menu.addItem(.separator())
         add("Rotate Left", to: menu, .rotate(clockwise: false))
         add("Rotate Right", to: menu, .rotate(clockwise: true))
