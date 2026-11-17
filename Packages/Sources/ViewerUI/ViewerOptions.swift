@@ -10,6 +10,9 @@ public struct ViewerOptions: Sendable {
     public var viewerInHostWindow = false
     /// Their own windows open on the display the host's window is on, not the one under the pointer.
     public var opensOnHostScreen = false
+    /// Extra space above the browser's toolbar, in points, for a host that draws its own controls over the top of the
+    /// window (RawBoy Desktop's mode switch). 0 keeps the standalone layout.
+    public var toolbarTopInset: CGFloat = 0
     /// Quits the app (only the debug smoke scripts ask).
     public var quit: @MainActor @Sendable () -> Void = { NSApp.terminate(nil) }
 
