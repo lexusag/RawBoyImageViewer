@@ -193,7 +193,8 @@ private struct BrowserToolbar: View {
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
-        .padding(.top, (34 + app.options.toolbarTopInset) / min(max(uiScale, 0.5), 2))  // under the window's traffic lights (and a host's own bar)
+        // Under the window's traffic lights (and a host's own bar).
+        .padding(.top, (34 + app.options.toolbarTopInset) / min(max(uiScale, 0.5), 2))
         .padding(.bottom, 10)
         .titleBarZoom()  // double-click expands the window, as on a title bar
     }
