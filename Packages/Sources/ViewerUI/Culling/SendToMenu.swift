@@ -37,3 +37,21 @@ struct SendToMenu: View {
         }
     }
 }
+
+/// The two top-level entries of a photo's right-click menu: send to the editor (RawBoy Pro in Desktop) and to RawBoy
+/// Auto as Looks, Film or As is. Any file type the host takes: raws, JPEG, HEIC, PNG, TIFF.
+struct EditorAndAutoMenu: View {
+    let app: AppModel
+    let ids: [String]
+
+    var body: some View {
+        Button("Send to \(app.viewer.model.editor.name)") { app.openInEditor(ids) }
+        if ViewerHost.handOff.canSendToAuto {
+            Menu("Send to RawBoy Auto") {
+                ForEach(AutoImport.allCases, id: \.self) { how in
+                    Button(how.label) { app.perform(.sendToAuto(how), ids) }
+                }
+            }
+        }
+    }
+}

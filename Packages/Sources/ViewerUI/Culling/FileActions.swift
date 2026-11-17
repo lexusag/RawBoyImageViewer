@@ -415,6 +415,25 @@ extension AppModel {
         }
     }
 
+    /// "Send to RawBoy Pro" in the browser's right-click menu: the first of [ids] opens in the editor (one photo at a
+    /// time; the others stay in the browser). Pending ratings and turns are written first, as the editor reads sidecars.
+    func openInEditor(_ ids: [String]) {
+        guard let id = ids.first, let folder = browser.folder else { return }
+        let url = folder.appendingPathComponent(id)
+        let editor = viewer.model.editor.url
+        if ids.count > 1 { say("Opening \(id) only: the editor takes one photo at a time") }
+        Task { @MainActor in
+            await culling.finishWrites()
+            if await ViewerHost.handOff.openInEditor(url) { return }
+            if let editor {
+                _ = try? await NSWorkspace.shared.open(
+                    [url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())
+            } else {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
     /// Adds photos to RawBoy Desktop's Auto batch as Looks, Film or As is ([how]; nil asks, the last choice first).
     /// Pending ratings and turns are written first, as Auto reads sidecars.
     func sendToAuto(_ urls: [URL], as how: AutoImport? = nil) {

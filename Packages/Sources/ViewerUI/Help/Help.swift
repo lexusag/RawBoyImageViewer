@@ -63,7 +63,9 @@ enum HelpContent {
                 Item(keys: "Bottom of the photo", text: "Left half previous, right half next; hold to keep going"),
                 Item(keys: "Wheel · two-finger swipe", text: "Previous / next while the photo fits"),
                 Item(keys: "⌘C", text: "Copy the picture on screen as an image (⌥⌘C copies the file)"),
-                Item(keys: "Z · double-click", text: "Fit ↔ 1:1 at the pointer"),
+                Item(keys: "Z", text: "Fit ↔ 1:1 at the pointer"),
+                Item(keys: "Double-click", text: "Back to the browser"),
+                Item(keys: "Right-click", text: "Send to RawBoy Pro or Auto, and the photo's actions"),
                 Item(keys: "Press and hold", text: "1:1 while held; drag to look around"),
                 Item(keys: "Pinch · wheel (zoomed in)", text: "Zoom; drag or scroll to pan"),
                 Item(

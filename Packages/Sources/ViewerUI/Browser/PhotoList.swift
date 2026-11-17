@@ -245,6 +245,7 @@ private struct ListPhotoMenu: View {
     var body: some View {
         let ids = app.browser.selection.contains(id) ? app.browser.ratingTargets : [id]
         Button("Open") { app.openViewer(at: id) }
+        EditorAndAutoMenu(app: app, ids: ids)
         Divider()
         Button("Rotate Left") { app.culling.rotate(ids, clockwise: false) }
         Button("Rotate Right") { app.culling.rotate(ids, clockwise: true) }
@@ -255,6 +256,7 @@ private struct ListPhotoMenu: View {
         Button("Move to Folder…") { app.perform(.moveTo, ids) }
         Button("Copy Photo") { app.perform(.clipboard, ids) }
         Button("Share…") { app.perform(.share, ids) }
+        SendToMenu(app: app, ids: ids)
         Divider()
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         Button("Reset Sidecars…") { app.resetSidecars(ids) }

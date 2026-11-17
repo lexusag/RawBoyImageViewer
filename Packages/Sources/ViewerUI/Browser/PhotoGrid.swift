@@ -337,6 +337,7 @@ private struct PhotoMenu: View {
     var body: some View {
         let ids = app.browser.selection.contains(id) ? app.browser.ratingTargets : [id]
         Button("Open") { app.openViewer(at: id) }
+        EditorAndAutoMenu(app: app, ids: ids)
         Divider()
         Button("Rotate Left") { app.culling.rotate(ids, clockwise: false) }
         Button("Rotate Right") { app.culling.rotate(ids, clockwise: true) }

@@ -390,6 +390,7 @@ final class ViewerSession {
                 ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main!
             let controller = ViewerWindowController(screen: screen, model: model, options: options)
             controller.canvas.onCommand = { [weak self] in self?.handle($0) }
+            controller.canvas.onContextMenu = { [weak self] in self?.contextMenu() }
             controller.canvas.onNeedsFullResolution = { [weak self] in self?.loadFullResolution() }
             controller.canvas.onFitChanged = { [weak self] in self?.model.isFit = $0 }
             controller.onClose = { [weak self] in
@@ -668,6 +669,35 @@ final class ViewerSession {
         index = target.flatMap { id in groups.firstIndex { $0.main == id } } ?? min(index, groups.count - 1)
         shownURL = nil
         showCurrent()
+    }
+
+    /// Right-click on the photo: send it to the editor or Auto (any file type), the other apps, and the common actions.
+    private func contextMenu() -> NSMenu {
+        let menu = NSMenu()
+        func add(_ title: String, to menu: NSMenu, _ command: ViewerCommand) {
+            let item = MenuAction.item(title) { [weak self] in self?.handle(command) }
+            menu.addItem(item)
+        }
+        add("Send to \(model.editor.name)", to: menu, .openInEditor)
+        if ViewerHost.handOff.canSendToAuto {
+            let auto = NSMenu()
+            for how in AutoImport.allCases { add(how.label, to: auto, .file(.sendToAuto(how))) }
+            let item = NSMenuItem(title: "Send to RawBoy Auto", action: nil, keyEquivalent: "")
+            item.submenu = auto
+            menu.addItem(item)
+        }
+        for target in SendToApps.apps {
+            add("Send to \(SendToApps.name(of: target))", to: menu, .file(.sendTo(target.path)))
+        }
+        menu.addItem(.separator())
+        add("Rotate Left", to: menu, .rotate(clockwise: false))
+        add("Rotate Right", to: menu, .rotate(clockwise: true))
+        add("Export…", to: menu, .file(.export))
+        add("Show in Finder", to: menu, .revealFile)
+        menu.addItem(.separator())
+        add("Back to Browser", to: menu, .close)
+        add("Move to Trash…", to: menu, .moveToTrash)
+        return menu
     }
 
     private func openInEditor() {
