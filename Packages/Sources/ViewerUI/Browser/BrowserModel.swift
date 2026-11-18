@@ -450,6 +450,27 @@ final class BrowserModel {
 
     func clearSelection() { selection = [] }
 
+    /// Right-click (or Control-click) on [id]: an unselected item becomes the whole selection before its menu opens;
+    /// one already selected keeps the selection, so the menu acts on all of it.
+    func selectForContextMenu(_ id: String) {
+        guard !selection.contains(id) else { return }
+        selection = [id]
+        anchor = id
+    }
+
+    /// A folder was renamed: favourites, Recent and the shown folder follow it, and the grid selects it under its new name.
+    func folderRenamed(from old: URL, to new: URL) {
+        func moved(_ list: [URL]) -> [URL] { list.map { RecentFolders.same($0, old) ? new : $0 } }
+        favourites = moved(favourites)
+        recent = moved(recent)
+        pinnedRecent = moved(pinnedRecent)
+        let defaults = ViewerSettings.current
+        defaults.set(favourites.map(\.path), forKey: Keys.favourites)
+        defaults.set(recent.map(\.path), forKey: Keys.recent)
+        defaults.set(pinnedRecent.map(\.path), forKey: Keys.pinnedRecent)
+        foldersChanged(created: new)
+    }
+
     /// The marquee's selection: the rectangle's hits alone, added to what was selected (Shift) or toggled in it (⌘).
     func marqueeSelect(base: Set<String>, hits: Set<String>, command: Bool, shift: Bool) {
         let shown = Set(
