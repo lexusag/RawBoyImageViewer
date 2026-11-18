@@ -368,6 +368,12 @@ final class CullingStore {
         filesChanged()
     }
 
+    func recordRenamedFolder(from old: URL, to new: URL) {
+        noteOwnChanges([old.lastPathComponent, new.lastPathComponent])
+        message = "Renamed to “\(new.lastPathComponent)”"
+        filesChanged()
+    }
+
     private func push(_ undo: Undo) {
         undoStack.append(undo)
         if undoStack.count > 200 { undoStack.removeFirst() }

@@ -25,6 +25,7 @@ struct PhotoList: View {
                         ForEach(browser.items) { entry in
                             ListRow(entry: entry, app: app)
                                 .id(entry.id)
+                                .selectOnRightClick(entry.id, enabled: !entry.isParent, browser: browser)
                                 .modifier(MarqueeCell(id: entry.id, enabled: !entry.isParent))
                                 .onDrag { app.beginDrag(entry) ?? NSItemProvider() }
                                 .gesture(

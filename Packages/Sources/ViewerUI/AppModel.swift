@@ -282,6 +282,57 @@ public final class AppModel {
         browser.foldersChanged(created: url)
     }
 
+    /// Renames a folder (right-click): asks for the new name, then moves it in place. Not undoable with ⌘Z.
+    func renameFolder(_ url: URL) {
+        let fm = FileManager.default
+        let parent = url.deletingLastPathComponent()
+        func taken(_ name: String) -> Bool {
+            name.lowercased() != url.lastPathComponent.lowercased()
+                && ((try? fm.contentsOfDirectory(atPath: parent.path)) ?? []).contains {
+                    $0.lowercased() == name.lowercased()
+                }
+        }
+        var name = url.lastPathComponent
+        var problem: String?
+        while true {
+            let alert = NSAlert()
+            alert.messageText = "Rename “\(url.lastPathComponent)”"
+            alert.informativeText = problem ?? "Name the folder."
+            let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+            field.stringValue = name
+            alert.accessoryView = field
+            alert.addButton(withTitle: "Rename")
+            alert.addButton(withTitle: "Cancel")
+            alert.window.initialFirstResponder = field
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if name == url.lastPathComponent { return }
+            if name.isEmpty {
+                problem = "The name can't be empty."
+            } else if name.contains("/") || name.contains(":") {
+                problem = "A folder name can't contain “/” or “:”."
+            } else if name == "." || name == ".." {
+                problem = "“\(name)” isn't a usable name."
+            } else if taken(name) {
+                problem = "“\(name)” already exists here. Pick another name."
+            } else {
+                break
+            }
+        }
+        let new = parent.appendingPathComponent(name, isDirectory: true)
+        do {
+            try fm.moveItem(at: url, to: new)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Couldn't rename “\(url.lastPathComponent)”"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+            return
+        }
+        culling.recordRenamedFolder(from: url, to: new)
+        browser.folderRenamed(from: url, to: new)
+    }
+
     /// Right-click on a folder tile: the whole selection when the tile is in it, else that folder alone.
     func trashFolder(_ url: URL, entryID: String) {
         if browser.selection.contains(entryID) {

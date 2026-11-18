@@ -58,6 +58,7 @@ struct PhotoGrid: View {
                                 }
                             }
                             .id(entry.id)
+                            .selectOnRightClick(entry.id, enabled: !entry.isParent, browser: browser)
                             .modifier(MarqueeCell(id: entry.id, enabled: !entry.isParent))
                             .onDrag { app.beginDrag(entry) ?? NSItemProvider() }
                             // Both gestures run together: waiting to tell a single click from a double one
@@ -375,6 +376,7 @@ struct FolderMenu: View {
             browser.togglePinnedRecent(url)
         }
         Button("New Folder…") { app.newFolder(in: url) }
+        Button("Rename…") { app.renameFolder(url) }
         SendToMenu(app: app, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         Divider()
@@ -408,5 +410,54 @@ struct NewFolderMenu: View {
         if let folder = app.browser.folder {
             Button("New Folder…") { app.newFolder(in: folder) }
         }
+    }
+}
+
+/// Selects an unselected item on right-click or Control-click, before SwiftUI opens its context menu.
+private struct RightClickSelect: NSViewRepresentable {
+    let id: String
+    let browser: BrowserModel
+
+    final class Catcher: NSView {
+        var id = ""
+        weak var browser: BrowserModel?
+        private var monitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
+                guard let self, let window = self.window, event.window === window else { return event }
+                if event.type == .leftMouseDown, !event.modifierFlags.contains(.control) { return event }
+                if self.bounds.contains(self.convert(event.locationInWindow, from: nil)) {
+                    MainActor.assumeIsolated { self.browser?.selectForContextMenu(self.id) }
+                }
+                return event
+            }
+        }
+
+        deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
+    func makeNSView(context: Context) -> Catcher {
+        let view = Catcher()
+        view.id = id
+        view.browser = browser
+        return view
+    }
+
+    func updateNSView(_ view: Catcher, context: Context) {
+        view.id = id
+        view.browser = browser
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func selectOnRightClick(_ id: String, enabled: Bool, browser: BrowserModel) -> some View {
+        if enabled { background(RightClickSelect(id: id, browser: browser)) } else { self }
     }
 }
