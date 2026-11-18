@@ -425,8 +425,7 @@ private struct RightClickSelect: NSViewRepresentable {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
+            stop()
             guard window != nil else { return }
             let kinds: NSEvent.EventTypeMask = [.rightMouseDown, .leftMouseDown]
             monitor = NSEvent.addLocalMonitorForEvents(matching: kinds) { [weak self] event in
@@ -439,7 +438,11 @@ private struct RightClickSelect: NSViewRepresentable {
             }
         }
 
-        deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
+        func stop() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 
@@ -454,6 +457,8 @@ private struct RightClickSelect: NSViewRepresentable {
         view.id = id
         view.browser = browser
     }
+
+    static func dismantleNSView(_ view: Catcher, coordinator: ()) { view.stop() }
 }
 
 extension View {
