@@ -428,7 +428,8 @@ private struct RightClickSelect: NSViewRepresentable {
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil
             guard window != nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
+            let kinds: NSEvent.EventTypeMask = [.rightMouseDown, .leftMouseDown]
+            monitor = NSEvent.addLocalMonitorForEvents(matching: kinds) { [weak self] event in
                 guard let self, let window = self.window, event.window === window else { return event }
                 if event.type == .leftMouseDown, !event.modifierFlags.contains(.control) { return event }
                 if self.bounds.contains(self.convert(event.locationInWindow, from: nil)) {
