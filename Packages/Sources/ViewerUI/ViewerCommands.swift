@@ -17,7 +17,7 @@ public struct ViewerCommands: Commands {
         }
         CommandGroup(after: .pasteboard) {
             Divider()
-            Button("Move to Trash") { app.moveToTrash() }
+            Button("Move to Trash…") { app.moveToTrash() }
                 .keyboardShortcut(.delete, modifiers: .command)
         }
         ViewerPhotoCommands(app: app)

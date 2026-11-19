@@ -466,7 +466,12 @@ final class ViewerSession {
             updateRatingBadge()
         case .moveToTrash:
             guard let id = model.current?.main else { return }
-            Task { await culling.moveToTrash([id]) }
+            stopSlideshow()
+            if let app {
+                app.trash(photos: [id], folders: [])
+            } else {
+                Task { await culling.moveToTrash([id]) }
+            }
         case .file(let action):
             guard let id = model.current?.main else { return }
             onFileAction?(action, [id])

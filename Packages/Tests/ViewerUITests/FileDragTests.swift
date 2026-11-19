@@ -119,4 +119,59 @@ struct FileDragTests {
             #expect(components[0].key == .icon)
         }
     }
+
+    @Test func droppingExternalFilesCopiesIntoOpenFolderInsteadOfOpening() throws {
+        let (app, cleanup) = try makeModel()
+        defer { cleanup() }
+        let openDir = try makeFolder(photos: ["existing.jpg"])
+        let sourceDir = try makeFolder(photos: ["incoming.jpg", "existing.jpg"], subfolders: ["Album"])
+        defer {
+            try? FileManager.default.removeItem(at: openDir)
+            try? FileManager.default.removeItem(at: sourceDir)
+        }
+
+        app.browser.load(openDir)
+        let dropped = [
+            sourceDir.appendingPathComponent("incoming.jpg"),
+            sourceDir.appendingPathComponent("existing.jpg"),
+            sourceDir.appendingPathComponent("Album"),
+        ]
+        #expect(app.dropOnBrowser(dropped))
+
+        #expect(app.browser.folder?.standardizedFileURL == openDir.standardizedFileURL)
+        #expect(!app.viewer.isOpen)
+        let fm = FileManager.default
+        #expect(fm.fileExists(atPath: openDir.appendingPathComponent("incoming.jpg").path))
+        #expect(fm.fileExists(atPath: openDir.appendingPathComponent("existing.jpg").path))
+        #expect(fm.fileExists(atPath: openDir.appendingPathComponent("existing 2.jpg").path))
+        #expect(fm.fileExists(atPath: openDir.appendingPathComponent("Album").path))
+        #expect(fm.fileExists(atPath: sourceDir.appendingPathComponent("incoming.jpg").path))
+        #expect(app.culling.canUndo)
+    }
+
+    @Test func droppingFolderWhenNoFolderIsOpenOpensIt() throws {
+        let (app, cleanup) = try makeModel()
+        defer { cleanup() }
+        let dir = try makeFolder(photos: ["a.jpg"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        #expect(app.browser.folder == nil)
+        #expect(app.dropOnBrowser([dir]))
+        #expect(app.browser.folder?.standardizedFileURL == dir.standardizedFileURL)
+    }
+
+    @Test func droppingOwnDragOnBrowserDoesNothing() throws {
+        let (app, cleanup) = try makeModel()
+        defer { cleanup() }
+        let dir = try makeFolder(photos: ["a.jpg"])
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        app.browser.load(dir)
+        let entry = try #require(app.browser.items.first { $0.id == "a.jpg" })
+        let urls = app.beginDrag(entry)
+        defer { app.endDrag() }
+
+        #expect(!app.dropOnBrowser(urls))
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("a 2.jpg").path))
+    }
 }
