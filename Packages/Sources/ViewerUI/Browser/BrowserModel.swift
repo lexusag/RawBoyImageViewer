@@ -164,18 +164,26 @@ final class BrowserModel {
         return anchor.flatMap { a in photos.contains(a) ? [a] : nil } ?? []
     }
 
-    /// How many shown photos and folders are selected (ids left over from a filter don't count).
-    var selectionCounts: (files: Int, folders: Int) {
+    /// How many shown photos and folders are selected, and the photos' total size in bytes (ids left over from a filter
+    /// don't count).
+    var selectionCounts: (files: Int, folders: Int, bytes: Int64?) {
         var files = 0
         var folders = 0
+        var bytes: Int64 = 0
+        var hasSize = false
         for entry in items where selection.contains(entry.id) {
             switch entry {
-            case .photo: files += 1
+            case .photo(let photo):
+                files += 1
+                if let size = photo.size {
+                    bytes += size
+                    hasSize = true
+                }
             case .folder: folders += 1
             case .parent: break
             }
         }
-        return (files, folders)
+        return (files, folders, hasSize ? bytes : nil)
     }
 
     /// The selected subfolders, in grid order.

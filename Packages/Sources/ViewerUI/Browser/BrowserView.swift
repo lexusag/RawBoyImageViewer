@@ -220,7 +220,7 @@ private struct SelectionStatus: View {
     var body: some View {
         let counts = browser.selectionCounts
         HStack {
-            Text(SelectionSummary.text(files: counts.files, folders: counts.folders))
+            Text(SelectionSummary.text(files: counts.files, folders: counts.folders, bytes: counts.bytes))
                 .font(Theme.label)
                 .foregroundStyle(Theme.ashMuted)
                 .monospacedDigit()
