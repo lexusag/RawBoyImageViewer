@@ -263,10 +263,11 @@ extension AppModel {
         var lead: URL?
     }
 
-    /// Starts dragging [entry]: the whole selection when it is part of it, else just that entry. The pasteboard
-    /// carries the entry's own file URL, so Finder accepts the drop too.
-    func beginDrag(_ entry: GridEntry) -> NSItemProvider? {
-        guard let folder = browser.folder else { return nil }
+    /// Starts dragging [entry]: the whole selection when it is part of it, else just that entry. Returns every
+    /// dragged file or folder URL (in display order) for the AppKit dragging session, so Finder and other apps
+    /// receive the whole selection.
+    func beginDrag(_ entry: GridEntry) -> [URL] {
+        guard let folder = browser.folder else { return [] }
         var entries = [entry]
         if browser.selection.contains(entry.id) {
             entries = browser.items.filter { browser.selection.contains($0.id) }
@@ -274,39 +275,31 @@ extension AppModel {
             browser.click(entry.id, command: false, shift: false)
         }
         var set = DragSet()
+        var urls: [URL] = []
         for e in entries {
             switch e {
-            case .photo(let photo): set.ids.append(photo.id)
-            case .folder(let url): set.folders.append(url)
+            case .photo(let photo):
+                set.ids.append(photo.id)
+                urls.append(folder.appendingPathComponent(photo.id))
+            case .folder(let url):
+                set.folders.append(url)
+                urls.append(url)
             case .parent: break
             }
         }
-        guard !set.ids.isEmpty || !set.folders.isEmpty else { return nil }
+        guard !urls.isEmpty else { return [] }
         switch entry {
         case .photo(let photo): set.lead = folder.appendingPathComponent(photo.id)
         case .folder(let url): set.lead = url
-        case .parent: return nil
+        case .parent: return []
         }
         drag = set
-        return set.lead.map { Self.provider(for: $0) }
+        return urls
     }
 
-    /// The dragged file as other apps can take it: its file URL (Finder, Reblum, Places) and its contents in its own
-    /// type (a browser's upload area, Mail, chat). Handed over in place, so nothing is copied unless the target asks.
-    /// A drag carries one item: SwiftUI's `onDrag` has no way to give the pasteboard several.
-    static func provider(for url: URL) -> NSItemProvider {
-        let provider = NSItemProvider(object: url as NSURL)
-        provider.suggestedName = url.lastPathComponent
-        let values = try? url.resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
-        if values?.isDirectory != true, let type = values?.contentType {
-            provider.registerFileRepresentation(
-                forTypeIdentifier: type.identifier, fileOptions: [.openInPlace], visibility: .all
-            ) { completion in
-                completion(url, true, nil)
-                return nil
-            }
-        }
-        return provider
+    /// Clears the active drag once the dragging session ends (if a drop on Places hasn't already).
+    func endDrag() {
+        drag = nil
     }
 
     /// Whether [urls] is the drag this app started (so dropping it on the grid again does nothing).

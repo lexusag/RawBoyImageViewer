@@ -27,7 +27,7 @@ struct PhotoList: View {
                                 .id(entry.id)
                                 .selectOnRightClick(entry.id, enabled: !entry.isParent, browser: browser)
                                 .modifier(MarqueeCell(id: entry.id, enabled: !entry.isParent))
-                                .onDrag { app.beginDrag(entry) ?? NSItemProvider() }
+                                .dragFiles(entry, enabled: !entry.isParent, app: app)
                                 .gesture(
                                     TapGesture(count: 2).onEnded { open(entry.id) }
                                         .exclusively(
