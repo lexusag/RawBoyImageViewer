@@ -56,7 +56,7 @@ final class CullingStore {
     enum Keys {
         static let autoAdvance = "culling.autoAdvance"
         static let trashNotice = "culling.syncedTrashNoticeShown"
-        /// Set by "Don't ask again" on the browser's photo-only Trash question; folders always ask.
+        /// Set by "Don't ask again" on the photo-only Trash question; folders always ask.
         static let trashPhotosWithoutAsking = "culling.trashPhotosWithoutAsking"
     }
 

@@ -227,7 +227,12 @@ final class CompareSession {
         case .toggleFlag(let flag): culling.toggleFlag([id], flag)
         case .unflag: culling.clearFlag([id])
         case .rotate(let clockwise): culling.rotate([id], clockwise: clockwise)
-        case .moveToTrash: Task { await culling.moveToTrash([id]) }
+        case .moveToTrash:
+            if let app {
+                app.trash(photos: [id], folders: [])
+            } else {
+                Task { await culling.moveToTrash([id]) }
+            }
         case .undo: culling.undo()
         case .dismiss, .close: close()
         case .toggleFullScreen: controller?.toggleScreenFilling()

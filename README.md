@@ -45,7 +45,7 @@ RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and 
 | Status line (bottom) | How many photos are selected and their total size, plus folders when any are: "3 files, 1 folder selected · 48.2 MB" |
 | Folder button | Show subfolders as tiles in the grid (off at first) |
 | Drag photos or folders out of the grid or list | Into Finder, Mail, a browser's upload area or another app: carries the whole selection |
-| Drop a folder or photos from Finder onto the browser | Opens the folder (or the photos' folder with the first one selected) |
+| Drop files or folders from Finder onto the browser | Copies them into the open folder (never overwriting; ⌘Z puts the copies in the Trash). Opens the folder when none is open |
 | Drop a folder from Finder onto Favourites | Adds it to the favourites |
 | List button | Show the folder as a list (thumbnail, name, shoot date, kind, size, rating) instead of thumbnails; drag the lines between column titles to resize them |
 | Preview button | A pane on the right with the selected photo, large (off at first); drag its edge to resize it, and the sidebar's edge too |
@@ -93,7 +93,7 @@ photo and the right half to the next (hold to keep going).
 | Drag, two-finger scroll (zoomed in) | Pan |
 | F | Screen-filling ↔ window |
 | 1–5, 0, P, X, U | Rate, as in the browser; then on to the next photo (Photo › Go to the Next Photo After Rating) |
-| ⌘Z, ⌘⌫ · ⌦ | Undo, Move to the Trash |
+| ⌘Z, ⌘⌫ · ⌦ | Undo, Move to the Trash (asks first) |
 | [ / ] | Rotate left / right |
 | K | Crop: drag corners and edges (RawBoy's aspect ratios), Return applies, Esc cancels, "Save copy" applies and saves the cropped photo next to the original as NAME_crop, "Save as…" lets you choose |
 | R | Raws developed by macOS instead of the camera's embedded JPEG ("real preview"; not RawBoy's look) |

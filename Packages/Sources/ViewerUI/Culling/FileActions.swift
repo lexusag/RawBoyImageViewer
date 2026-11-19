@@ -240,6 +240,10 @@ extension AppModel {
             let urls = NSPasteboard.general.readObjects(
                 forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty
         else { return false }
+        return copyIn(urls, into: folder, verb: "Pasted")
+    }
+
+    private func copyIn(_ urls: [URL], into folder: URL, verb: String) -> Bool {
         let result = FilePaste.paste(urls, into: folder)
         guard !result.created.isEmpty || result.failed > 0 else { return false }
         let what =
@@ -248,9 +252,13 @@ extension AppModel {
                 result.folders > 0 ? "\(result.folders) folder\(result.folders == 1 ? "" : "s")" : nil,
             ].compactMap { $0 }.joined(separator: " and ")
         culling.recordPasted(result.created)
-        say(
-            result.failed == 0
-                ? "Pasted \(what)" : "Pasted \(what); \(result.failed) couldn't be copied")
+        if what.isEmpty {
+            say("Couldn't copy \(result.failed) item\(result.failed == 1 ? "" : "s")")
+        } else {
+            say(
+                result.failed == 0
+                    ? "\(verb) \(what)" : "\(verb) \(what); \(result.failed) couldn't be copied")
+        }
         return true
     }
 
@@ -317,16 +325,23 @@ extension AppModel {
         return dropped.lastPathComponent == lead.lastPathComponent
     }
 
-    /// Files or folders dropped from Finder or another app on the browser: a folder opens, files open their folder
-    /// with the first one selected.
+    /// Files or folders dropped from Finder or another app on the browser: copied into the open folder (never
+    /// overwriting; ⌘Z puts the copies in the Trash). When no folder is open, opens a dropped folder or the dropped
+    /// file's folder.
     func dropOnBrowser(_ urls: [URL]) -> Bool {
         guard !isOwnDrag(urls) else { return false }
+        let fileURLs = urls.filter(\.isFileURL)
+        guard !fileURLs.isEmpty else { return false }
+        if let folder = browser.folder {
+            return copyIn(fileURLs, into: folder, verb: "Copied")
+        }
         let fm = FileManager.default
         let isDir = { (u: URL) in
             var d: ObjCBool = false
             return fm.fileExists(atPath: u.path, isDirectory: &d) && d.boolValue
         }
-        guard let url = urls.first(where: isDir) ?? urls.first(where: { fm.fileExists(atPath: $0.path) }) else {
+        guard let url = fileURLs.first(where: isDir) ?? fileURLs.first(where: { fm.fileExists(atPath: $0.path) })
+        else {
             return false
         }
         open(url)

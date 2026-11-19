@@ -90,7 +90,7 @@ struct SettingsView: View {
                     }
                 }
                 Toggle(
-                    "Ask before moving photos to the Trash in the browser",
+                    "Ask before moving photos to the Trash",
                     isOn: Binding(
                         get: { !trashPhotosWithoutAsking }, set: { trashPhotosWithoutAsking = !$0 }))
                 Toggle(

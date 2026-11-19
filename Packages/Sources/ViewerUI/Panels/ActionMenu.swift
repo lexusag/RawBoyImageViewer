@@ -96,7 +96,7 @@ struct ActionMenu: View {
                         model.send(.file(.moveTo))
                     }
                     ActionRow(icon: "folder", title: "Show in Finder", key: nil) { model.send(.revealFile) }
-                    ActionRow(icon: "trash", title: "Move to Trash", key: "⌘⌫") { model.send(.moveToTrash) }
+                    ActionRow(icon: "trash", title: "Move to Trash…", key: "⌘⌫") { model.send(.moveToTrash) }
 
                     PanelSection(title: "Viewer").padding(.horizontal, DesignTokens.Spacing.sm)
                     ActionRow(icon: "xmark", title: "Close the viewer", key: "Esc") { model.send(.close) }

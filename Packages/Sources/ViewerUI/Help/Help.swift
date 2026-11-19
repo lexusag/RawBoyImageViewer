@@ -33,7 +33,9 @@ enum HelpContent {
                 Item(keys: "C", text: "Compare the selection (2–4; one photo with the next)"),
                 Item(keys: "S", text: "Slideshow from the selection"),
                 Item(keys: "Drag photos", text: "Out to Finder or another app, or onto a folder in the sidebar"),
-                Item(keys: "Drop files or a folder", text: "On the browser: opens the folder, or the photo's folder"),
+                Item(
+                    keys: "Drop files or a folder",
+                    text: "On the browser: copies them into the open folder (opens when none is open)"),
                 Item(keys: "Right-click", text: "Everything for the photo or the selection"),
             ]),
         Section(

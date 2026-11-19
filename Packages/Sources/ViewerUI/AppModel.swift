@@ -32,6 +32,8 @@ public final class AppModel {
     @ObservationIgnored public private(set) weak var browserWindow: NSWindow?
     @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var shownViews = 0
+    /// Override for the Move to Trash confirmation dialog in unit tests (nil runs the real NSAlert).
+    @ObservationIgnored var confirmTrash: ((TrashPrompt) -> TrashConfirmation)?
 
     public init(options: ViewerOptions = ViewerOptions()) {
         let box = ViewerOptionsBox(options)
@@ -342,40 +344,67 @@ public final class AppModel {
         }
     }
 
-    /// The browser's way to the Trash (keys, toolbar, right-click): asks first, then moves photos (with their JPEGs and
-    /// sidecars) and folders (with everything in them). Always the Trash, never a permanent delete; ⌘Z puts them back.
+    struct TrashPrompt: Equatable {
+        let messageText: String
+        let informativeText: String
+        let allowsSuppression: Bool
+    }
+
+    struct TrashConfirmation: Equatable {
+        let confirmed: Bool
+        let suppress: Bool
+    }
+
+    static func trashPrompt(photos count: Int, folders: [URL], synced: Bool) -> TrashPrompt {
+        let photoText = "\(count) photo\(count == 1 ? "" : "s")"
+        let folderText =
+            folders.count == 1 ? "the folder “\(folders[0].lastPathComponent)”" : "\(folders.count) folders"
+        let messageText =
+            "Move "
+            + [count == 0 ? nil : photoText, folders.isEmpty ? nil : folderText].compactMap { $0 }.joined(
+                separator: " and ") + " to the Trash?"
+        var lines: [String] = []
+        if count > 0 { lines.append("A photo's JPEG and sidecars go with it.") }
+        if !folders.isEmpty {
+            lines.append("Everything inside \(folders.count == 1 ? "the folder" : "the folders") goes too.")
+        }
+        lines.append("⌘Z puts \(count + folders.count == 1 ? "it" : "them") back.")
+        if synced {
+            lines.append("This folder syncs with the cloud: the Trash deletes there and on your other devices too.")
+        }
+        return TrashPrompt(
+            messageText: messageText, informativeText: lines.joined(separator: " "),
+            allowsSuppression: folders.isEmpty)
+    }
+
+    private static func runTrashAlert(_ prompt: TrashPrompt) -> TrashConfirmation {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = prompt.messageText
+        alert.informativeText = prompt.informativeText
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        if prompt.allowsSuppression {
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = "Don't ask again for photos"
+        }
+        let confirmed = alert.runModal() == .alertFirstButtonReturn
+        return TrashConfirmation(confirmed: confirmed, suppress: alert.suppressionButton?.state == .on)
+    }
+
+    /// The app's way to the Trash (browser, viewer and Compare: keys, toolbar, menus): asks first, then moves photos
+    /// (with their JPEGs and sidecars) and folders (with everything in them). Always the Trash, never a permanent
+    /// delete; ⌘Z puts them back.
     func trash(photos ids: [String], folders: [URL]) {
-        guard !ids.isEmpty || !folders.isEmpty, let current = browser.folder else { return }
+        guard !ids.isEmpty || !folders.isEmpty, let current = browser.folder ?? culling.folder else { return }
         let defaults = ViewerSettings.current
         let synced = CullingStore.isSyncedFolder(current) && !defaults.bool(forKey: CullingStore.Keys.trashNotice)
         let skip = folders.isEmpty && defaults.bool(forKey: CullingStore.Keys.trashPhotosWithoutAsking)
         if !skip {
-            let alert = NSAlert()
-            let photoText = "\(ids.count) photo\(ids.count == 1 ? "" : "s")"
-            let folderText =
-                folders.count == 1 ? "the folder “\(folders[0].lastPathComponent)”" : "\(folders.count) folders"
-            alert.messageText =
-                "Move "
-                + [ids.isEmpty ? nil : photoText, folders.isEmpty ? nil : folderText].compactMap { $0 }.joined(
-                    separator: " and ") + " to the Trash?"
-            var lines: [String] = []
-            if !ids.isEmpty { lines.append("A photo's JPEG and sidecars go with it.") }
-            if !folders.isEmpty {
-                lines.append("Everything inside \(folders.count == 1 ? "the folder" : "the folders") goes too.")
-            }
-            lines.append("⌘Z puts \(ids.count + folders.count == 1 ? "it" : "them") back.")
-            if synced {
-                lines.append("This folder syncs with the cloud: the Trash deletes there and on your other devices too.")
-            }
-            alert.informativeText = lines.joined(separator: " ")
-            alert.addButton(withTitle: "Move to Trash")
-            alert.addButton(withTitle: "Cancel")
-            if folders.isEmpty {
-                alert.showsSuppressionButton = true
-                alert.suppressionButton?.title = "Don't ask again for photos"
-            }
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-            if alert.suppressionButton?.state == .on {
+            let prompt = Self.trashPrompt(photos: ids.count, folders: folders, synced: synced)
+            let answer = confirmTrash?(prompt) ?? Self.runTrashAlert(prompt)
+            guard answer.confirmed else { return }
+            if prompt.allowsSuppression, answer.suppress {
                 defaults.set(true, forKey: CullingStore.Keys.trashPhotosWithoutAsking)
             }
         }
