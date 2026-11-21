@@ -7,6 +7,12 @@ struct PhotoGroupsTests {
         #expect(groups == [PhotoGroup(stem: "DSCF1", main: "DSCF1.RAF", companions: ["DSCF1.JPG"], sidecars: [])])
     }
 
+    @Test func videoIsNeverMainWhenAPictureSharesItsName() {
+        let groups = PhotoGroups.group(["IMG_1.AVI", "IMG_1.HEIC", "clip.mp4"])
+        #expect(groups.map(\.main) == ["clip.mp4", "IMG_1.HEIC"])
+        #expect(groups[1].companions == ["IMG_1.AVI"])
+    }
+
     @Test func namesCompareCaseInsensitively() {
         let groups = PhotoGroups.group(["img_1.jpg", "IMG_1.ARW"])
         #expect(groups.count == 1)

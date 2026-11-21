@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreGraphics
 import CryptoKit
 import Foundation
@@ -54,7 +55,7 @@ public actor ThumbnailStore {
             let key = disk?.key(
                 url: url, size: size, modified: modified, pixels: pixels, orientation: orientation, crop: crop)
             if let key, let image = disk?.read(key) { return Thumbnail(cgImage: image) }
-            guard var made = Self.make(url, pixels) else { return nil }
+            guard var made = await Self.make(url, pixels) else { return nil }
             if let orientation {
                 let delta = Orienting.delta(from: ImageLoader.fileOrientation(of: url), to: orientation)
                 made = Orienting.apply(delta, to: made)
@@ -72,11 +73,28 @@ public actor ThumbnailStore {
         return thumb
     }
 
-    static func make(_ url: URL, _ pixels: Int) -> CGImage? {
+    static func make(_ url: URL, _ pixels: Int) async -> CGImage? {
+        if PhotoFileType(fileName: url.lastPathComponent) == .video {
+            return await videoStill(url, pixels).map(ImageLoader.displayReady)
+        }
         if PhotoFileType(fileName: url.lastPathComponent) == .raw, let image = embedded(url, pixels) {
             return ImageLoader.displayReady(image)
         }
         return Thumbnailer.thumbnail(at: url, maxPixelSize: pixels).map(ImageLoader.displayReady)
+    }
+
+    /// A frame of the video about a second in (or its middle, when shorter), upright, at most [pixels] on its long
+    /// edge. Reads only what that frame needs; nil when the container or codec isn't one AVFoundation opens.
+    static func videoStill(_ url: URL, _ pixels: Int) async -> CGImage? {
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: pixels, height: pixels)
+        generator.requestedTimeToleranceBefore = CMTime(seconds: 2, preferredTimescale: 600)
+        generator.requestedTimeToleranceAfter = CMTime(seconds: 2, preferredTimescale: 600)
+        let seconds = (try? await asset.load(.duration).seconds) ?? 0
+        let at = CMTime(seconds: seconds.isFinite && seconds > 0 ? min(1, seconds / 2) : 0, preferredTimescale: 600)
+        return try? await generator.image(at: at).image
     }
 
     /// The raw's embedded camera JPEG, scaled down, when it is big enough.

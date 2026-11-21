@@ -66,8 +66,8 @@ public final class AppModel {
         browser.onLoad = { [weak self] folder in self?.watch(folder) }
         browser.onOrderChanged = { [weak self] in
             guard let self else { return }
-            if viewer.isOpen { viewer.replace(groups: browser.visible.map(\.group)) }
-            if compare.isOpen { compare.replace(order: browser.visible.map(\.group)) }
+            if viewer.isOpen { viewer.replace(groups: viewerGroups) }
+            if compare.isOpen { compare.replace(order: viewerGroups) }
         }
         viewer.onClose = { [weak self] current in
             // Back in the browser on the photo the viewer showed last.
@@ -101,10 +101,19 @@ public final class AppModel {
 
     /// Opens the viewer on the browser's photos, in the browser's order, at [id].
     func openViewer(at id: String) {
-        guard let folder = browser.folder, let index = browser.visible.firstIndex(where: { $0.id == id }) else {
+        guard let folder = browser.folder, let photo = browser.visible.first(where: { $0.id == id }) else { return }
+        // Videos open in the default player: the viewer shows pictures only.
+        if photo.isVideo {
+            NSWorkspace.shared.open(photo.url)
             return
         }
-        viewer.show(folder: folder, groups: browser.visible.map(\.group), at: index)
+        guard let index = viewerGroups.firstIndex(where: { $0.main == id }) else { return }
+        viewer.show(folder: folder, groups: viewerGroups, at: index)
+    }
+
+    /// The browser's photos in its order, without videos: what the viewer and Compare step through.
+    private var viewerGroups: [PhotoGroup] {
+        browser.visible.map(\.group).filter { PhotoFileType(fileName: $0.main) != .video }
     }
 
     // MARK: Watching the folder
@@ -114,11 +123,11 @@ public final class AppModel {
     func folderContentsChanged() {
         browser.reload()
         if viewer.isOpen {
-            viewer.replace(groups: browser.visible.map(\.group))
+            viewer.replace(groups: viewerGroups)
             if let current = viewer.model.current?.main { browser.select(current) }
         }
         if compare.isOpen {
-            compare.replace(order: browser.visible.map(\.group))
+            compare.replace(order: viewerGroups)
             if let current = compare.chosenID { browser.select(current) }
         }
     }
@@ -172,9 +181,10 @@ public final class AppModel {
         {
             ids.append(browser.visible[i + 1].id)
         }
+        ids = ids.filter { PhotoFileType(fileName: $0) != .video }
         guard ids.count >= 2 else { return }
         if viewer.isOpen { viewer.close() }
-        compare.show(folder: folder, ids: ids, order: browser.visible.map(\.group))
+        compare.show(folder: folder, ids: ids, order: viewerGroups)
         compareOpen = compare.isOpen && compare.isEmbedded
     }
 

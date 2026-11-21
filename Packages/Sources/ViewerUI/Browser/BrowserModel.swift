@@ -18,6 +18,7 @@ struct BrowsePhoto: Identifiable, Equatable {
 
     var id: String { group.main }
     var name: String { group.main }
+    var isVideo: Bool { PhotoFileType(fileName: group.main) == .video }
 }
 
 enum BrowserViewMode: String { case grid, list }

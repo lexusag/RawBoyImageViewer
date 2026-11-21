@@ -15,14 +15,14 @@ Ratings go into XMP sidecars that RawBoy Browser, Lightroom, Capture One and dar
 The browser opens on the last folder you looked at. Pick a folder on the left (recent folders (with up to three parent folders shown; right-click › Pin to Recent keeps a folder at the top; the pin beside Recent (and Favourites) keeps that list in view while the rest scrolls), then Pictures, Desktop,
 cloud storage and other drives, each opening into its subfolders), drop one on the window, or press ⌘O. Photos show
 in the order they were shot (or by name), from the cameras' own previews, so a folder of raws appears in seconds; a
-RAW + JPEG pair is one photo. Files that are only in the cloud show a cloud and aren't downloaded until opened.
+RAW + JPEG pair is one photo. Videos (MP4, MOV, M4V, MKV, AVI, WebM, MTS) show in the grid with a still from about a second in and a VIDEO badge; they open in your default player, and the viewer and Compare step over them. Files that are only in the cloud show a cloud and aren't downloaded until opened.
 
 | In the browser | |
 |---|---|
 | Click, ⌘-click, Shift-click | Select one, add one, select a range |
 | Drag on empty space | Select what the rectangle touches (Shift adds, ⌘ toggles); a click on empty space clears |
 | Arrows | Move |
-| Double-click, Enter, Space | Open the viewer |
+| Double-click, Enter, Space | Open the viewer (a video opens in your default player instead) |
 | ⌘A, Esc | Select all, clear |
 | ⌘C, ⌘V | Copy the selected photos (with their JPEGs and sidecars) and folders as files, so Finder and other apps can paste them; paste files or folders from Finder or from here into the open folder as copies. A name already taken gets a number ("IMG_1 2.CR2", a photo's files together), nothing is overwritten. ⌘Z puts the pasted copies in the Trash. Text fields keep their own copy and paste |
 | ⌘F | Search names |

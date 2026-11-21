@@ -4,6 +4,9 @@ public enum PhotoFileType: Equatable, Sendable {
     case raw
     /// A file that is already a picture: JPEG, HEIC, PNG, TIFF…
     case display
+    /// A video: shown in the browser with a still as its thumbnail, opened in the default player (the viewer
+    /// itself shows only pictures).
+    case video
 
     /// RawBoy's list (`RAW_ACCEPT` in RawBoy's web/src/ui/common/files.ts): keep them the same.
     public static let rawExtensions: Set<String> = [
@@ -16,6 +19,9 @@ public enum PhotoFileType: Equatable, Sendable {
         "avif", "heic", "heif", "jpeg", "jpg", "jxl", "png", "tif", "tiff", "webp",
     ]
 
+    /// Common video containers, which AVFoundation can take a still from.
+    public static let videoExtensions: Set<String> = ["avi", "m4v", "mkv", "mov", "mp4", "mts", "m2ts", "webm"]
+
     /// The type of a file named [fileName], or nil when the viewer doesn't show it.
     public init?(fileName: String) {
         guard let dot = fileName.lastIndex(of: "."), dot != fileName.startIndex else { return nil }
@@ -24,6 +30,8 @@ public enum PhotoFileType: Equatable, Sendable {
             self = .raw
         } else if Self.displayExtensions.contains(ext) {
             self = .display
+        } else if Self.videoExtensions.contains(ext) {
+            self = .video
         } else {
             return nil
         }
