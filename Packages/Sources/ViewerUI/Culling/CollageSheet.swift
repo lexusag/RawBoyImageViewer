@@ -303,10 +303,7 @@ struct CollageSheet: View {
                     .help("Puts every photo back in an even grid")
                 if let id = model.selected {
                     Text(id).font(Theme.label).foregroundStyle(Theme.ashMuted).lineLimit(1).truncationMode(.middle)
-                    HStack {
-                        Button("Bring to front") { model.layout.bringToFront(id) }.buttonStyle(.rawBoy)
-                        Button("Remove") { model.remove(id) }.buttonStyle(.rawBoy)
-                    }
+                    Button("Remove from collage") { model.remove(id) }.buttonStyle(.rawBoy)
                 } else {
                     Text(
                         "Drag a photo to move it; select it to resize by its handles. "
