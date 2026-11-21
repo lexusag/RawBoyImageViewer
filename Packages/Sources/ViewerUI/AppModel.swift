@@ -36,6 +36,7 @@ public final class AppModel {
     @ObservationIgnored var confirmTrash: ((TrashPrompt) -> TrashConfirmation)?
 
     public init(options: ViewerOptions = ViewerOptions()) {
+        FileLimits.raise()
         let box = ViewerOptionsBox(options)
         optionsBox = box
         browser = BrowserModel(culling: culling)

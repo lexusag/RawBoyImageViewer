@@ -24,6 +24,12 @@ public actor ThumbnailStore {
     private var inFlight: [Key: Task<Thumbnail?, Never>] = [:]
     public let pixelSize: Int
     private let disk: DiskThumbnailCache?
+    /// Decodes in progress at once (see `WorkGate`).
+    private let gate = WorkGate(limit: ThumbnailStore.concurrentDecodes)
+
+    /// Thumbnails made at the same time: enough to keep the cores busy, few enough that a folder of big compressed
+    /// raws doesn't hold hundreds of decodes in memory.
+    static let concurrentDecodes = max(2, min(6, ProcessInfo.processInfo.activeProcessorCount / 2))
 
     /// RawBoy Browser's grid uses the smallest preview of at least 400 px.
     public static let minEmbedded = 400
@@ -39,6 +45,11 @@ public actor ThumbnailStore {
         _ url: URL, size: Int64? = nil, modified: Date? = nil, orientation: Int? = nil, crop: CropRect? = nil
     ) async -> Thumbnail? {
         let memoryKey = Key(url: url, orientation: orientation, crop: crop)
+        if let hit = cache.value(for: memoryKey) { return hit }
+        if let running = inFlight[memoryKey] { return await running.value }
+        // A cell scrolled out of view cancels its task: it leaves the queue and asks again when it comes back.
+        guard await gate.acquire() else { return nil }
+        defer { Task { await gate.release() } }
         if let hit = cache.value(for: memoryKey) { return hit }
         if let running = inFlight[memoryKey] { return await running.value }
         let pixels = pixelSize
@@ -77,10 +88,14 @@ public actor ThumbnailStore {
         if PhotoFileType(fileName: url.lastPathComponent) == .video {
             return await videoStill(url, pixels).map(ImageLoader.displayReady)
         }
-        if PhotoFileType(fileName: url.lastPathComponent) == .raw, let image = embedded(url, pixels) {
-            return ImageLoader.displayReady(image)
+        // The pool's threads don't drain autorelease pools between jobs: ImageIO's raw decoders leave tens of MB of
+        // temporaries each, which added up over a folder.
+        return autoreleasepool { () -> CGImage? in
+            if PhotoFileType(fileName: url.lastPathComponent) == .raw, let image = embedded(url, pixels) {
+                return ImageLoader.displayReady(image)
+            }
+            return Thumbnailer.thumbnail(at: url, maxPixelSize: pixels).map(ImageLoader.displayReady)
         }
-        return Thumbnailer.thumbnail(at: url, maxPixelSize: pixels).map(ImageLoader.displayReady)
     }
 
     /// A frame of the video about a second in (or its middle, when shorter), upright, at most [pixels] on its long
