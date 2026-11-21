@@ -12,6 +12,11 @@ struct PhotoFileTypeTests {
         #expect(PhotoFileType(fileName: name) == .display)
     }
 
+    @Test(arguments: ["a.mp4", "B.MOV", "c.m4v", "d.mkv"])
+    func videos(_ name: String) {
+        #expect(PhotoFileType(fileName: name) == .video)
+    }
+
     @Test(arguments: ["IMG_1.xmp", "notes.txt", "noextension", ".jpg", "a.jpg.part"])
     func ignored(_ name: String) {
         #expect(PhotoFileType(fileName: name) == nil)

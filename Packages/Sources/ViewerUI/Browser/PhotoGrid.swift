@@ -189,6 +189,7 @@ struct PhotoCell: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 HStack(spacing: 3) {
                     if hasSidecar { Badge(text: "XMP") }
+                    if photo.isVideo { Badge(text: "VIDEO") }
                     if photo.isRaw { Badge(text: photo.group.companions.isEmpty ? "RAW" : "RAW+") }
                 }
                 .padding(6)

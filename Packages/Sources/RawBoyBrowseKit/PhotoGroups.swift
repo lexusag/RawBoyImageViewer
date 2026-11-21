@@ -60,8 +60,16 @@ public enum PhotoGroups {
         }
 
         let groups = byStem.map { key, files -> PhotoGroup in
+            // The raw is the main file; a video (a Live Photo's clip) never is, when a picture shares its name.
+            func rank(_ name: String) -> Int {
+                switch PhotoFileType(fileName: name) {
+                case .raw: 0
+                case .video: 2
+                default: 1
+                }
+            }
             let sorted = files.sorted { a, b in
-                isRaw(a) != isRaw(b) ? isRaw(a) : a.localizedStandardCompare(b) == .orderedAscending
+                rank(a) != rank(b) ? rank(a) < rank(b) : a.localizedStandardCompare(b) == .orderedAscending
             }
             return PhotoGroup(
                 stem: stem(of: sorted[0]), main: sorted[0], companions: Array(sorted.dropFirst()),
