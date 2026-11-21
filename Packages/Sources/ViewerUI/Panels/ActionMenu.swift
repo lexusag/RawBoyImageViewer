@@ -75,6 +75,9 @@ struct ActionMenu: View {
                     ActionRow(icon: "square.and.arrow.up.on.square", title: "Export…", key: "⇧⌘E") {
                         model.send(.file(.export))
                     }
+                    ActionRow(icon: "square.grid.2x2", title: "Collage…", key: "⇧⌘K") {
+                        model.send(.file(.collage))
+                    }
                     ActionRow(icon: "doc.on.doc", title: "Copy photo", key: "⌥⌘C") { model.send(.file(.clipboard)) }
                     ActionRow(icon: "square.and.arrow.up", title: "Share…", key: nil) { model.send(.file(.share)) }
                     if ViewerHost.handOff.canSendToAuto {

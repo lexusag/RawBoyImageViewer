@@ -347,6 +347,7 @@ private struct PhotoMenu: View {
         Divider()
         Button("Rename…") { app.rename(ids) }
         Button("Export…") { app.perform(.export, ids) }
+        if ids.count > 1 { Button("Collage…") { app.perform(.collage, ids) } }
         Button("Copy to Folder…") { app.perform(.copyTo, ids) }
         Button("Move to Folder…") { app.perform(.moveTo, ids) }
         Button("Copy Photo") { app.perform(.clipboard, ids) }
