@@ -312,9 +312,9 @@ struct CollageSheet: View {
                         "Drag a photo to move it; select it to resize by its handles. "
                             + "Edges snap to the canvas and to other photos."
                     )
-                        .font(Theme.label)
-                        .foregroundStyle(Theme.ashMuted)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.ashMuted)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer()

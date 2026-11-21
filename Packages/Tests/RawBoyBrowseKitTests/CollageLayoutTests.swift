@@ -14,9 +14,10 @@ struct CollageLayoutTests {
     @Test func arrangesLandscapePhotosInRows() {
         let l = CollageLayout.arranged(ids: ["a", "b"], aspects: [1.5, 1.5], canvas: square)
         // Two landscape photos on a square: stacked (1000 x 500 cells), not side by side (500 x 1000).
-        #expect(l.items.map(\.frame) == [
-            Rect2D(x: 0, y: 0, width: 1000, height: 500), Rect2D(x: 0, y: 500, width: 1000, height: 500),
-        ])
+        #expect(
+            l.items.map(\.frame) == [
+                Rect2D(x: 0, y: 0, width: 1000, height: 500), Rect2D(x: 0, y: 500, width: 1000, height: 500),
+            ])
     }
 
     @Test func arrangesNarrowPhotosInColumns() {
@@ -77,8 +78,9 @@ struct CollageLayoutTests {
         var l = CollageLayout(canvas: square)
         let a = Rect2D(x: 100, y: 100, width: 300, height: 300)
         l.items = [CollageItem(id: "a", frame: a)]
-        #expect(l.resized(a, handle: .bottomRight, dx: 150, dy: 70, excluding: "a")
-            == Rect2D(x: 100, y: 100, width: 450, height: 370))
+        #expect(
+            l.resized(a, handle: .bottomRight, dx: 150, dy: 70, excluding: "a")
+                == Rect2D(x: 100, y: 100, width: 450, height: 370))
         let shrunk = l.resized(a, handle: .topLeft, dx: 900, dy: 900, excluding: "a")
         #expect(shrunk.maxX == 400 && shrunk.maxY == 400 && shrunk.width == CollageLayout.minFrame)
         #expect(l.resized(a, handle: .right, dx: 5000, dy: 0, excluding: "a").maxX == 1000)
