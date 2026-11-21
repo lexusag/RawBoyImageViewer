@@ -90,7 +90,7 @@ enum HelpContent {
             title: "Edges of the viewer",
             items: [
                 Item(keys: "Left edge · M", text: "Actions"),
-                Item(keys: "Right edge · I", text: "Details: histogram, EXIF, file; All metadata lists every tag, searchable"),
+                Item(keys: "Right edge · I", text: "Details: histogram, EXIF, file, every tag (searchable)"),
                 Item(keys: "Top edge · B", text: "The folder's filmstrip (the wheel scrolls it)"),
                 Item(keys: "Pin", text: "Keep a panel showing; the photo fits beside it"),
                 Item(keys: "Tab", text: "Hide every panel, pinned ones too"),
