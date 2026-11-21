@@ -7,6 +7,11 @@ import ViewerImaging
 /// The histogram comes in M4.
 struct InfoPanel: View {
     let model: ViewerModel
+    @State private var showAll = false
+    @State private var groups: [MetadataGroup] = []
+    @State private var query = ""
+    @State private var collapsed: Set<String> = []
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         PanelCard(title: "Details", edge: .right, model: model) {
@@ -48,12 +53,23 @@ struct InfoPanel: View {
                         } else {
                             InfoRow(label: "XMP", value: sidecars.joined(separator: "\n"))
                         }
+                        allMetadata(group)
                     }
                 }
                 .padding(DesignTokens.Spacing.md)
+                .task(id: loadKey) {
+                    guard showAll, let current = model.current, let url = model.url(of: current) else {
+                        groups = []
+                        return
+                    }
+                    groups = await Task.detached(priority: .userInitiated) { FullMetadata.read(url) }.value
+                }
             }
         }
     }
+
+    /// Changes when the list has to be read again: opened, or another photo.
+    private var loadKey: String { "\(showAll)|\(model.current.flatMap { model.url(of: $0)?.path } ?? "")" }
 
     @ViewBuilder private func camera(_ m: PhotoMetadata?) -> some View {
         if let m, m.camera != nil || m.taken != nil {
@@ -133,6 +149,78 @@ struct InfoPanel: View {
             row("Artist", m.artist)
             row("Copyright", m.copyright)
             row("Software", m.software)
+        }
+    }
+
+    /// Every tag the file holds, grouped, searchable, read when opened.
+    @ViewBuilder private func allMetadata(_ group: PhotoGroup) -> some View {
+        PanelSection(title: "All metadata")
+        Button(showAll ? "Hide all metadata" : "Show all metadata") { showAll.toggle() }
+            .buttonStyle(.rawBoy)
+            .padding(.top, 2)
+        if showAll {
+            let shown = FullMetadata.filter(groups, query: query)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.ashMuted)
+                TextField("Search tags", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(Theme.body)
+                    .foregroundStyle(Theme.paperWhite)
+                    .focused($searchFocused)
+                    .onExitCommand {
+                        query = ""
+                        searchFocused = false
+                    }
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(Theme.ashMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear the search")
+                }
+            }
+            .padding(.vertical, 4)
+            if groups.isEmpty {
+                InfoRow(label: "None", value: "The file has no readable metadata.")
+            } else if shown.isEmpty {
+                InfoRow(label: "No match", value: "No tag has \"\(query)\" in its name or value.")
+            }
+            ForEach(shown) { g in
+                // A search opens every group that matches.
+                let open = !query.isEmpty || !collapsed.contains(g.name)
+                Button {
+                    if collapsed.contains(g.name) { collapsed.remove(g.name) } else { collapsed.insert(g.name) }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: open ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .frame(width: 10)
+                        Text("\(g.name) (\(g.entries.count))")
+                            .font(.system(size: DesignTokens.FontSize.label, weight: .semibold))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(Theme.ashMuted)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+                .accessibilityLabel("\(g.name), \(g.entries.count) tags, \(open ? "open" : "closed")")
+                if open {
+                    ForEach(Array(g.entries.enumerated()), id: \.offset) { _, entry in
+                        InfoRow(label: entry.name, value: entry.value, stacked: entry.value.count > 24)
+                    }
+                }
+            }
+            if !groups.isEmpty {
+                Button("Copy all") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(FullMetadata.text(groups), forType: .string)
+                }
+                .buttonStyle(.rawBoy)
+                .padding(.top, 4)
+            }
         }
     }
 
