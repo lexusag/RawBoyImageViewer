@@ -187,8 +187,8 @@ public struct CollageLayout: Equatable, Sendable {
         let h = canvas.size.height
         var x = min(max(0, start.x + dx), max(0, w - start.width))
         var y = min(max(0, start.y + dy), max(0, h - start.height))
-        let xTargets = [0, w / 2, w] + others.flatMap { [$0.x, $0.maxX, $0.x + $0.width / 2] }
-        let yTargets = [0, h / 2, h] + others.flatMap { [$0.y, $0.maxY, $0.y + $0.height / 2] }
+        let xTargets: [Double] = [0, w / 2, w] + others.flatMap { [$0.x, $0.maxX, $0.x + $0.width / 2] as [Double] }
+        let yTargets: [Double] = [0, h / 2, h] + others.flatMap { [$0.y, $0.maxY, $0.y + $0.height / 2] as [Double] }
         x += Self.snapOffset(of: [x, x + start.width / 2, x + start.width], to: xTargets)
         y += Self.snapOffset(of: [y, y + start.height / 2, y + start.height], to: yTargets)
         x = min(max(0, x), max(0, w - start.width))
@@ -209,25 +209,25 @@ public struct CollageLayout: Equatable, Sendable {
         var top = start.y
         var bottom = start.maxY
         if handle.movesLeft {
-            let targets = [0] + others.flatMap { [$0.x, $0.maxX] }
+            let targets: [Double] = [0] + others.flatMap { [$0.x, $0.maxX] as [Double] }
             left += dx
             left += Self.snapOffset(of: [left], to: targets)
             left = min(max(0, left), right - Self.minFrame)
         }
         if handle.movesRight {
-            let targets = [w] + others.flatMap { [$0.x, $0.maxX] }
+            let targets: [Double] = [w] + others.flatMap { [$0.x, $0.maxX] as [Double] }
             right += dx
             right += Self.snapOffset(of: [right], to: targets)
             right = max(min(w, right), left + Self.minFrame)
         }
         if handle.movesTop {
-            let targets = [0] + others.flatMap { [$0.y, $0.maxY] }
+            let targets: [Double] = [0] + others.flatMap { [$0.y, $0.maxY] as [Double] }
             top += dy
             top += Self.snapOffset(of: [top], to: targets)
             top = min(max(0, top), bottom - Self.minFrame)
         }
         if handle.movesBottom {
-            let targets = [h] + others.flatMap { [$0.y, $0.maxY] }
+            let targets: [Double] = [h] + others.flatMap { [$0.y, $0.maxY] as [Double] }
             bottom += dy
             bottom += Self.snapOffset(of: [bottom], to: targets)
             bottom = max(min(h, bottom), top + Self.minFrame)
