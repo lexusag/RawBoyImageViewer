@@ -20,7 +20,7 @@ public struct CollageCanvas: Equatable, Hashable, Sendable {
     public static let presets: [(name: String, canvas: CollageCanvas)] = [
         ("Square 1:1", CollageCanvas(width: 1080, height: 1080)),
         ("Portrait 4:5", CollageCanvas(width: 1080, height: 1350)),
-        ("Portrait 3:4", CollageCanvas(width: 1080, height: 1440)),
+        ("Portrait 3:4", CollageCanvas(width: 1440, height: 1920)),
         ("Portrait 2:3", CollageCanvas(width: 1080, height: 1620)),
         ("Story 9:16", CollageCanvas(width: 1080, height: 1920)),
         ("Landscape 4:3", CollageCanvas(width: 1440, height: 1080)),
