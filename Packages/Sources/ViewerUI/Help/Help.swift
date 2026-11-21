@@ -57,6 +57,11 @@ enum HelpContent {
                         + "# counters (### = 001), plus find and replace (text or regex, $1 for groups); the JPEG and sidecars "
                         + "follow, ⌘Z undoes"),
                 Item(keys: "⇧⌘E · ⌥⌘C", text: "Export · Copy the photo"),
+                Item(
+                    keys: "⇧⌘K",
+                    text:
+                        "Collage of the selected photos (2–12): drag, resize by the handles, pick a size "
+                        + "(1080 × 1080, 4:5, 9:16, 1.91:1 or your own), gap and frame colour, save as JPEG"),
             ]),
         Section(
             title: "Viewer",

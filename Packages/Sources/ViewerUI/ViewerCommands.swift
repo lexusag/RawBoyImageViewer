@@ -156,6 +156,8 @@ public struct ViewerPhotoCommands: Commands {
                     .disabled(app.browser.folder == nil)
                 Button("Export…") { app.perform(.export) }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
+                Button("Collage…") { app.perform(.collage, app.browser.ratingTargets) }
+                    .keyboardShortcut("k", modifiers: [.command, .shift])
                 Button("Copy to Folder…") { app.perform(.copyTo) }
                 Button("Move to Folder…") { app.perform(.moveTo) }
                 Menu("Move to Recent Folder") {

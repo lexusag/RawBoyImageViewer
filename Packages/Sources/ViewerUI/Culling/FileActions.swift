@@ -21,9 +21,12 @@ extension AppModel {
     }
 
     func perform(_ action: FileAction, _ ids: [String]? = nil) {
-        let ids = ids ?? actionTargets
+        var ids = ids ?? actionTargets
+        // A collage wants several photos: from the viewer, which acts on one, take the browser's selection.
+        if action == .collage, ids.count < 2, browser.ratingTargets.count > 1 { ids = browser.ratingTargets }
         guard !ids.isEmpty, let folder = browser.folder else { return }
         switch action {
+        case .collage: showCollage(ids, folder)
         case .export: showExportSheet(ids, folder)
         case .copyTo: copyOrMove(ids, folder, move: false, to: nil)
         case .moveTo: copyOrMove(ids, folder, move: true, to: nil)

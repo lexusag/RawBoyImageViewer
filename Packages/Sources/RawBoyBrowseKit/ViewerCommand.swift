@@ -2,7 +2,7 @@ import Foundation
 
 /// What can be done with photos' files (the app decides how: sheets, panels, the system's share menu).
 public enum FileAction: Equatable, Sendable {
-    case export, copyTo, moveTo, clipboard, share
+    case export, copyTo, moveTo, clipboard, share, collage
     /// Open in the app at this path (Send to).
     case sendTo(String)
     /// Add to RawBoy Desktop's Auto batch as Looks, Film or As is; nil asks.
