@@ -35,17 +35,33 @@ public enum CollageRenderer {
         return context.makeImage()
     }
 
+    /// Encodes [image] as a JPEG at [quality] (0...1).
+    public static func jpegData(_ image: CGImage, quality: Double) -> Data? {
+        let data = NSMutableData()
+        guard
+            let dest = CGImageDestinationCreateWithData(
+                data as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(
+            dest, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return data as Data
+    }
+
     /// Writes [image] as "[stem].jpg" in [folder] (created when missing; numbered when the name is taken).
     public static func writeJPEG(_ image: CGImage, quality: Double, to folder: URL, stem: String = "Collage") throws
         -> URL
     {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let out = Exporter.freeURL(in: folder, stem: stem, extension: "jpg")
-        guard let dest = CGImageDestinationCreateWithURL(out as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
-        else { throw Exporter.ExportError.unwritable(out.lastPathComponent) }
-        CGImageDestinationAddImage(
-            dest, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
-        guard CGImageDestinationFinalize(dest) else { throw Exporter.ExportError.unwritable(out.lastPathComponent) }
+        guard let data = jpegData(image, quality: quality) else {
+            throw Exporter.ExportError.unwritable(out.lastPathComponent)
+        }
+        do {
+            try data.write(to: out, options: .atomic)
+        } catch {
+            throw Exporter.ExportError.unwritable(out.lastPathComponent)
+        }
         return out
     }
 }

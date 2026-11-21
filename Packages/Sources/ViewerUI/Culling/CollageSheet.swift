@@ -8,17 +8,36 @@ import ViewerImaging
 @MainActor
 @Observable
 final class CollageModel {
+    private struct EstimateInput: @unchecked Sendable {
+        let images: [String: CGImage]
+        let cached: CGImage?
+    }
+
+    private struct EstimateResult: @unchecked Sendable {
+        let image: CGImage
+        let bytes: Int64
+    }
+
     let folder: URL
     let destination: URL
     let orientations: [String: Int]
     private let ids: [String]
-    var layout = CollageLayout(canvas: CollageCanvas.presets[0].canvas)
+    var layout = CollageLayout(canvas: CollageCanvas.presets[0].canvas) {
+        didSet { if layout != oldValue { scheduleEstimate() } }
+    }
+    var quality: Double = 0.92 {
+        didSet { if quality != oldValue { scheduleEstimate() } }
+    }
     var images: [String: CGImage] = [:]
     var selected: String?
     private(set) var loading = true
     private(set) var exporting = false
+    private(set) var estimatedBytes: Int64?
     var error: String?
     @ObservationIgnored private var aspects: [String: Double] = [:]
+    @ObservationIgnored private var estimateTask: Task<Void, Never>?
+    @ObservationIgnored private var estimateDirty = false
+    @ObservationIgnored private var cachedRender: (layout: CollageLayout, image: CGImage)?
 
     init(ids: [String], folder: URL, orientations: [String: Int], destination: URL) {
         self.ids = ids
@@ -42,6 +61,8 @@ final class CollageModel {
         }
         arrange()
         loading = false
+        scheduleEstimate()
+        await estimateTask?.value
     }
 
     /// Tiles the photos again (what the sheet starts from), keeping size, gap and colour.
@@ -59,12 +80,49 @@ final class CollageModel {
         if selected == id { selected = nil }
     }
 
+    /// Recomputes `estimatedBytes` off the main thread, coalescing rapid slider or drag changes and reusing the
+    /// rendered canvas when only `quality` changed.
+    func scheduleEstimate() {
+        guard !loading else { return }
+        if layout.items.isEmpty {
+            estimatedBytes = nil
+            cachedRender = nil
+            return
+        }
+        estimateDirty = true
+        guard estimateTask == nil else { return }
+        estimateTask = Task {
+            while estimateDirty {
+                estimateDirty = false
+                let layout = self.layout
+                let quality = self.quality
+                let input = EstimateInput(
+                    images: self.images,
+                    cached: self.cachedRender?.layout == layout ? self.cachedRender?.image : nil)
+                let result = await Task.detached(priority: .utility) { () -> EstimateResult? in
+                    guard let image = input.cached ?? CollageRenderer.render(layout, images: input.images),
+                        let data = CollageRenderer.jpegData(image, quality: quality)
+                    else { return nil }
+                    return EstimateResult(image: image, bytes: Int64(data.count))
+                }.value
+                if let result {
+                    self.cachedRender = (layout, result.image)
+                    if self.layout == layout && self.quality == quality {
+                        self.estimatedBytes = result.bytes
+                    }
+                }
+            }
+            estimateTask = nil
+        }
+    }
+
     /// Renders at the canvas size and writes the JPEG; returns its URL, or nil with `error` set.
     func export() async -> URL? {
         guard !exporting, !layout.items.isEmpty else { return nil }
         exporting = true
         defer { exporting = false }
         let layout = layout
+        let quality = quality
         let folder = folder
         let destination = destination
         let orientations = orientations
@@ -83,7 +141,7 @@ final class CollageModel {
                 guard let image = CollageRenderer.render(layout, images: full) else {
                     throw Exporter.ExportError.unwritable("the collage")
                 }
-                return try CollageRenderer.writeJPEG(image, quality: 0.92, to: destination)
+                return try CollageRenderer.writeJPEG(image, quality: quality, to: destination)
             }.value
         } catch {
             self.error = error.localizedDescription
@@ -92,8 +150,8 @@ final class CollageModel {
     }
 }
 
-/// Makes a collage of the selected photos: drag them, resize them by their handles, pick the output size, the gap and
-/// the frame colour, then save a JPEG.
+/// Makes a collage of the selected photos: drag them, resize them by their handles, pick the output size, the gap,
+/// the frame colour and the JPEG quality, then save a JPEG.
 struct CollageSheet: View {
     @Bindable var model: CollageModel
     let onCancel: () -> Void
@@ -297,6 +355,10 @@ struct CollageSheet: View {
                 Slider(value: $model.layout.gap, in: 0...120, step: 2)
                     .tint(Theme.amber)
             }
+            group(qualityTitle) {
+                Slider(value: $model.quality, in: 0.5...1, step: 0.01)
+                    .tint(Theme.amber)
+            }
             group("Photos") {
                 Button("Tile again") { model.arrange() }
                     .buttonStyle(.rawBoy)
@@ -318,10 +380,17 @@ struct CollageSheet: View {
         }
     }
 
+    private var qualityTitle: String {
+        let percent = Int((model.quality * 100).rounded())
+        guard let bytes = model.estimatedBytes else { return "JPEG quality  ·  \(percent)" }
+        let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        return "JPEG quality  ·  \(percent)  ·  ~\(size)"
+    }
+
     private func group<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             Text(title.uppercased())
-                .font(Theme.label)
+                .font(Theme.label.monospacedDigit())
                 .foregroundStyle(Theme.ashMuted)
             content()
         }
