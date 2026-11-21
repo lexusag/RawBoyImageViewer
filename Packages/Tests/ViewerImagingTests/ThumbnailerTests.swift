@@ -471,3 +471,36 @@ struct CropImageTests {
         #expect(size.width == 600 && size.height == 800)
     }
 }
+
+struct CollageRendererTests {
+    @Test func jpegDataMatchesWrittenFileAndVariesWithQuality() throws {
+        var pixels: [UInt8] = []
+        for y in 0..<200 {
+            for x in 0..<200 {
+                let r = UInt8((x * 17 + y * 31) & 0xFF)
+                let g = UInt8((x * 53 ^ y * 13) & 0xFF)
+                let b = UInt8((x * 7 + y * 97) & 0xFF)
+                pixels += [r, g, b, 255]
+            }
+        }
+        let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
+        let tile = try #require(
+            CGImage(
+                width: 200, height: 200, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 800,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider,
+                decode: nil, shouldInterpolate: false, intent: .defaultIntent))
+        let layout = CollageLayout.arranged(
+            ids: ["a", "b"], aspects: [1, 1], canvas: CollageCanvas(width: 400, height: 200))
+        let rendered = try #require(CollageRenderer.render(layout, images: ["a": tile, "b": tile]))
+
+        let low = try #require(CollageRenderer.jpegData(rendered, quality: 0.5))
+        let high = try #require(CollageRenderer.jpegData(rendered, quality: 0.95))
+        #expect(low.count < high.count)
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let written = try CollageRenderer.writeJPEG(rendered, quality: 0.95, to: folder)
+        #expect(try Data(contentsOf: written).count == high.count)
+    }
+}
