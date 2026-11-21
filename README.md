@@ -3,7 +3,8 @@
 A fast photo viewer and culling tool for macOS, from the RawBoy family. The photo fills the screen; the controls wait at its
 edges:
 
-- **Right edge:** photo details, EXIF and histogram
+- **Right edge:** photo details, EXIF and histogram; *All metadata* lists every tag the file holds (EXIF, GPS, makers'
+  notes, DNG, XMP, custom ones too) in groups you can fold and search, and copy
 - **Left edge:** actions: rate, pick, reject, rotate, export, open elsewhere
 - **Top edge:** the folder's filmstrip
 - **Bottom of the photo:** previous (left half) and next (right half)
