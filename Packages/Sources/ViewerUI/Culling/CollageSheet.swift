@@ -364,7 +364,8 @@ extension AppModel {
         var orientations: [String: Int] = [:]
         for id in ids { if let o = culling.orientation(id) { orientations[id] = o } }
         let model = CollageModel(
-            ids: ids, folder: folder, orientations: orientations, destination: Self.exportDestination.url(in: folder))
+            ids: ids, folder: folder, orientations: orientations,
+            destination: folder.appendingPathComponent("_collages", isDirectory: true))
         let view = CollageSheet(
             model: model,
             onCancel: { parent.endSheet(sheet) },
