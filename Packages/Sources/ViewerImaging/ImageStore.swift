@@ -57,11 +57,13 @@ public actor ImageStore {
         let size = previewPixelSize
         let realPreview = realPreview
         let task = Task.detached(priority: .userInitiated) { () -> LoadedImage? in
-            switch kind {
-            case .preview: ImageLoader.preview(of: url, maxPixelSize: size, orientation: orientation)
-            case .full: ImageLoader.fullResolution(of: url, orientation: orientation)
-            case .developed: realPreview.develop(url, maxPixelSize: size, orientation: orientation)
-            case .developedFull: realPreview.develop(url, maxPixelSize: nil, orientation: orientation)
+            autoreleasepool {
+                switch kind {
+                case .preview: ImageLoader.preview(of: url, maxPixelSize: size, orientation: orientation)
+                case .full: ImageLoader.fullResolution(of: url, orientation: orientation)
+                case .developed: realPreview.develop(url, maxPixelSize: size, orientation: orientation)
+                case .developedFull: realPreview.develop(url, maxPixelSize: nil, orientation: orientation)
+                }
             }
         }
         inFlight[key] = task
