@@ -93,4 +93,23 @@ struct CollageLayoutTests {
         let tall = CollageLayout.coverRect(image: Size2D(width: 100, height: 300), in: frame)
         #expect(tall == Rect2D(x: 0, y: -100, width: 100, height: 300))
     }
+
+    @Test func focusPicksTheShownPart() {
+        let frame = Rect2D(x: 0, y: 0, width: 100, height: 100)
+        let wide = Size2D(width: 200, height: 100)
+        #expect(CollageLayout.coverRect(image: wide, in: frame).x == -50)
+        #expect(CollageLayout.coverRect(image: wide, in: frame, focus: Point2D(x: 0, y: 0.5)).x == 0)
+        #expect(CollageLayout.coverRect(image: wide, in: frame, focus: Point2D(x: 1, y: 0.5)).x == -100)
+    }
+
+    @Test func panningFollowsThePointerAndClamps() {
+        let frame = Rect2D(x: 0, y: 0, width: 100, height: 100)
+        let wide = Size2D(width: 200, height: 100)
+        let c = CollageItem.centred
+        // Picture dragged 25 px right: its left edge moves from -50 to -25, so the focus goes 0.5 -> 0.25.
+        let moved = CollageLayout.panned(c, image: wide, in: frame, dx: 25, dy: 40)
+        #expect(moved == Point2D(x: 0.25, y: 0.5))
+        #expect(CollageLayout.panned(c, image: wide, in: frame, dx: 500, dy: 0).x == 0)
+        #expect(CollageLayout.panned(c, image: wide, in: frame, dx: -500, dy: 0).x == 1)
+    }
 }

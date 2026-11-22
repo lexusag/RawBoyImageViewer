@@ -37,11 +37,17 @@ public struct CollageCanvas: Equatable, Hashable, Sendable {
 public struct CollageItem: Equatable, Identifiable, Sendable {
     public let id: String
     public var frame: Rect2D
+    /// Which part of the photo shows when it overflows the frame: 0...1 on each axis, (0.5, 0.5) = centred, (0, 0) =
+    /// the top left edge of the photo against the frame's.
+    public var focus: Point2D
 
-    public init(id: String, frame: Rect2D) {
+    public init(id: String, frame: Rect2D, focus: Point2D = CollageItem.centred) {
         self.id = id
         self.frame = frame
+        self.focus = focus
     }
+
+    public static let centred = Point2D(x: 0.5, y: 0.5)
 }
 
 /// Where a pointer press on the collage lands.
@@ -254,12 +260,25 @@ public struct CollageLayout: Equatable, Sendable {
 
     // MARK: Drawing
 
-    /// Where a photo of [image] size is drawn so it fills [frame] (its centre kept, the overflow cropped).
-    public static func coverRect(image: Size2D, in frame: Rect2D) -> Rect2D {
+    /// [focus] after the photo [image] inside [frame] is dragged by [dx], [dy] canvas pixels (the picture follows the
+    /// pointer; an axis with no overflow stays put).
+    public static func panned(_ focus: Point2D, image: Size2D, in frame: Rect2D, dx: Double, dy: Double) -> Point2D {
+        let cover = coverRect(image: image, in: frame)
+        let overflowX = cover.width - frame.width
+        let overflowY = cover.height - frame.height
+        let x = overflowX > 1e-9 ? focus.x - dx / overflowX : focus.x
+        let y = overflowY > 1e-9 ? focus.y - dy / overflowY : focus.y
+        return Point2D(x: min(1, max(0, x)), y: min(1, max(0, y)))
+    }
+
+    /// Where a photo of [image] size is drawn so it fills [frame] (the overflow cropped; [focus] picks which part
+    /// shows, centred by default).
+    public static func coverRect(image: Size2D, in frame: Rect2D, focus: Point2D = CollageItem.centred) -> Rect2D {
         guard image.width > 0, image.height > 0 else { return frame }
         let scale = max(frame.width / image.width, frame.height / image.height)
         let w = image.width * scale
         let h = image.height * scale
-        return Rect2D(x: frame.x + (frame.width - w) / 2, y: frame.y + (frame.height - h) / 2, width: w, height: h)
+        return Rect2D(
+            x: frame.x + (frame.width - w) * focus.x, y: frame.y + (frame.height - h) * focus.y, width: w, height: h)
     }
 }

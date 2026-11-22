@@ -60,7 +60,8 @@ enum HelpContent {
                 Item(
                     keys: "⇧⌘K",
                     text:
-                        "Collage of the selected photos (2–12): drag, resize by the handles, pick a size "
+                        "Collage of the selected photos (2–12): drag, resize by the handles, ⌥-drag to move a picture inside "
+                        + "its frame, pick a size "
                         + "(1080 × 1080, 4:5, 9:16, 1.91:1 or your own), gap, frame colour and JPEG quality, "
                         + "save as JPEG"),
             ]),
