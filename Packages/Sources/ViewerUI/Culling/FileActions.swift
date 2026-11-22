@@ -664,8 +664,8 @@ struct ExportSheet: View {
                         options = .instagram(from: options)
                         customLongEdge = ""
                     }
-                        .buttonStyle(.rawBoy)
-                        .help("3:4 crop, 1440 px short edge, sRGB JPEG, no enlarging")
+                    .buttonStyle(.rawBoy)
+                    .help("3:4 crop, 1440 px short edge, sRGB JPEG, no enlarging")
                 }
             }
             row("Crop") {
