@@ -570,6 +570,7 @@ public final class AppModel {
     /// one of its views is shown.
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
+        MenuTracking.start()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             MainActor.assumeIsolated { self?.handleKeyDown(event) ?? false } ? nil : event
         }
@@ -588,6 +589,8 @@ public final class AppModel {
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         guard ownsWindow(event.window) else { return false }
+        // A menu is open: Esc is its own (it closes it), not the browser's or the viewer's.
+        if event.keyCode == 53, MenuTracking.isOpen { return false }
         // ? (Shift + the / key) anywhere but a text field: the keys.
         if event.keyCode == 44, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
             event.modifierFlags.contains(.shift), !(event.window?.firstResponder is NSTextView)

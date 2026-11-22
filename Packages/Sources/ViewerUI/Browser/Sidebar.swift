@@ -38,6 +38,8 @@ struct Sidebar: View {
                         if !pinFavourites { favourites }
                         if !showsPinnedRecent && !app.browser.recentListed.isEmpty { recent }
                         SidebarHeading(title: "Places")
+                            .contentShape(Rectangle())
+                            .contextMenu { Button("Refresh Places") { app.browser.refreshTree() } }
                         ForEach(Self.places(), id: \.url) { place in
                             FolderRow(
                                 url: place.url, title: place.title, icon: place.icon, depth: 0, app: app, tree: true,

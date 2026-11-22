@@ -54,6 +54,8 @@ RAW + JPEG pair is one photo. Videos (MP4, MOV, M4V, MKV, AVI, WebM, MTS) show i
 | Settings › Browser | "Show what is inside folder tiles": folder tiles show up to four of their photos (off at first; needs the Folder button on) |
 | Right-click empty space, or a folder (grid, list, Places) › New Folder… | Makes a folder in the folder shown (or in the one clicked), asks for a name, selects it; ⌘Z removes it while it is empty |
 | Star button, right-click a folder | Add to / remove from Favourites (top of the sidebar). Right-click a folder also offers Rename… (not undoable with ⌘Z) |
+| Right-click Places (its heading, or a folder in it) › Refresh Places | Rereads the tree, so folders made outside the app (Finder, a sync) show up; folders open and watched by the app refresh themselves |
+| Esc with a menu open | Closes the menu only; Esc keeps its other jobs (clear the selection, back to the browser) once no menu is open |
 | Right-click a folder (grid, list, Places) › Copy Folder Name / Copy Folder Path | Puts the folder's name, or its full path, on the clipboard as plain text |
 | Double-click the top bar (toolbar, or the strip above Places) | Expands the window to fit the screen; again puts it back (the system's Zoom, as the title bar's; honours System Settings › Desktop & Dock › double-click a title bar to). Drag the bar to move the window |
 
