@@ -39,10 +39,15 @@ public struct PhotoMetadata: Equatable, Sendable {
 
     /// The metadata of [url], or nil when ImageIO can't read it.
     public static func read(_ url: URL) -> PhotoMetadata? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
-            let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        else { return nil }
-        return make(props)
+        // Pooled: opening a raw through ImageIO leaves temporaries that pile up over a folder otherwise.
+        autoreleasepool {
+            guard
+                let source = CGImageSourceCreateWithURL(
+                    url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+            else { return nil }
+            return make(props)
+        }
     }
 
     static func make(_ props: [CFString: Any]) -> PhotoMetadata {

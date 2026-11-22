@@ -176,6 +176,11 @@ A mouse-first photo viewer and culling tool for macOS (Windows later, touch supp
 - `ImageRenderer` draws native text fields as a yellow placeholder: not a bug in the view.
 - `RAWBOY_SAMPLES=<folder> swift test --package-path Packages --filter SampleFiles` runs the parsers over real raws.
   Phone DNGs have no embedded JPEG, Adobe's JPEG XL DNGs only a 256 px one: both fall back to ImageIO.
+- **Every ImageIO open of a raw (properties, size, orientation, metadata) goes inside `autoreleasepool`.** The viewer reads
+  a photo's metadata and orientation on detached tasks, whose threads never drain a pool, so each raw left temporaries
+  behind and a long culling run (1500 photos) grew until it slowed down. `PhotoMetadata.read`, `FullMetadata.read`,
+  `ImageLoader.fileOrientation/fullSize` and `ImageAnalysis.histogram` are pooled now; keep new readers pooled.
+  `LRUCache` is O(1) per use (stamped queue), since thumbnail caches hold hundreds of entries.
 - **Never wait for main-actor work in `applicationShouldTerminate` with `.terminateLater`**: AppKit then spins its
   own loop where main-actor tasks don't run, and quitting hung. Pending sidecars are written synchronously there.
 - `CULL=1 tools/smoke.sh <folder of copies> 0` rates three photos, prints the sidecars, moves the reject to `_bin` and

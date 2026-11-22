@@ -29,16 +29,21 @@ public enum ImageLoader {
 
     /// The file's own EXIF orientation (1 when it has none).
     public static func fileOrientation(of url: URL) -> Int {
-        guard let source = makeSource(url),
-            let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        else { return 1 }
-        return props[kCGImagePropertyOrientation] as? Int ?? 1
+        // Pooled: ImageIO's raw readers leave temporaries behind, and this runs on threads that never drain a pool.
+        autoreleasepool {
+            guard let source = makeSource(url),
+                let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+            else { return 1 }
+            return props[kCGImagePropertyOrientation] as? Int ?? 1
+        }
     }
 
     /// The photo's upright size in pixels, or nil when ImageIO can't read it.
     public static func fullSize(of url: URL) -> Size2D? {
-        guard let source = makeSource(url) else { return nil }
-        return fullSize(of: source)
+        autoreleasepool {
+            guard let source = makeSource(url) else { return nil }
+            return fullSize(of: source)
+        }
     }
 
     /// A screen-size image: its long edge is at most [maxPixelSize], and at least [minEmbeddedPreview] or the
