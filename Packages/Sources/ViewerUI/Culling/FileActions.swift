@@ -566,6 +566,11 @@ struct ExportSheet: View {
     let onCancel: () -> Void
     let onExport: (ExportOptions, ExportDestination) -> Void
 
+    private var rangeNote: String {
+        let range = ExportOptions.customLongEdgeRange
+        return "\(range.lowerBound)–\(range.upperBound)"
+    }
+
     private var customLongEdgeInvalid: Bool {
         !customLongEdge.isEmpty && ExportOptions.parseLongEdge(customLongEdge) == nil
     }
@@ -630,7 +635,10 @@ struct ExportSheet: View {
                     options: ExportOptions.sizes.map { ($0, $0.map { "\($0) px" } ?? "Full size") },
                     selection: Binding(
                         get: { options.longEdge },
-                        set: { options.longEdge = $0; customLongEdge = "" }))
+                        set: {
+                            options.longEdge = $0
+                            customLongEdge = ""
+                        }))
                 HStack(spacing: DesignTokens.Spacing.sm) {
                     TextField("Custom", text: $customLongEdge)
                         .textFieldStyle(.roundedBorder)
@@ -641,7 +649,7 @@ struct ExportSheet: View {
                         .font(Theme.label)
                         .foregroundStyle(Theme.ashMuted)
                     if customLongEdgeInvalid {
-                        Text("\(ExportOptions.customLongEdgeRange.lowerBound)–\(ExportOptions.customLongEdgeRange.upperBound)")
+                        Text(rangeNote)
                             .font(Theme.label)
                             .foregroundStyle(Theme.amber)
                     }
@@ -652,7 +660,10 @@ struct ExportSheet: View {
                     Segmented(
                         options: [(Int?.none, "Free"), (.some(ExportOptions.instagramShortEdge), "1440 px")],
                         selection: $options.shortEdge)
-                    Button("Instagram") { options = .instagram(from: options); customLongEdge = "" }
+                    Button("Instagram") {
+                        options = .instagram(from: options)
+                        customLongEdge = ""
+                    }
                         .buttonStyle(.rawBoy)
                         .help("3:4 crop, 1440 px short edge, sRGB JPEG, no enlarging")
                 }
