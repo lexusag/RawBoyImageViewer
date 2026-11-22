@@ -259,7 +259,8 @@ struct CollageSheet: View {
                 guard let image = images[item.id] else { continue }
                 let frame = layout.drawnFrame(item.frame)
                 let cover = CollageLayout.coverRect(
-                    image: Size2D(width: Double(image.width), height: Double(image.height)), in: frame, focus: item.focus)
+                    image: Size2D(width: Double(image.width), height: Double(image.height)), in: frame,
+                    focus: item.focus)
                 context.drawLayer { layer in
                     layer.clip(to: Path(Self.rect(frame, scale)))
                     layer.draw(Image(decorative: image, scale: 1), in: Self.rect(cover, scale))
