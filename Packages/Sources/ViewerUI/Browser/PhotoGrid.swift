@@ -381,6 +381,8 @@ struct FolderMenu: View {
         Button("Rename…") { app.renameFolder(url) }
         SendToMenu(app: app, folder: url)
         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        // In the sidebar: folders made outside the app are found by rereading the tree.
+        if trash == nil { Button("Refresh Places") { browser.refreshTree() } }
         Divider()
         Button("Copy Folder Name") { FolderCopy.copy(FolderCopy.name(of: url)) }
         Button("Copy Folder Path") { FolderCopy.copy(FolderCopy.path(of: url)) }
