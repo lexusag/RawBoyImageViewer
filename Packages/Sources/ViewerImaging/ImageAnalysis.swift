@@ -12,13 +12,14 @@ public enum ImageAnalysis {
     /// [image]'s histogram, counted on a copy at most [histogramSize] px long (nearest-neighbour, so a clipped pixel
     /// stays clipped).
     public static func histogram(of image: CGImage) -> Histogram? {
-        guard let (context, _, _) = bgraCopy(of: image, maxPixelSize: histogramSize), let data = context.data else {
-            return nil
+        autoreleasepool {
+            guard let (context, _, _) = bgraCopy(of: image, maxPixelSize: histogramSize), let data = context.data
+            else { return nil }
+            let bytes = UnsafeRawBufferPointer(start: data, count: context.bytesPerRow * context.height)
+            return Histogram(
+                pixels: bytes, width: context.width, height: context.height, bytesPerRow: context.bytesPerRow,
+                redOffset: 2, greenOffset: 1, blueOffset: 0)
         }
-        let bytes = UnsafeRawBufferPointer(start: data, count: context.bytesPerRow * context.height)
-        return Histogram(
-            pixels: bytes, width: context.width, height: context.height, bytesPerRow: context.bytesPerRow,
-            redOffset: 2, greenOffset: 1, blueOffset: 0)
     }
 
     /// RawBoy's clipping warning for [image]: red over clipped highlights, blue over crushed shadows, transparent

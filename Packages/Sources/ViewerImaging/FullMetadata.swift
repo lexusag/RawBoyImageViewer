@@ -30,19 +30,23 @@ public struct MetadataGroup: Equatable, Sendable, Identifiable {
 public enum FullMetadata {
     /// The groups of [url], in reading order, or empty when ImageIO can't read it.
     public static func read(_ url: URL) -> [MetadataGroup] {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
-            let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        else { return [] }
-        var xmp: [MetadataEntry] = []
-        if let metadata = CGImageSourceCopyMetadataAtIndex(source, 0, nil) {
-            CGImageMetadataEnumerateTagsUsingBlock(metadata, nil, nil) { path, tag in
-                if let value = CGImageMetadataTagCopyValue(tag), let text = format(value) {
-                    xmp.append(MetadataEntry(name: path as String, value: text))
+        autoreleasepool {
+            guard
+                let source = CGImageSourceCreateWithURL(
+                    url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+            else { return [] }
+            var xmp: [MetadataEntry] = []
+            if let metadata = CGImageSourceCopyMetadataAtIndex(source, 0, nil) {
+                CGImageMetadataEnumerateTagsUsingBlock(metadata, nil, nil) { path, tag in
+                    if let value = CGImageMetadataTagCopyValue(tag), let text = format(value) {
+                        xmp.append(MetadataEntry(name: path as String, value: text))
+                    }
+                    return true
                 }
-                return true
             }
+            return groups(props, xmp: xmp)
         }
-        return groups(props, xmp: xmp)
     }
 
     /// Groups from ImageIO's property dictionary (the file's own scalars first, then each nested block) plus
