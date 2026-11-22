@@ -439,6 +439,20 @@ struct ExporterTests {
     }
 }
 
+struct CustomLongEdgeTests {
+    @Test func parsesWholePixelsInRange() {
+        #expect(ExportOptions.parseLongEdge("1600") == 1600)
+        #expect(ExportOptions.parseLongEdge(" 64 ") == 64)
+        #expect(ExportOptions.parseLongEdge("20000") == 20_000)
+    }
+
+    @Test func refusesBlankTextOutOfRangeAndFractions() {
+        for bad in ["", "  ", "abc", "63", "20001", "-5", "12.5", "1e3", "٣٠٠٠"] {
+            #expect(ExportOptions.parseLongEdge(bad) == nil, "\(bad)")
+        }
+    }
+}
+
 struct CropImageTests {
     @Test func cropsFromTheTopLeft() throws {
         // 4 × 2: the top row dark, the bottom row light.

@@ -81,6 +81,16 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     /// The sizes the export sheet offers.
     public static let sizes: [Int?] = [nil, 3000, 2048, 1080]
 
+    /// The custom long edge the export sheet accepts, in pixels.
+    public static let customLongEdgeRange = 64...20_000
+
+    /// A typed long edge: whole pixels inside [customLongEdgeRange], else nil (blank, letters, too small or large).
+    public static func parseLongEdge(_ text: String) -> Int? {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, t.allSatisfy(\.isASCII), let n = Int(t), customLongEdgeRange.contains(n) else { return nil }
+        return n
+    }
+
     /// Instagram's feed size: 1440 px on the short edge, sRGB JPEG, no long-edge limit.
     public static let instagramShortEdge = 1440
 
