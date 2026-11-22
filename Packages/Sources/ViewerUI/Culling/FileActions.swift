@@ -561,8 +561,19 @@ struct ExportSheet: View {
     @State private var presetName = ""
     @State private var makingNew = false
     @State private var newName = ""
+    /// What is typed in the custom long edge field; empty while a preset size is chosen.
+    @State private var customLongEdge = ""
     let onCancel: () -> Void
     let onExport: (ExportOptions, ExportDestination) -> Void
+
+    private var customLongEdgeInvalid: Bool {
+        !customLongEdge.isEmpty && ExportOptions.parseLongEdge(customLongEdge) == nil
+    }
+
+    /// A valid typed size becomes the long edge; an invalid one leaves the last good size and shows the range.
+    private func applyCustomLongEdge() {
+        if let n = ExportOptions.parseLongEdge(customLongEdge) { options.longEdge = n }
+    }
 
     private var chosen: ExportDestination? {
         makingNew ? ExportDestination.cleaned(newName).map { .subfolder($0) } : destination
@@ -617,14 +628,31 @@ struct ExportSheet: View {
             row("Long edge") {
                 Segmented(
                     options: ExportOptions.sizes.map { ($0, $0.map { "\($0) px" } ?? "Full size") },
-                    selection: $options.longEdge)
+                    selection: Binding(
+                        get: { options.longEdge },
+                        set: { options.longEdge = $0; customLongEdge = "" }))
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    TextField("Custom", text: $customLongEdge)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 90)
+                        .onSubmit(applyCustomLongEdge)
+                        .onChange(of: customLongEdge) { _, _ in applyCustomLongEdge() }
+                    Text("px")
+                        .font(Theme.label)
+                        .foregroundStyle(Theme.ashMuted)
+                    if customLongEdgeInvalid {
+                        Text("\(ExportOptions.customLongEdgeRange.lowerBound)–\(ExportOptions.customLongEdgeRange.upperBound)")
+                            .font(Theme.label)
+                            .foregroundStyle(Theme.amber)
+                    }
+                }
             }
             row("Short edge") {
                 HStack {
                     Segmented(
                         options: [(Int?.none, "Free"), (.some(ExportOptions.instagramShortEdge), "1440 px")],
                         selection: $options.shortEdge)
-                    Button("Instagram") { options = .instagram(from: options) }
+                    Button("Instagram") { options = .instagram(from: options); customLongEdge = "" }
                         .buttonStyle(.rawBoy)
                         .help("3:4 crop, 1440 px short edge, sRGB JPEG, no enlarging")
                 }
@@ -707,7 +735,7 @@ struct ExportSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Export") { if let chosen { onExport(options, chosen) } }
                     .buttonStyle(.rawBoyPrimary)
-                    .disabled(chosen == nil)
+                    .disabled(chosen == nil || customLongEdgeInvalid)
                     .keyboardShortcut(.defaultAction)
             }
         }
