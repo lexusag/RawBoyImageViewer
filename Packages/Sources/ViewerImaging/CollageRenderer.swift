@@ -24,7 +24,8 @@ public enum CollageRenderer {
             guard let image = images[item.id] else { continue }
             let frame = layout.drawnFrame(item.frame)
             let cover = CollageLayout.coverRect(
-                image: Size2D(width: Double(image.width), height: Double(image.height)), in: frame)
+                image: Size2D(width: Double(image.width), height: Double(image.height)), in: frame,
+                focus: item.focus)
             // The layout is y down, CGContext's origin is bottom left.
             func flipped(_ r: Rect2D) -> CGRect { CGRect(x: r.x, y: height - r.maxY, width: r.width, height: r.height) }
             context.saveGState()

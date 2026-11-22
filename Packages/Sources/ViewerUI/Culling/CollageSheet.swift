@@ -75,6 +75,12 @@ final class CollageModel {
         selected = nil
     }
 
+    /// Shows the middle of [id]'s photo in its frame again.
+    func centre(_ id: String) {
+        guard let i = layout.items.firstIndex(where: { $0.id == id }) else { return }
+        layout.items[i].focus = CollageItem.centred
+    }
+
     func remove(_ id: String) {
         layout.remove(id)
         if selected == id { selected = nil }
@@ -161,6 +167,9 @@ struct CollageSheet: View {
         let id: String
         let handle: CollageHandle?
         let start: Rect2D
+        /// Option held at the press: the drag moves the picture inside its frame instead of the frame.
+        let pans: Bool
+        let startFocus: Point2D
     }
 
     @State private var drag: Drag?
@@ -250,7 +259,7 @@ struct CollageSheet: View {
                 guard let image = images[item.id] else { continue }
                 let frame = layout.drawnFrame(item.frame)
                 let cover = CollageLayout.coverRect(
-                    image: Size2D(width: Double(image.width), height: Double(image.height)), in: frame)
+                    image: Size2D(width: Double(image.width), height: Double(image.height)), in: frame, focus: item.focus)
                 context.drawLayer { layer in
                     layer.clip(to: Path(Self.rect(frame, scale)))
                     layer.draw(Image(decorative: image, scale: 1), in: Self.rect(cover, scale))
@@ -284,11 +293,17 @@ struct CollageSheet: View {
             let start = Point2D(x: value.startLocation.x / scale, y: value.startLocation.y / scale)
             switch model.layout.hit(at: start, selected: model.selected, handleRadius: 9 / scale) {
             case .handle(let id, let handle)?:
-                if let item = model.layout.item(id) { drag = Drag(id: id, handle: handle, start: item.frame) }
+                if let item = model.layout.item(id) {
+                    drag = Drag(id: id, handle: handle, start: item.frame, pans: false, startFocus: item.focus)
+                }
             case .body(let id)?:
                 model.selected = id
                 model.layout.bringToFront(id)
-                if let item = model.layout.item(id) { drag = Drag(id: id, handle: nil, start: item.frame) }
+                if let item = model.layout.item(id) {
+                    drag = Drag(
+                        id: id, handle: nil, start: item.frame, pans: NSEvent.modifierFlags.contains(.option),
+                        startFocus: item.focus)
+                }
             case nil:
                 model.selected = nil
             }
@@ -296,6 +311,15 @@ struct CollageSheet: View {
         guard let drag, let index = model.layout.items.firstIndex(where: { $0.id == drag.id }) else { return }
         let dx = value.translation.width / scale
         let dy = value.translation.height / scale
+        if drag.pans {
+            if let image = model.images[drag.id] {
+                let frame = model.layout.drawnFrame(drag.start)
+                model.layout.items[index].focus = CollageLayout.panned(
+                    drag.startFocus, image: Size2D(width: Double(image.width), height: Double(image.height)),
+                    in: frame, dx: dx, dy: dy)
+            }
+            return
+        }
         model.layout.items[index].frame =
             drag.handle.map {
                 model.layout.resized(drag.start, handle: $0, dx: dx, dy: dy, excluding: drag.id)
@@ -365,11 +389,15 @@ struct CollageSheet: View {
                     .help("Puts every photo back in an even grid")
                 if let id = model.selected {
                     Text(id).font(Theme.label).foregroundStyle(Theme.ashMuted).lineLimit(1).truncationMode(.middle)
+                    Button("Centre picture") { model.centre(id) }
+                        .buttonStyle(.rawBoy)
+                        .help("Shows the middle of the photo in its frame again")
                     Button("Remove from collage") { model.remove(id) }.buttonStyle(.rawBoy)
                 } else {
                     Text(
                         "Drag a photo to move it; select it to resize by its handles. "
-                            + "Edges snap to the canvas and to other photos."
+                            + "Edges snap to the canvas and to other photos. "
+                            + "Hold ⌥ and drag to move the picture inside its frame."
                     )
                     .font(Theme.label)
                     .foregroundStyle(Theme.ashMuted)
