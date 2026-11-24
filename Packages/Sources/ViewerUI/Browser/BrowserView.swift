@@ -4,34 +4,120 @@ import SwiftUI
 import ViewerFiles
 import ViewerImaging
 
+/// Pane widths for the browser at [totalWidth], clamped so neither the sidebar nor the preview pane
+/// can crush the grid or push panes outside the window. Stored preferences are left untouched so
+/// widening the window restores them.
+struct BrowserLayout: Equatable, Sendable {
+    static let sidebarRange: ClosedRange<Double> = 160...480
+    static let previewRange: ClosedRange<Double> = 220...760
+    static let dividerWidth: Double = 1
+    static let minContentWidth: Double = 260
+    static let minMainWithoutPreview: Double = 420
+    /// Minimum width for the single-row toolbar and rating bar before they wrap onto two rows.
+    static let toolbarSingleRowWidth: Double = 920
+    static let ratingBarSingleRowWidth: Double = 880
+
+    let sidebarWidth: Double
+    let mainWidth: Double
+    let previewWidth: Double
+    let contentWidth: Double
+    let liveSidebarRange: ClosedRange<Double>
+    let livePreviewRange: ClosedRange<Double>
+
+    static func resolve(
+        totalWidth: Double,
+        sidebarWidth desiredSidebar: Double,
+        previewWidth desiredPreview: Double,
+        showPreview: Bool
+    ) -> BrowserLayout {
+        let total = max(totalWidth, 0)
+        let minMain =
+            showPreview
+            ? (minContentWidth + dividerWidth + previewRange.lowerBound)
+            : minMainWithoutPreview
+
+        let sidebarMin = min(sidebarRange.lowerBound, max(0, total * 0.3))
+        let sidebarMax = max(sidebarMin, min(sidebarRange.upperBound, total - dividerWidth - minMain))
+        let liveSidebar = sidebarMin...sidebarMax
+        let sidebar = min(max(desiredSidebar, liveSidebar.lowerBound), liveSidebar.upperBound)
+
+        let main = max(total - sidebar - dividerWidth, 0)
+
+        guard showPreview else {
+            return BrowserLayout(
+                sidebarWidth: sidebar,
+                mainWidth: main,
+                previewWidth: 0,
+                contentWidth: main,
+                liveSidebarRange: liveSidebar,
+                livePreviewRange: previewRange)
+        }
+
+        let previewMin = min(previewRange.lowerBound, max(0, (main - dividerWidth) * 0.5))
+        let previewMax = max(previewMin, min(previewRange.upperBound, main - dividerWidth - minContentWidth))
+        let livePreview = previewMin...previewMax
+        let preview = min(max(desiredPreview, livePreview.lowerBound), livePreview.upperBound)
+        let content = max(main - preview - dividerWidth, 0)
+
+        return BrowserLayout(
+            sidebarWidth: sidebar,
+            mainWidth: main,
+            previewWidth: preview,
+            contentWidth: content,
+            liveSidebarRange: liveSidebar,
+            livePreviewRange: livePreview)
+    }
+}
+
 /// The start screen: places and folders on the left, the folder's photos on the right.
 struct BrowserView: View {
     let app: AppModel
     var browser: BrowserModel { app.browser }
 
     var body: some View {
-        HStack(spacing: 0) {
-            Sidebar(app: app)
-                .frame(width: browser.sidebarWidth)
-            ResizeHandle(width: Bindable(browser).sidebarWidth, range: 160...480, growsRight: true)
-            VStack(spacing: 0) {
-                BrowserToolbar(app: app)
-                Rectangle().fill(Theme.hairline).frame(height: 1)
-                content
-                if browser.folder != nil, !browser.photos.isEmpty {
+        GeometryReader { geometry in
+            let showsPreview = browser.showPreview && browser.folder != nil
+            let layout = BrowserLayout.resolve(
+                totalWidth: geometry.size.width,
+                sidebarWidth: browser.sidebarWidth,
+                previewWidth: browser.previewWidth,
+                showPreview: showsPreview)
+            HStack(spacing: 0) {
+                Sidebar(app: app)
+                    .frame(width: layout.sidebarWidth)
+                ResizeHandle(
+                    width: Bindable(browser).sidebarWidth,
+                    range: layout.liveSidebarRange,
+                    growsRight: true)
+                VStack(spacing: 0) {
+                    BrowserToolbar(app: app, availableWidth: layout.mainWidth)
                     Rectangle().fill(Theme.hairline).frame(height: 1)
-                    RatingBar(app: app)
+                    HStack(spacing: 0) {
+                        content
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                        if showsPreview {
+                            ResizeHandle(
+                                width: Bindable(browser).previewWidth,
+                                range: layout.livePreviewRange,
+                                growsRight: false)
+                            PreviewPane(app: app)
+                                .frame(width: layout.previewWidth)
+                        }
+                    }
+                    if browser.folder != nil, !browser.photos.isEmpty {
+                        Rectangle().fill(Theme.hairline).frame(height: 1)
+                        RatingBar(app: app, availableWidth: layout.mainWidth)
+                    }
+                    if browser.folder != nil, !browser.items.isEmpty {
+                        Rectangle().fill(Theme.hairline).frame(height: 1)
+                        SelectionStatus(browser: browser)
+                    }
                 }
-                if browser.folder != nil, !browser.items.isEmpty {
-                    Rectangle().fill(Theme.hairline).frame(height: 1)
-                    SelectionStatus(browser: browser)
-                }
+                .frame(width: layout.mainWidth)
+                .clipped()
             }
-            if browser.showPreview, browser.folder != nil {
-                ResizeHandle(width: Bindable(browser).previewWidth, range: 220...760, growsRight: false)
-                PreviewPane(app: app)
-                    .frame(width: browser.previewWidth)
-            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
         }
         .background(Theme.inkBlack)
         .dropDestination(for: URL.self) { urls, _ in
@@ -93,103 +179,37 @@ private struct EmptyState: View {
 /// The folder's name and count, search, sort and thumbnail size.
 private struct BrowserToolbar: View {
     let app: AppModel
+    let availableWidth: Double
     @ViewerSetting(SettingsKeys.uiScale) private var uiScale = 1.0
     @FocusState private var searchFocused: Bool
 
     var body: some View {
         let browser = app.browser
-        HStack(spacing: DesignTokens.Spacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(browser.folder?.lastPathComponent ?? "RawBoy Viewer")
-                    .font(Theme.title)
-                    .foregroundStyle(Theme.paperWhite)
-                    .lineLimit(1)
-                Text(summary(browser))
-                    .font(Theme.label)
-                    .foregroundStyle(Theme.ashMuted)
-            }
-            Spacer(minLength: DesignTokens.Spacing.md)
-            HStack(spacing: 4) {
-                ToolbarIcon(icon: "arrow.up", help: "Up a folder (⌘↑)", isOn: false) { browser.goUp() }
-                    .keyboardShortcut(.upArrow, modifiers: .command)
-                    .disabled(browser.folder == nil)
-                ToolbarIcon(icon: "pencil", help: "Rename the selection (F2)", isOn: false) { app.rename() }
-                    .disabled(browser.selection.isEmpty)
-                ToolbarIcon(icon: "trash", help: "Move the selection to the Trash (⌘⌫, ⌦)", isOn: false) {
-                    app.moveToTrash()
-                }
-                .disabled(browser.selection.isEmpty)
-                ToolbarIcon(
-                    icon: browser.showFolders ? "folder.fill" : "folder",
-                    help: browser.showFolders ? "Hide folders in the grid" : "Show folders in the grid",
-                    isOn: browser.showFolders
-                ) { browser.showFolders.toggle() }
-                ToolbarIcon(
-                    icon: browser.viewMode == .list ? "square.grid.2x2" : "list.bullet",
-                    help: browser.viewMode == .list ? "Show thumbnails" : "Show a list", isOn: browser.viewMode == .list
-                ) { browser.viewMode = browser.viewMode == .list ? .grid : .list }
-                ToolbarIcon(
-                    icon: "sidebar.right",
-                    help: browser.showPreview ? "Hide the preview" : "Show a preview of the photo",
-                    isOn: browser.showPreview
-                ) { browser.showPreview.toggle() }
-                if let folder = browser.folder {
-                    let favourite = browser.isFavourite(folder)
-                    ToolbarIcon(
-                        icon: favourite ? "star.fill" : "star",
-                        help: favourite ? "Remove from Favourites" : "Add to Favourites", isOn: favourite
-                    ) { browser.toggleFavourite(folder) }
-                }
-                ToolbarIcon(icon: "questionmark.circle", help: "Keys and gestures (⌘/ or ?)", isOn: false) {
-                    HelpWindow.toggle()
-                }
-            }
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.ashMuted)
-                TextField("Search names", text: Bindable(browser).filter)
-                    .textFieldStyle(.plain)
-                    .font(Theme.body)
-                    .foregroundStyle(Theme.paperWhite)
-                    .focused($searchFocused)
-                    .onExitCommand {
-                        browser.filter = ""
-                        searchFocused = false
+        let compact = availableWidth < BrowserLayout.toolbarSingleRowWidth
+        Group {
+            if compact {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    HStack(spacing: DesignTokens.Spacing.md) {
+                        titleBlock(browser)
+                        Spacer(minLength: DesignTokens.Spacing.sm)
+                        iconButtons(browser)
                     }
-                if !browser.filter.isEmpty {
-                    Button {
-                        browser.filter = ""
-                        searchFocused = true
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.ashMuted)
-                            .contentShape(Rectangle())
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        searchField(browser, flexible: true)
+                        Spacer(minLength: DesignTokens.Spacing.sm)
+                        sortControl(browser)
+                        sizeSlider(browser)
                     }
-                    .buttonStyle(.plain)
-                    .help("Clear the search")
-                    .accessibilityLabel("Clear the search")
                 }
-            }
-            .padding(.horizontal, 10)
-            .frame(width: 200, height: 28)
-            .background(RoundedRectangle(cornerRadius: DesignTokens.Radius.control).fill(Theme.graphiteRaised))
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
-                    .strokeBorder(searchFocused ? Theme.amber : Theme.hairline)
-            )
-            .background(Button("") { searchFocused = true }.keyboardShortcut("f").hidden())
-            Segmented(
-                options: [(PhotoSort.date, "Shoot date"), (PhotoSort.name, "Name")],
-                selection: Bindable(browser).sort)
-            if browser.viewMode == .grid {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.grid.3x3").font(.system(size: 11)).foregroundStyle(Theme.ashMuted)
-                    Slider(value: Bindable(browser).thumbnailSize, in: 112...320)
-                        .frame(width: 96)
-                        .tint(Theme.amber)
-                    Image(systemName: "square.grid.2x2").font(.system(size: 14)).foregroundStyle(Theme.ashMuted)
+            } else {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    titleBlock(browser)
+                    Spacer(minLength: DesignTokens.Spacing.md)
+                    iconButtons(browser)
+                    searchField(browser, flexible: false)
+                    sortControl(browser)
+                    sizeSlider(browser)
                 }
-                .help("Thumbnail size")
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
@@ -197,6 +217,119 @@ private struct BrowserToolbar: View {
         .padding(.top, (34 + app.options.toolbarTopInset) / min(max(uiScale, 0.5), 2))
         .padding(.bottom, 10)
         .titleBarZoom()  // double-click expands the window, as on a title bar
+    }
+
+    private func titleBlock(_ browser: BrowserModel) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(browser.folder?.lastPathComponent ?? "RawBoy Viewer")
+                .font(Theme.title)
+                .foregroundStyle(Theme.paperWhite)
+                .lineLimit(1)
+            Text(summary(browser))
+                .font(Theme.label)
+                .foregroundStyle(Theme.ashMuted)
+                .lineLimit(1)
+        }
+    }
+
+    private func iconButtons(_ browser: BrowserModel) -> some View {
+        HStack(spacing: 4) {
+            ToolbarIcon(icon: "arrow.up", help: "Up a folder (⌘↑)", isOn: false) { browser.goUp() }
+                .keyboardShortcut(.upArrow, modifiers: .command)
+                .disabled(browser.folder == nil)
+            ToolbarIcon(icon: "pencil", help: "Rename the selection (F2)", isOn: false) { app.rename() }
+                .disabled(browser.selection.isEmpty)
+            ToolbarIcon(icon: "trash", help: "Move the selection to the Trash (⌘⌫, ⌦)", isOn: false) {
+                app.moveToTrash()
+            }
+            .disabled(browser.selection.isEmpty)
+            ToolbarIcon(
+                icon: browser.showFolders ? "folder.fill" : "folder",
+                help: browser.showFolders ? "Hide folders in the grid" : "Show folders in the grid",
+                isOn: browser.showFolders
+            ) { browser.showFolders.toggle() }
+            ToolbarIcon(
+                icon: browser.viewMode == .list ? "square.grid.2x2" : "list.bullet",
+                help: browser.viewMode == .list ? "Show thumbnails" : "Show a list", isOn: browser.viewMode == .list
+            ) { browser.viewMode = browser.viewMode == .list ? .grid : .list }
+            ToolbarIcon(
+                icon: "sidebar.right",
+                help: browser.showPreview ? "Hide the preview" : "Show a preview of the photo",
+                isOn: browser.showPreview
+            ) { browser.showPreview.toggle() }
+            if let folder = browser.folder {
+                let favourite = browser.isFavourite(folder)
+                ToolbarIcon(
+                    icon: favourite ? "star.fill" : "star",
+                    help: favourite ? "Remove from Favourites" : "Add to Favourites", isOn: favourite
+                ) { browser.toggleFavourite(folder) }
+            }
+            ToolbarIcon(icon: "questionmark.circle", help: "Keys and gestures (⌘/ or ?)", isOn: false) {
+                HelpWindow.toggle()
+            }
+        }
+    }
+
+    private func searchField(_ browser: BrowserModel, flexible: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Theme.ashMuted)
+            TextField("Search names", text: Bindable(browser).filter)
+                .textFieldStyle(.plain)
+                .font(Theme.body)
+                .foregroundStyle(Theme.paperWhite)
+                .focused($searchFocused)
+                .onExitCommand {
+                    browser.filter = ""
+                    searchFocused = false
+                }
+            if !browser.filter.isEmpty {
+                Button {
+                    browser.filter = ""
+                    searchFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.ashMuted)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Clear the search")
+                .accessibilityLabel("Clear the search")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(
+            minWidth: flexible ? 110 : 200,
+            idealWidth: 200,
+            maxWidth: flexible ? 220 : 200,
+            minHeight: 28,
+            maxHeight: 28)
+        .background(RoundedRectangle(cornerRadius: DesignTokens.Radius.control).fill(Theme.graphiteRaised))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
+                .strokeBorder(searchFocused ? Theme.amber : Theme.hairline)
+        )
+        .background(Button("") { searchFocused = true }.keyboardShortcut("f").hidden())
+    }
+
+    private func sortControl(_ browser: BrowserModel) -> some View {
+        Segmented(
+            options: [(PhotoSort.date, "Shoot date"), (PhotoSort.name, "Name")],
+            selection: Bindable(browser).sort)
+    }
+
+    @ViewBuilder
+    private func sizeSlider(_ browser: BrowserModel) -> some View {
+        if browser.viewMode == .grid {
+            HStack(spacing: 6) {
+                Image(systemName: "square.grid.3x3").font(.system(size: 11)).foregroundStyle(Theme.ashMuted)
+                Slider(value: Bindable(browser).thumbnailSize, in: 112...320)
+                    .frame(width: 96)
+                    .tint(Theme.amber)
+                Image(systemName: "square.grid.2x2").font(.system(size: 14)).foregroundStyle(Theme.ashMuted)
+            }
+            .help("Thumbnail size")
+        }
     }
 
     private func summary(_ browser: BrowserModel) -> String {
@@ -235,6 +368,7 @@ private struct SelectionStatus: View {
 
 private struct RatingBar: View {
     let app: AppModel
+    let availableWidth: Double
 
     var body: some View {
         let browser = app.browser
@@ -242,57 +376,102 @@ private struct RatingBar: View {
         let targets = browser.ratingTargets
         let counts = FlagFilter.counts(browser.photos.map { culling.rating($0.id) })
         let shown = targets.count == 1 ? culling.rating(targets[0]) : Rating.none
-        HStack(spacing: DesignTokens.Spacing.md) {
-            RatingControl(
-                rating: shown, compact: true, onStars: { culling.setStars(browser.ratingTargets, $0) },
-                onFlag: { culling.toggleFlag(browser.ratingTargets, $0) }
-            )
-            .disabled(targets.isEmpty)
-            .opacity(targets.isEmpty ? 0.5 : 1)
-            if let job = app.exportJob {
-                ExportProgress(job: job) { app.exportJob = nil }
-            } else if let message = culling.message {
-                Text(message)
-                    .font(Theme.label)
-                    .foregroundStyle(Theme.ashMuted)
-                    .lineLimit(1)
-                    .transition(.opacity)
-            }
-            Spacer(minLength: DesignTokens.Spacing.sm)
-            Segmented(
-                options: [
-                    (FlagFilter.all, "All"), (.picks, "Picks"), (.unflagged, "Unflagged"), (.rejects, "Rejects"),
-                ], selection: Bindable(browser).flagFilter, counts: counts)
-            Menu {
-                ForEach(0...5, id: \.self) { n in
-                    Button(n == 0 ? "Any stars" : "\(String(repeating: "★", count: n)) or more") {
-                        browser.minStars = n
+        let singleRowMin =
+            BrowserLayout.ratingBarSingleRowWidth
+            + (culling.binCount > 0 ? 80 : 0)
+            + (app.exportJob != nil ? 80 : 0)
+        let compact = availableWidth < singleRowMin
+        Group {
+            if compact {
+                VStack(spacing: DesignTokens.Spacing.sm) {
+                    HStack(spacing: DesignTokens.Spacing.md) {
+                        ratingAndStatus(browser: browser, culling: culling, targets: targets, shown: shown)
+                        Spacer(minLength: DesignTokens.Spacing.sm)
+                        starFilterMenu(browser: browser)
+                        binButtons(browser: browser, culling: culling)
+                    }
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        flagSegmented(browser: browser, counts: counts)
+                        Spacer(minLength: 0)
                     }
                 }
-            } label: {
-                Text(browser.minStars == 0 ? "Any ★" : "\(browser.minStars)★+")
-                    .font(Theme.label)
-                    .foregroundStyle(browser.minStars > 0 ? Theme.amber : Theme.paperWhite)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            Button("Move rejects to \(FolderScanner.binFolderName)") {
-                let order = browser.photos.map(\.group)
-                Task { await culling.moveRejectsToBin(order) }
-            }
-            .buttonStyle(.rawBoy)
-            .help("Moves the rejects, their sidecars and JPEGs into the folder's _bin. Nothing is deleted.")
-            if culling.binCount > 0 {
-                Button("Bin (\(culling.binCount))") { culling.restoreBin() }
-                    .buttonStyle(.rawBoy)
-                    .help("Moves everything in _bin back into the folder")
+                .padding(.vertical, DesignTokens.Spacing.sm)
+            } else {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    ratingAndStatus(browser: browser, culling: culling, targets: targets, shown: shown)
+                    Spacer(minLength: DesignTokens.Spacing.sm)
+                    flagSegmented(browser: browser, counts: counts)
+                    starFilterMenu(browser: browser)
+                    binButtons(browser: browser, culling: culling)
+                }
+                .frame(height: 44)
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(height: 44)
         .background(Theme.graphiteSurface)
         .animation(.easeOut(duration: 0.2), value: culling.message)
         .animation(.easeOut(duration: 0.2), value: app.exportJob?.state)
+    }
+
+    @ViewBuilder
+    private func ratingAndStatus(
+        browser: BrowserModel, culling: CullingStore, targets: [String], shown: Rating
+    ) -> some View {
+        RatingControl(
+            rating: shown, compact: true, onStars: { culling.setStars(browser.ratingTargets, $0) },
+            onFlag: { culling.toggleFlag(browser.ratingTargets, $0) }
+        )
+        .disabled(targets.isEmpty)
+        .opacity(targets.isEmpty ? 0.5 : 1)
+        if let job = app.exportJob {
+            ExportProgress(job: job) { app.exportJob = nil }
+        } else if let message = culling.message {
+            Text(message)
+                .font(Theme.label)
+                .foregroundStyle(Theme.ashMuted)
+                .lineLimit(1)
+                .transition(.opacity)
+        }
+    }
+
+    private func flagSegmented(browser: BrowserModel, counts: [FlagFilter: Int]) -> some View {
+        Segmented(
+            options: [
+                (FlagFilter.all, "All"), (.picks, "Picks"), (.unflagged, "Unflagged"), (.rejects, "Rejects"),
+            ], selection: Bindable(browser).flagFilter, counts: counts)
+    }
+
+    private func starFilterMenu(browser: BrowserModel) -> some View {
+        Menu {
+            ForEach(0...5, id: \.self) { n in
+                Button(n == 0 ? "Any stars" : "\(String(repeating: "★", count: n)) or more") {
+                    browser.minStars = n
+                }
+            }
+        } label: {
+            Text(browser.minStars == 0 ? "Any ★" : "\(browser.minStars)★+")
+                .font(Theme.label)
+                .foregroundStyle(browser.minStars > 0 ? Theme.amber : Theme.paperWhite)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private func binButtons(browser: BrowserModel, culling: CullingStore) -> some View {
+        Button("Move rejects to \(FolderScanner.binFolderName)") {
+            let order = browser.photos.map(\.group)
+            Task { await culling.moveRejectsToBin(order) }
+        }
+        .buttonStyle(.rawBoy)
+        .fixedSize()
+        .help("Moves the rejects, their sidecars and JPEGs into the folder's _bin. Nothing is deleted.")
+        if culling.binCount > 0 {
+            Button("Bin (\(culling.binCount))") { culling.restoreBin() }
+                .buttonStyle(.rawBoy)
+                .fixedSize()
+                .help("Moves everything in _bin back into the folder")
+        }
     }
 }
 
@@ -341,6 +520,8 @@ struct Segmented<Value: Hashable>: View {
                         .monospacedDigit()
                         .font(Theme.label.weight(on ? .semibold : .regular))
                         .foregroundStyle(on ? Theme.amberInk : Theme.paperWhite)
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 10)
                         .frame(height: 22)
                         .background(
@@ -355,5 +536,6 @@ struct Segmented<Value: Hashable>: View {
         .padding(2)
         .background(RoundedRectangle(cornerRadius: 9).fill(Theme.graphiteRaised))
         .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.hairline))
+        .fixedSize()
     }
 }

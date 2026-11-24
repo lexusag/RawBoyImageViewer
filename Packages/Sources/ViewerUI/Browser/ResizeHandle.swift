@@ -26,7 +26,7 @@ struct ResizeHandle: View {
                     .gesture(
                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
                             .onChanged { drag in
-                                let start = startWidth ?? width
+                                let start = startWidth ?? min(max(width, range.lowerBound), range.upperBound)
                                 startWidth = start
                                 let delta = growsRight ? drag.translation.width : -drag.translation.width
                                 width = min(max(start + delta, range.lowerBound), range.upperBound)

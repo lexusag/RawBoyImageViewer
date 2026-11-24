@@ -45,7 +45,6 @@ struct PreviewPane: View {
                 .background(Theme.graphiteSurface)
             }
         }
-        .padding(.top, 34)  // under the window's traffic lights
         .background(Theme.inkBlack)
         .task(id: "\(photo?.id ?? "")|\(orientation ?? 0)|\(photo?.modified?.timeIntervalSince1970 ?? 0)") {
             guard let photo, !photo.isOnlineOnly else {
