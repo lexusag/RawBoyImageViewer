@@ -22,17 +22,18 @@ struct Sidebar: View {
                 let rows =
                     (pinFavourites ? Double(max(app.browser.favourites.count, 1)) * 28 + 44 : 0)
                     + (showsPinnedRecent ? Double(app.browser.recentListed.count) * 38 + 44 : 0)
-                PanelScroll {
+                PanelScroll(scrollBar: true) {
                     VStack(alignment: .leading, spacing: 2) {
                         if pinFavourites { favourites }
                         if showsPinnedRecent { recent }
                     }
+                    .padding(.leading, DesignTokens.Spacing.sm)
+                    .padding(.trailing, BrowserScrollBar.width)
                 }
                 .frame(height: min(rows, Self.pinnedMaxHeight + 44))
-                .padding(.horizontal, DesignTokens.Spacing.sm)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
             }
-            PanelScroll {
+            PanelScroll(scrollBar: true) {
                 ScrollViewReader { proxy in
                     VStack(alignment: .leading, spacing: 2) {
                         if !pinFavourites { favourites }
@@ -46,7 +47,8 @@ struct Sidebar: View {
                                 followsCurrent: true)
                         }
                     }
-                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.leading, DesignTokens.Spacing.sm)
+                    .padding(.trailing, BrowserScrollBar.width)
                     .padding(.bottom, DesignTokens.Spacing.md)
                     .onChange(of: app.browser.folder) { scrollToCurrent(proxy) }
                     .onAppear { scrollToCurrent(proxy) }
