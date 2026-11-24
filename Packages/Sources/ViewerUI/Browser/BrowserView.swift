@@ -303,7 +303,8 @@ private struct BrowserToolbar: View {
             idealWidth: 200,
             maxWidth: flexible ? 220 : 200,
             minHeight: 28,
-            maxHeight: 28)
+            maxHeight: 28
+        )
         .background(RoundedRectangle(cornerRadius: DesignTokens.Radius.control).fill(Theme.graphiteRaised))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.Radius.control)
