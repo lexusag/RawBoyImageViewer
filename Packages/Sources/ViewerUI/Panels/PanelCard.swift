@@ -117,21 +117,41 @@ struct PanelScroll<Content: View>: View {
     var axis: Axis.Set = .vertical
     /// Set where a marquee selection scrolls this view (the browser's grid and list).
     var marquee: Marquee?
+    /// Shows the always-visible draggable scroll bar for vertical scroll views without a marquee (such as Places).
+    var scrollBar = false
     @ViewBuilder let content: Content
     @Environment(\.isSnapshot) private var isSnapshot
+    @State private var position = ScrollPosition()
+    @State private var info = MarqueeScrollInfo()
 
     var body: some View {
         if isSnapshot {
             content.frame(
                 maxWidth: .infinity, maxHeight: axis == .vertical ? .infinity : nil, alignment: .topLeading
             ).clipped()
+        } else if let marquee {
+            ScrollView(axis, showsIndicators: false) { content }.marqueeScrolling(marquee)
+                .overlay(alignment: .trailing) {
+                    BrowserScrollBar(info: marquee.info) { y in
+                        marquee.offset = y
+                        marquee.position.scrollTo(y: y)
+                    }
+                }
+        } else if scrollBar && axis == .vertical {
+            ScrollView(axis, showsIndicators: false) { content }
+                .scrollPosition($position)
+                .onScrollGeometryChange(for: MarqueeScrollInfo.self) { geometry in
+                    MarqueeScrollInfo(geometry)
+                } action: { _, new in
+                    info = new
+                }
+                .overlay(alignment: .trailing) {
+                    BrowserScrollBar(info: info) { y in
+                        position.scrollTo(y: y)
+                    }
+                }
         } else {
-            if let marquee {
-                ScrollView(axis, showsIndicators: false) { content }.marqueeScrolling(marquee)
-                    .overlay(alignment: .trailing) { BrowserScrollBar(marquee: marquee) }
-            } else {
-                ScrollView(axis, showsIndicators: false) { content }
-            }
+            ScrollView(axis, showsIndicators: false) { content }
         }
     }
 }

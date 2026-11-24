@@ -103,6 +103,18 @@ struct MarqueeScrollInfo: Equatable {
     var offset: Double
     var viewport: Double
     var content: Double
+
+    init(offset: Double = 0, viewport: Double = 0, content: Double = 0) {
+        self.offset = offset
+        self.viewport = viewport
+        self.content = content
+    }
+
+    init(_ geometry: ScrollGeometry) {
+        offset = geometry.contentOffset.y + geometry.contentInsets.top
+        viewport = geometry.containerSize.height
+        content = geometry.contentSize.height
+    }
 }
 
 /// Each cell reports its frame (in the marquee's space), never the "Up a folder" tile.
@@ -156,9 +168,7 @@ extension View {
     func marqueeScrolling(_ marquee: Marquee) -> some View {
         scrollPosition(Bindable(marquee).position)
             .onScrollGeometryChange(for: MarqueeScrollInfo.self) { geometry in
-                MarqueeScrollInfo(
-                    offset: geometry.contentOffset.y + geometry.contentInsets.top,
-                    viewport: geometry.containerSize.height, content: geometry.contentSize.height)
+                MarqueeScrollInfo(geometry)
             } action: { _, info in
                 marquee.offset = info.offset
                 marquee.viewportHeight = info.viewport
@@ -168,10 +178,11 @@ extension View {
     }
 }
 
-/// A scroll bar that is always there when the photos don't fit: the system's overlay bar hides itself and is hard to
+/// A scroll bar that is always there when the content doesn't fit: the system's overlay bar hides itself and is hard to
 /// find with a mouse. A thin track at the right edge with a pill to drag; a click on the track jumps a page.
 struct BrowserScrollBar: View {
-    let marquee: Marquee
+    let info: MarqueeScrollInfo
+    let onScroll: (Double) -> Void
     @State private var dragStart: Double?
     @State private var hovered = false
 
@@ -189,7 +200,6 @@ struct BrowserScrollBar: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let info = marquee.info
             let track = geometry.size.height
             if let thumb = Self.thumb(info, track: track) {
                 let range = info.content - info.viewport
@@ -235,8 +245,6 @@ struct BrowserScrollBar: View {
     }
 
     private func scroll(to target: Double, range: Double) {
-        let clamped = min(max(target, 0), range)
-        marquee.offset = clamped
-        marquee.position.scrollTo(y: clamped)
+        onScroll(min(max(target, 0), range))
     }
 }
