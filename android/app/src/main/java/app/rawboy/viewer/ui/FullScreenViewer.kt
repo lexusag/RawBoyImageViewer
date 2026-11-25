@@ -8,8 +8,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -374,11 +377,21 @@ private fun ZoomablePhotoPage(
                 )
             }
             .pointerInput(photo.id) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    val nextScale = (scale * zoom).coerceIn(1f, 6f)
-                    scale = nextScale
-                    offset = if (nextScale > 1.02f) offset + pan else Offset.Zero
-                    onZoomChanged(nextScale > 1.02f)
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.count { it.pressed }
+                        val zoomChange = event.calculateZoom()
+                        val panChange = event.calculatePan()
+                        if (pressed >= 2 || scale > 1.02f) {
+                            val nextScale = (scale * zoomChange).coerceIn(1f, 6f)
+                            scale = nextScale
+                            offset = if (nextScale > 1.02f) offset + panChange else Offset.Zero
+                            onZoomChanged(nextScale > 1.02f)
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             },
         contentAlignment = Alignment.Center,
