@@ -396,14 +396,23 @@ private fun ZoomablePhotoPage(
                 )
             }
             .pointerInput(photo.id) {
+                val touchSlop = viewConfiguration.touchSlop
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
+                    var pastSlop = false
+                    var totalPan = Offset.Zero
                     do {
                         val event = awaitPointerEvent()
                         val pressed = event.changes.count { it.pressed }
                         val zoomChange = event.calculateZoom()
                         val panChange = event.calculatePan()
-                        if (pressed >= 2 || scale > 1.02f) {
+                        if (pressed >= 2) {
+                            pastSlop = true
+                        } else if (scale > 1.02f) {
+                            totalPan += panChange
+                            if (totalPan.getDistance() > touchSlop) pastSlop = true
+                        }
+                        if (pastSlop && (pressed >= 2 || scale > 1.02f)) {
                             val nextScale = (scale * zoomChange).coerceIn(1f, 6f)
                             scale = nextScale
                             offset = if (nextScale > 1.02f) offset + panChange else Offset.Zero
