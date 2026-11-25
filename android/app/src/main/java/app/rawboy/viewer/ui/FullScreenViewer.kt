@@ -118,6 +118,7 @@ fun FullScreenViewer(
     photoSource: PhotoSource,
     images: ImageRepository,
     isExpanded: Boolean,
+    overlayChrome: Boolean = false,
     autoAdvance: Boolean,
     canUndo: Boolean,
     rawBoyInstalled: Boolean,
@@ -203,17 +204,18 @@ fun FullScreenViewer(
                 }
             },
     ) {
-        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            // Top bar + optional tablet filmstrip (inset below status bar & camera cutout)
+        val topBar: @Composable () -> Unit = {
             if (showChrome && currentPhoto != null) {
-                Surface(color = DarkroomColours.GraphiteSurface) {
+                Surface(
+                    color = if (overlayChrome) DarkroomColours.GraphiteSurface.copy(alpha = 0.78f) else DarkroomColours.GraphiteSurface,
+                ) {
                     Column(
                         modifier = Modifier
                             .statusBarsPadding()
                             .displayCutoutPadding(),
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             IconButton(onClick = onClose) {
@@ -272,45 +274,62 @@ fun FullScreenViewer(
                     }
                 }
             }
+        }
 
-            // Main photo/video pager
-            var isScrubbing by remember { mutableStateOf(false) }
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                HorizontalPager(
-                    state = pagerState,
-                    userScrollEnabled = !isZoomed && !isScrubbing,
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    val photo = photos[page]
-                    if (PhotoFileType.of(photo.fileName) == PhotoFileType.VIDEO) {
-                        VideoPlayerPage(
-                            photo = photo,
-                            photoSource = photoSource,
-                            isActivePage = page == pagerState.currentPage,
-                            showChrome = showChrome,
-                            onToggleChrome = { showChrome = !showChrome },
-                            onScrubbingChanged = { scrubbing -> if (page == pagerState.currentPage) isScrubbing = scrubbing },
-                        )
-                    } else {
-                        ZoomablePhotoPage(
-                            photo = photo,
-                            photoSource = photoSource,
-                            images = images,
-                            onToggleChrome = { showChrome = !showChrome },
-                            onZoomChanged = { zoomed -> if (page == pagerState.currentPage) isZoomed = zoomed },
-                        )
-                    }
-                }
-            }
-
-            // Bottom rating bar
+        val bottomBar: @Composable () -> Unit = {
             if (showChrome && currentPhoto != null) {
                 ViewerRatingBar(
                     photo = currentPhoto,
+                    translucent = overlayChrome,
                     onRate = { s -> onRate(currentPhoto.id, s); advanceIfWanted() },
                     onPick = { onFlag(currentPhoto.id, Flag.PICK); advanceIfWanted() },
                     onReject = { onFlag(currentPhoto.id, Flag.REJECT); advanceIfWanted() },
                 )
+            }
+        }
+
+        var isScrubbing by remember { mutableStateOf(false) }
+        val pagerContent: @Composable (Modifier) -> Unit = { mod ->
+            HorizontalPager(
+                state = pagerState,
+                userScrollEnabled = !isZoomed && !isScrubbing,
+                modifier = mod,
+            ) { page ->
+                val photo = photos[page]
+                if (PhotoFileType.of(photo.fileName) == PhotoFileType.VIDEO) {
+                    VideoPlayerPage(
+                        photo = photo,
+                        photoSource = photoSource,
+                        isActivePage = page == pagerState.currentPage,
+                        showChrome = showChrome,
+                        onToggleChrome = { showChrome = !showChrome },
+                        onScrubbingChanged = { scrubbing -> if (page == pagerState.currentPage) isScrubbing = scrubbing },
+                    )
+                } else {
+                    ZoomablePhotoPage(
+                        photo = photo,
+                        photoSource = photoSource,
+                        images = images,
+                        onToggleChrome = { showChrome = !showChrome },
+                        onZoomChanged = { zoomed -> if (page == pagerState.currentPage) isZoomed = zoomed },
+                    )
+                }
+            }
+        }
+
+        if (overlayChrome) {
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                pagerContent(Modifier.fillMaxSize())
+                Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()) { topBar() }
+                Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()) { bottomBar() }
+            }
+        } else {
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                topBar()
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    pagerContent(Modifier.fillMaxSize())
+                }
+                bottomBar()
             }
         }
 
@@ -646,15 +665,18 @@ private fun FilmstripRow(
 @Composable
 private fun ViewerRatingBar(
     photo: PhotoWithCull,
+    translucent: Boolean = false,
     onRate: (Int) -> Unit,
     onPick: () -> Unit,
     onReject: () -> Unit,
 ) {
-    Surface(color = DarkroomColours.GraphiteSurface) {
+    Surface(
+        color = if (translucent) DarkroomColours.GraphiteSurface.copy(alpha = 0.78f) else DarkroomColours.GraphiteSurface,
+    ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             HorizontalDivider(color = DarkroomColours.Hairline)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = if (translucent) 2.dp else 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

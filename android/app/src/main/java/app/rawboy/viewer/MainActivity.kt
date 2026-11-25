@@ -15,6 +15,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowHeightSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.LaunchedEffect
@@ -47,7 +48,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             RawBoyViewerTheme {
                 val windowSize = calculateWindowSizeClass(this)
-                val isExpanded = windowSize.widthSizeClass != WindowWidthSizeClass.Compact
+                val isCompactHeight = windowSize.heightSizeClass == WindowHeightSizeClass.Compact
+                val isExpanded = windowSize.widthSizeClass != WindowWidthSizeClass.Compact && !isCompactHeight
                 val state by viewModel.state.collectAsState()
                 val photoSource by viewModel.activePhotoSource.collectAsState()
 
@@ -136,6 +138,7 @@ class MainActivity : ComponentActivity() {
                             photoSource = photoSource!!,
                             images = viewModel.images,
                             isExpanded = isExpanded,
+                            overlayChrome = isCompactHeight,
                             autoAdvance = state.prefs.autoAdvanceAfterRating,
                             canUndo = state.canUndo,
                             rawBoyInstalled = state.rawBoyInstalled,
