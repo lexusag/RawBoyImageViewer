@@ -13,6 +13,8 @@ data class SourceFileEntry(
     val mtime: Long,
     val mimeType: String,
     val isDirectory: Boolean,
+    val parentDir: String = "",
+    val parentDocId: String = "",
 )
 
 /** A [ByteSource] paired with a handle that must be closed after use. */
@@ -31,8 +33,8 @@ interface PhotoSource {
     fun openByteSource(docId: String, size: Long): CloseableByteSource?
     fun openInputStream(docId: String): InputStream?
     suspend fun readText(docId: String): String?
-    suspend fun findChildByName(name: String): SourceFileEntry?
-    suspend fun writeText(name: String, existingDocId: String?, content: String): String?
+    suspend fun findChildByName(name: String, parentDir: String = ""): SourceFileEntry?
+    suspend fun writeText(name: String, existingDocId: String?, content: String, parentDir: String = ""): String?
     suspend fun moveToBin(docIds: List<String>): Map<String, String>
     suspend fun restoreFromBin(docIds: List<String>): Map<String, String>
     fun uriForShare(docId: String): Uri

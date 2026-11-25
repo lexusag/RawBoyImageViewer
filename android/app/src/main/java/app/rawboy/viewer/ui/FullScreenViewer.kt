@@ -202,17 +202,24 @@ fun FullScreenViewer(
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    currentPhoto.relPath,
+                                    currentPhoto.fileName,
                                     color = DarkroomColours.PaperWhite,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                val subtitle = if (currentPhoto.folderPath.isNotEmpty()) {
+                                    "${currentPhoto.folderPath} · ${pagerState.currentPage + 1} / ${photos.size}"
+                                } else {
+                                    "${pagerState.currentPage + 1} / ${photos.size}"
+                                }
                                 Text(
-                                    "${pagerState.currentPage + 1} / ${photos.size}",
+                                    subtitle,
                                     color = DarkroomColours.AshMuted,
                                     fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                             if (canUndo) {

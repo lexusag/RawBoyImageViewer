@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -34,8 +35,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -86,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.rawboy.viewer.core.Flag
 import app.rawboy.viewer.core.FlagFilter
+import app.rawboy.viewer.core.NaturalOrder
 import app.rawboy.viewer.core.PhotoFileType
 import app.rawboy.viewer.core.PhotoSort
 import app.rawboy.viewer.data.PhotoWithCull
@@ -106,6 +111,9 @@ fun BrowserScreen(
     onToggleSelect: (Long) -> Unit,
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
+    onToggleFolderCollapsed: (String) -> Unit,
+    onSetAllFoldersCollapsed: (Boolean) -> Unit,
+    onToggleSelectFolder: (String) -> Unit,
     onSetFilter: (FlagFilter) -> Unit,
     onSetMinStars: (Int) -> Unit,
     onToggleSort: () -> Unit,
@@ -329,6 +337,20 @@ fun BrowserScreen(
                         )
                     }
                 } else {
+                    val groupedByFolder = remember(state.visiblePhotos) {
+                        state.visiblePhotos
+                            .groupBy { it.folderPath }
+                            .entries
+                            .sortedWith { a, b ->
+                                when {
+                                    a.key.isEmpty() && b.key.isEmpty() -> 0
+                                    a.key.isEmpty() -> -1
+                                    b.key.isEmpty() -> 1
+                                    else -> NaturalOrder.compare(a.key, b.key)
+                                }
+                            }
+                    }
+                    val hasSubfolders = groupedByFolder.size > 1 || groupedByFolder.any { it.key.isNotEmpty() }
                     val columns = if (isExpanded) GridCells.Adaptive(160.dp) else GridCells.Adaptive(112.dp)
                     LazyVerticalGrid(
                         columns = columns,
@@ -337,18 +359,68 @@ fun BrowserScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(state.visiblePhotos, key = { it.id }) { photo ->
-                            PhotoGridCell(
-                                photo = photo,
-                                photoSource = photoSource,
-                                images = images,
-                                selected = photo.id in state.selectedIds,
-                                selecting = selecting,
-                                onClick = {
-                                    if (selecting) onToggleSelect(photo.id) else onOpenPhoto(photo.id)
-                                },
-                                onLongClick = { onToggleSelect(photo.id) },
-                            )
+                        if (!hasSubfolders) {
+                            items(state.visiblePhotos, key = { it.id }) { photo ->
+                                PhotoGridCell(
+                                    photo = photo,
+                                    photoSource = photoSource,
+                                    images = images,
+                                    selected = photo.id in state.selectedIds,
+                                    selecting = selecting,
+                                    onClick = {
+                                        if (selecting) onToggleSelect(photo.id) else onOpenPhoto(photo.id)
+                                    },
+                                    onLongClick = { onToggleSelect(photo.id) },
+                                )
+                            }
+                        } else {
+                            if (groupedByFolder.size > 1) {
+                                item(key = "fold_all_bar", span = { GridItemSpan(maxLineSpan) }) {
+                                    val allCollapsed = groupedByFolder.all { it.key in state.collapsedFolders }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                        horizontalArrangement = Arrangement.End,
+                                    ) {
+                                        TextButton(onClick = { onSetAllFoldersCollapsed(!allCollapsed) }) {
+                                            Text(
+                                                if (allCollapsed) "Unfold all (${groupedByFolder.size})" else "Fold all",
+                                                fontSize = 12.sp,
+                                                color = DarkroomColours.AshMuted,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            for ((folder, folderPhotos) in groupedByFolder) {
+                                val collapsed = folder in state.collapsedFolders
+                                val folderLabel = folder.ifEmpty { state.activeSource?.label ?: "Root" }
+                                val selectedInFolder = folderPhotos.count { it.id in state.selectedIds }
+                                item(key = "hdr:$folder", span = { GridItemSpan(maxLineSpan) }) {
+                                    SubfolderSectionHeader(
+                                        label = folderLabel,
+                                        count = folderPhotos.size,
+                                        selectedCount = selectedInFolder,
+                                        collapsed = collapsed,
+                                        onToggleCollapse = { onToggleFolderCollapsed(folder) },
+                                        onLongPress = { onToggleSelectFolder(folder) },
+                                    )
+                                }
+                                if (!collapsed) {
+                                    items(folderPhotos, key = { it.id }) { photo ->
+                                        PhotoGridCell(
+                                            photo = photo,
+                                            photoSource = photoSource,
+                                            images = images,
+                                            selected = photo.id in state.selectedIds,
+                                            selecting = selecting,
+                                            onClick = {
+                                                if (selecting) onToggleSelect(photo.id) else onOpenPhoto(photo.id)
+                                            },
+                                            onLongClick = { onToggleSelect(photo.id) },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -634,6 +706,67 @@ private fun SelectionActionBar(
                 TextButton(onClick = onSendToAuto) { Text("RawBoy Auto", color = DarkroomColours.SafelightAmber) }
                 TextButton(onClick = onWriteXmp) { Text("Write XMP", color = DarkroomColours.AshMuted) }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SubfolderSectionHeader(
+    label: String,
+    count: Int,
+    selectedCount: Int,
+    collapsed: Boolean,
+    onToggleCollapse: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(DarkroomColours.GraphiteSurface)
+            .border(1.dp, DarkroomColours.Hairline, RoundedCornerShape(8.dp))
+            .combinedClickable(onClick = onToggleCollapse, onLongClick = onLongPress)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (collapsed) Icons.Default.ChevronRight else Icons.Default.ExpandMore,
+            contentDescription = if (collapsed) "Unfold" else "Fold",
+            tint = DarkroomColours.AshMuted,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Icon(
+            Icons.Default.Folder,
+            contentDescription = null,
+            tint = DarkroomColours.SafelightAmber,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            label,
+            color = DarkroomColours.PaperWhite,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (selectedCount > 0) {
+            Text(
+                "$selectedCount / $count",
+                color = DarkroomColours.SafelightAmber,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        } else {
+            Text(
+                "$count",
+                color = DarkroomColours.AshMuted,
+                fontSize = 12.sp,
+            )
         }
     }
 }

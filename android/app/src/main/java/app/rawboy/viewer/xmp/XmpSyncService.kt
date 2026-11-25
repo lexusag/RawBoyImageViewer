@@ -46,14 +46,17 @@ class XmpSyncService(
     private val photoDao: PhotoDao,
     private val cullDao: CullDao,
 ) {
+    private fun sidecarKey(parentDir: String, name: String): String =
+        "${parentDir.lowercase()}/${name.lowercase()}"
+
     /** Reads existing XMP sidecars on first open of a folder to seed the local DB without writing anything. */
     suspend fun seedFromExistingSidecars(
         source: PhotoSource,
         photos: List<PhotoWithCull>,
     ): Int = withContext(Dispatchers.IO) {
-        val filesByLower = source.listFiles()
+        val filesByKey = source.listFiles()
             .filter { !it.isDirectory && PhotoGroups.isSidecar(it.name) }
-            .associateBy { it.name.lowercase() }
+            .associateBy { sidecarKey(it.parentDir, it.name) }
         var seeded = 0
         val now = System.currentTimeMillis()
         for (p in photos) {
@@ -62,7 +65,7 @@ class XmpSyncService(
             if (sidecarNames.isEmpty()) continue
             var found: Rating? = null
             for (name in sidecarNames) {
-                val entry = filesByLower[name.lowercase()] ?: continue
+                val entry = filesByKey[sidecarKey(p.folderPath, name)] ?: continue
                 val text = source.readText(entry.docId) ?: continue
                 if (XmpSidecar.hasRating(text)) {
                     found = XmpSidecar.readRating(text)
@@ -91,9 +94,9 @@ class XmpSyncService(
     /** Checks which photos in [targets] have an XMP conflict (rated elsewhere since last write). */
     suspend fun findConflicts(source: PhotoSource, targets: List<PhotoWithCull>): List<XmpConflict> =
         withContext(Dispatchers.IO) {
-            val filesByLower = source.listFiles()
+            val filesByKey = source.listFiles()
                 .filter { !it.isDirectory && PhotoGroups.isSidecar(it.name) }
-                .associateBy { it.name.lowercase() }
+                .associateBy { sidecarKey(it.parentDir, it.name) }
             val conflicts = ArrayList<XmpConflict>()
             for (p in targets) {
                 if (!p.needsXmpWrite) continue
@@ -102,7 +105,7 @@ class XmpSyncService(
                 val sidecarNames = p.sidecarNames.split('\n').filter { it.isNotEmpty() }
                 var diskRating: Rating? = null
                 for (name in sidecarNames) {
-                    val entry = filesByLower[name.lowercase()] ?: continue
+                    val entry = filesByKey[sidecarKey(p.folderPath, name)] ?: continue
                     val text = source.readText(entry.docId) ?: continue
                     if (XmpSidecar.hasRating(text)) {
                         diskRating = XmpSidecar.readRating(text)
@@ -122,9 +125,9 @@ class XmpSyncService(
         targets: List<PhotoWithCull>,
         conflictResolution: ConflictResolution = ConflictResolution.KEEP_XMP,
     ): XmpSyncResult = withContext(Dispatchers.IO) {
-        val filesByLower = source.listFiles()
+        val filesByKey = source.listFiles()
             .filter { !it.isDirectory && PhotoGroups.isSidecar(it.name) }
-            .associateBy { it.name.lowercase() }
+            .associateBy { sidecarKey(it.parentDir, it.name) }
 
         var written = 0
         var keptXmp = 0
@@ -138,8 +141,8 @@ class XmpSyncService(
             val lastWritten = Rating(p.xmpStars ?: 0, Flag.fromDb(p.xmpFlag ?: 0))
             val existingNames = p.sidecarNames.split('\n').filter { it.isNotEmpty() }
             val group = PhotoGroup(
-                stem = PhotoGroups.stem(p.relPath),
-                main = p.relPath,
+                stem = PhotoGroups.stem(p.fileName),
+                main = p.fileName,
                 companions = p.companionNames.split('\n').filter { it.isNotEmpty() },
                 sidecars = existingNames,
             )
@@ -147,7 +150,7 @@ class XmpSyncService(
             // Check conflict against disk first
             var diskRating: Rating? = null
             for (name in existingNames) {
-                val entry = filesByLower[name.lowercase()] ?: continue
+                val entry = filesByKey[sidecarKey(p.folderPath, name)] ?: continue
                 val text = source.readText(entry.docId) ?: continue
                 if (XmpSidecar.hasRating(text)) {
                     diskRating = XmpSidecar.readRating(text)
@@ -184,14 +187,14 @@ class XmpSyncService(
             var allOk = true
             val updatedNames = existingNames.toMutableSet()
             for (name in namesToWrite) {
-                val entry = filesByLower[name.lowercase()]
+                val entry = filesByKey[sidecarKey(p.folderPath, name)]
                 val oldText = entry?.let { source.readText(it.docId) }
                 val newText = runCatching { XmpSidecar.writeRating(oldText, phoneRating) }.getOrNull()
                 if (newText == null) {
                     allOk = false
                     continue
                 }
-                val docId = source.writeText(name, entry?.docId, newText)
+                val docId = source.writeText(name, entry?.docId, newText, parentDir = p.folderPath)
                 if (docId == null) {
                     allOk = false
                 } else {

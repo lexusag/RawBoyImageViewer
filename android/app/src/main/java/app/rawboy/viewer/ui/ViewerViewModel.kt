@@ -56,6 +56,7 @@ data class ViewerUiState(
     val unsyncedXmpCount: Int = 0,
     val binnedCount: Int = 0,
     val selectedIds: Set<Long> = emptySet(),
+    val collapsedFolders: Set<String> = emptySet(),
     val viewerPhotoId: Long? = null,
     val isScanning: Boolean = false,
     val statusMessage: String? = null,
@@ -188,39 +189,44 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun scanSource(sourceEntity: SourceEntity, saf: PhotoSource) {
         withContext(Dispatchers.IO) {
             val entries = saf.listFiles().filter { !it.isDirectory }
-            val byLower = entries.associateBy { it.name.lowercase() }
-            val groups = PhotoGroups.group(entries.map { it.name })
-                .filter { PhotoFileType.of(it.main) != PhotoFileType.VIDEO }
+            val byDir = entries.groupBy { it.parentDir }
 
             val existingRows = photoDao.getAllForSource(sourceEntity.id)
             val existingByRel = existingRows.associateBy { it.relPath.lowercase() }
             val matchedIds = HashSet<Long>()
 
-            for (g in groups) {
-                val mainEntry = byLower[g.main.lowercase()] ?: continue
-                val compIds = g.companions.mapNotNull { byLower[it.lowercase()]?.docId }
-                val prev = existingByRel[g.main.lowercase()]
-                    ?: existingRows.singleOrNull {
-                        it.id !in matchedIds && it.size == mainEntry.size && it.mtime == mainEntry.mtime
-                    }
+            for ((parentDir, dirEntries) in byDir) {
+                val byLower = dirEntries.associateBy { it.name.lowercase() }
+                val groups = PhotoGroups.group(dirEntries.map { it.name })
+                    .filter { PhotoFileType.of(it.main) != PhotoFileType.VIDEO }
 
-                val entity = PhotoEntity(
-                    id = prev?.id ?: 0L,
-                    sourceId = sourceEntity.id,
-                    relPath = g.main,
-                    docId = mainEntry.docId,
-                    companionNames = g.companions.joinToString("\n"),
-                    companionDocIds = compIds.joinToString("\n"),
-                    sidecarNames = g.sidecars.joinToString("\n"),
-                    size = mainEntry.size,
-                    mtime = mainEntry.mtime,
-                    captureDate = prev?.captureDate ?: PhotoOrder.fileDate(mainEntry.mtime),
-                    groupKey = g.stem.lowercase(),
-                    inBin = false,
-                    orphanedAt = null,
-                )
-                val id = photoDao.upsert(entity)
-                matchedIds.add(id)
+                for (g in groups) {
+                    val mainEntry = byLower[g.main.lowercase()] ?: continue
+                    val relPath = if (parentDir.isEmpty()) g.main else "$parentDir/${g.main}"
+                    val compIds = g.companions.mapNotNull { byLower[it.lowercase()]?.docId }
+                    val prev = existingByRel[relPath.lowercase()]
+                        ?: existingRows.singleOrNull {
+                            it.id !in matchedIds && it.size == mainEntry.size && it.mtime == mainEntry.mtime
+                        }
+
+                    val entity = PhotoEntity(
+                        id = prev?.id ?: 0L,
+                        sourceId = sourceEntity.id,
+                        relPath = relPath,
+                        docId = mainEntry.docId,
+                        companionNames = g.companions.joinToString("\n"),
+                        companionDocIds = compIds.joinToString("\n"),
+                        sidecarNames = g.sidecars.joinToString("\n"),
+                        size = mainEntry.size,
+                        mtime = mainEntry.mtime,
+                        captureDate = prev?.captureDate ?: PhotoOrder.fileDate(mainEntry.mtime),
+                        groupKey = if (parentDir.isEmpty()) g.stem.lowercase() else "${parentDir.lowercase()}/${g.stem.lowercase()}",
+                        inBin = false,
+                        orphanedAt = null,
+                    )
+                    val id = photoDao.upsert(entity)
+                    matchedIds.add(id)
+                }
             }
 
             val missingIds = existingRows.filter { it.id !in matchedIds && !it.inBin && it.orphanedAt == null }.map { it.id }
@@ -296,6 +302,30 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearSelection() {
         _state.update { it.copy(selectedIds = emptySet()) }
+    }
+
+    fun toggleFolderCollapsed(folder: String) {
+        _state.update { s ->
+            val next = if (folder in s.collapsedFolders) s.collapsedFolders - folder else s.collapsedFolders + folder
+            s.copy(collapsedFolders = next)
+        }
+    }
+
+    fun setAllFoldersCollapsed(collapsed: Boolean) {
+        _state.update { s ->
+            val next = if (collapsed) s.visiblePhotos.map { it.folderPath }.toSet() else emptySet()
+            s.copy(collapsedFolders = next)
+        }
+    }
+
+    fun toggleSelectFolder(folder: String) {
+        _state.update { s ->
+            val ids = s.visiblePhotos.filter { it.folderPath == folder }.map { it.id }.toSet()
+            if (ids.isEmpty()) return@update s
+            val allSelected = ids.all { it in s.selectedIds }
+            val next = if (allSelected) s.selectedIds - ids else s.selectedIds + ids
+            s.copy(selectedIds = next)
+        }
     }
 
     fun ratePhotos(photoIds: List<Long>, stars: Int) {

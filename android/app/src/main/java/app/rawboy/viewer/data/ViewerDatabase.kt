@@ -138,6 +138,8 @@ data class PhotoWithCull(
 ) {
     val effectiveStars: Int get() = stars ?: 0
     val effectiveFlag: Int get() = flag ?: 0
+    val folderPath: String get() = relPath.substringBeforeLast('/', "")
+    val fileName: String get() = relPath.substringAfterLast('/')
     val needsXmpWrite: Boolean
         get() {
             val u = updatedAt ?: 0L

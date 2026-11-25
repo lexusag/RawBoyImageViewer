@@ -27,6 +27,9 @@ class LocalSafSource(
 
     private val resolver = context.contentResolver
     private val rootDocId: String = DocumentsContract.getTreeDocumentId(treeUri)
+    private val dirDocIds = java.util.concurrent.ConcurrentHashMap<String, String>().apply {
+        put("", rootDocId)
+    }
 
     override val rootUri: String get() = treeUri.toString()
 
@@ -35,10 +38,29 @@ class LocalSafSource(
             ?: rootDocId.substringAfterLast('/').substringAfterLast(':')
 
     override suspend fun listFiles(): List<SourceFileEntry> = withContext(Dispatchers.IO) {
-        queryChildren(rootDocId)
+        val out = ArrayList<SourceFileEntry>(256)
+        val queue = ArrayDeque<Triple<String, String, Int>>() // (dirDocId, relDir, depth)
+        queue.add(Triple(rootDocId, "", 0))
+        while (queue.isNotEmpty()) {
+            val (dirId, relDir, depth) = queue.removeFirst()
+            dirDocIds[relDir] = dirId
+            val children = queryChildren(dirId, relDir)
+            for (entry in children) {
+                if (entry.isDirectory) {
+                    if (depth < MAX_DEPTH && entry.name != BIN_DIR_NAME && !entry.name.startsWith(".")) {
+                        val childRel = if (relDir.isEmpty()) entry.name else "$relDir/${entry.name}"
+                        dirDocIds[childRel] = entry.docId
+                        queue.add(Triple(entry.docId, childRel, depth + 1))
+                    }
+                } else {
+                    out.add(entry)
+                }
+            }
+        }
+        out
     }
 
-    private fun queryChildren(parentDocId: String): List<SourceFileEntry> {
+    private fun queryChildren(parentDocId: String, parentDir: String): List<SourceFileEntry> {
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
@@ -61,7 +83,7 @@ class LocalSafSource(
                 val mtime = if (iMtime >= 0 && !c.isNull(iMtime)) c.getLong(iMtime) else 0L
                 val mime = if (iMime >= 0 && !c.isNull(iMime)) c.getString(iMime) else ""
                 val isDir = mime == DocumentsContract.Document.MIME_TYPE_DIR
-                out.add(SourceFileEntry(id, name, size, mtime, mime, isDir))
+                out.add(SourceFileEntry(id, name, size, mtime, mime, isDir, parentDir, parentDocId))
             }
         }
         return out
@@ -102,15 +124,17 @@ class LocalSafSource(
         }.getOrNull()
     }
 
-    override suspend fun findChildByName(name: String): SourceFileEntry? = withContext(Dispatchers.IO) {
-        queryChildren(rootDocId).firstOrNull { !it.isDirectory && it.name.equals(name, ignoreCase = true) }
+    override suspend fun findChildByName(name: String, parentDir: String): SourceFileEntry? = withContext(Dispatchers.IO) {
+        val parentId = dirDocIds[parentDir] ?: rootDocId
+        queryChildren(parentId, parentDir).firstOrNull { !it.isDirectory && it.name.equals(name, ignoreCase = true) }
     }
 
-    override suspend fun writeText(name: String, existingDocId: String?, content: String): String? =
+    override suspend fun writeText(name: String, existingDocId: String?, content: String, parentDir: String): String? =
         withContext(Dispatchers.IO) {
+            val parentId = dirDocIds[parentDir] ?: rootDocId
             val targetDocId = existingDocId
-                ?: findChildByName(name)?.docId
-                ?: createDocument(rootDocId, "application/rdf+xml", name)
+                ?: findChildByName(name, parentDir)?.docId
+                ?: createDocument(parentId, "application/rdf+xml", name)
                 ?: return@withContext null
             val targetUri = uriForShare(targetDocId)
             val bytes = content.toByteArray(Charsets.UTF_8)
@@ -131,7 +155,7 @@ class LocalSafSource(
     }
 
     override suspend fun restoreFromBin(docIds: List<String>): Map<String, String> = withContext(Dispatchers.IO) {
-        val binId = queryChildren(rootDocId)
+        val binId = queryChildren(rootDocId, "")
             .firstOrNull { it.isDirectory && it.name == BIN_DIR_NAME }?.docId
             ?: return@withContext emptyMap()
         val restored = LinkedHashMap<String, String>()
@@ -146,7 +170,7 @@ class LocalSafSource(
         DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
 
     private fun getOrCreateBinDir(): String? {
-        val existing = queryChildren(rootDocId).firstOrNull { it.isDirectory && it.name == BIN_DIR_NAME }
+        val existing = queryChildren(rootDocId, "").firstOrNull { it.isDirectory && it.name == BIN_DIR_NAME }
         if (existing != null) return existing.docId
         return createDocument(rootDocId, DocumentsContract.Document.MIME_TYPE_DIR, BIN_DIR_NAME)
     }
@@ -171,5 +195,6 @@ class LocalSafSource(
 
     companion object {
         const val BIN_DIR_NAME = "_bin"
+        private const val MAX_DEPTH = 6
     }
 }
