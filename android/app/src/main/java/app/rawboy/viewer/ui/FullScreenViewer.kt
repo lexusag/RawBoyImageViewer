@@ -1,6 +1,7 @@
 package app.rawboy.viewer.ui
 
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -14,12 +15,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -30,13 +34,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -106,6 +110,8 @@ fun FullScreenViewer(
     onSendToRawBoy: (PhotoWithCull) -> Unit,
     onSendToRawBoyAuto: (PhotoWithCull) -> Unit,
 ) {
+    BackHandler(onBack = onClose)
+
     val startIndex = remember(initialPhotoId, photos) {
         photos.indexOfFirst { it.id == initialPhotoId }.coerceAtLeast(0)
     }
@@ -179,10 +185,14 @@ fun FullScreenViewer(
             },
     ) {
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            // Top bar + optional tablet filmstrip
+            // Top bar + optional tablet filmstrip (inset below status bar & camera cutout)
             if (showChrome && currentPhoto != null) {
                 Surface(color = DarkroomColours.GraphiteSurface) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .displayCutoutPadding(),
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -207,7 +217,7 @@ fun FullScreenViewer(
                             }
                             if (canUndo) {
                                 IconButton(onClick = onUndo) {
-                                    Icon(Icons.Default.Undo, contentDescription = "Undo", tint = DarkroomColours.PaperWhite)
+                                    Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo", tint = DarkroomColours.PaperWhite)
                                 }
                             }
                             if (rawBoyInstalled) {
@@ -216,7 +226,7 @@ fun FullScreenViewer(
                                 }
                             }
                             IconButton(onClick = { onSendToRawBoyAuto(currentPhoto) }) {
-                                Icon(Icons.Default.Send, contentDescription = "Send to RawBoy Auto", tint = DarkroomColours.SafelightAmber)
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send to RawBoy Auto", tint = DarkroomColours.SafelightAmber)
                             }
                             if (!isExpanded) {
                                 IconButton(onClick = { showDetailsSheet = true }) {
@@ -274,6 +284,8 @@ fun FullScreenViewer(
                     .width(280.dp)
                     .fillMaxHeight()
                     .background(DarkroomColours.GraphiteSurface)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
                     .padding(16.dp),
             ) {
                 PhotoDetailsContent(photo = currentPhoto, details = details)
@@ -405,7 +417,7 @@ private fun ViewerRatingBar(
     onReject: () -> Unit,
 ) {
     Surface(color = DarkroomColours.GraphiteSurface) {
-        Column {
+        Column(modifier = Modifier.navigationBarsPadding()) {
             HorizontalDivider(color = DarkroomColours.Hairline)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),

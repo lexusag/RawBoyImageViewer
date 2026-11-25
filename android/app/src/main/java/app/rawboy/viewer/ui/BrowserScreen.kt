@@ -2,6 +2,7 @@ package app.rawboy.viewer.ui
 
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -128,6 +130,7 @@ fun BrowserScreen(
     }
 
     val selecting = state.selectedIds.isNotEmpty()
+    BackHandler(enabled = selecting, onBack = onClearSelection)
     val selectedPhotos = remember(state.selectedIds, state.allPhotos) {
         state.allPhotos.filter { it.id in state.selectedIds }
     }
@@ -608,7 +611,7 @@ private fun SelectionActionBar(
         color = DarkroomColours.GraphiteSurface,
         tonalElevation = 0.dp,
     ) {
-        Column {
+        Column(modifier = Modifier.navigationBarsPadding()) {
             HorizontalDivider(color = DarkroomColours.Hairline)
             Row(
                 modifier = Modifier
