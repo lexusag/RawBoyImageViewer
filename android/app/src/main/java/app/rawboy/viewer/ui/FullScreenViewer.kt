@@ -39,22 +39,30 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -79,16 +87,24 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import app.rawboy.viewer.core.Flag
 import app.rawboy.viewer.core.Histogram
+import app.rawboy.viewer.core.PhotoFileType
 import app.rawboy.viewer.data.PhotoWithCull
 import app.rawboy.viewer.imaging.ImageRepository
 import app.rawboy.viewer.imaging.PhotoDetails
 import app.rawboy.viewer.sources.PhotoSource
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -254,21 +270,33 @@ fun FullScreenViewer(
                 }
             }
 
-            // Main photo pager
+            // Main photo/video pager
+            var isScrubbing by remember { mutableStateOf(false) }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 HorizontalPager(
                     state = pagerState,
-                    userScrollEnabled = !isZoomed,
+                    userScrollEnabled = !isZoomed && !isScrubbing,
                     modifier = Modifier.fillMaxSize(),
                 ) { page ->
                     val photo = photos[page]
-                    ZoomablePhotoPage(
-                        photo = photo,
-                        photoSource = photoSource,
-                        images = images,
-                        onToggleChrome = { showChrome = !showChrome },
-                        onZoomChanged = { zoomed -> if (page == pagerState.currentPage) isZoomed = zoomed },
-                    )
+                    if (PhotoFileType.of(photo.fileName) == PhotoFileType.VIDEO) {
+                        VideoPlayerPage(
+                            photo = photo,
+                            photoSource = photoSource,
+                            isActivePage = page == pagerState.currentPage,
+                            showChrome = showChrome,
+                            onToggleChrome = { showChrome = !showChrome },
+                            onScrubbingChanged = { scrubbing -> if (page == pagerState.currentPage) isScrubbing = scrubbing },
+                        )
+                    } else {
+                        ZoomablePhotoPage(
+                            photo = photo,
+                            photoSource = photoSource,
+                            images = images,
+                            onToggleChrome = { showChrome = !showChrome },
+                            onZoomChanged = { zoomed -> if (page == pagerState.currentPage) isZoomed = zoomed },
+                        )
+                    }
                 }
             }
 
@@ -373,6 +401,192 @@ private fun ZoomablePhotoPage(
             CircularProgressIndicator(color = DarkroomColours.SafelightAmber)
         }
     }
+}
+
+@Composable
+private fun VideoPlayerPage(
+    photo: PhotoWithCull,
+    photoSource: PhotoSource,
+    isActivePage: Boolean,
+    showChrome: Boolean,
+    onToggleChrome: () -> Unit,
+    onScrubbingChanged: (Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    val videoUri = remember(photo.docId, photoSource.rootUri) { photoSource.uriForShare(photo.docId) }
+    val player = remember(videoUri) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(videoUri))
+            prepare()
+        }
+    }
+
+    var isPlaying by remember(videoUri) { mutableStateOf(false) }
+    var isMuted by remember(videoUri) { mutableStateOf(false) }
+    var durationMs by remember(videoUri) { mutableLongStateOf(0L) }
+    var positionMs by remember(videoUri) { mutableLongStateOf(0L) }
+    var isDragging by remember(videoUri) { mutableStateOf(false) }
+    var dragFraction by remember(videoUri) { mutableFloatStateOf(0f) }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                if (player.duration > 0L) durationMs = player.duration
+                if (state == Player.STATE_ENDED) {
+                    isPlaying = false
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            onScrubbingChanged(false)
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+
+    // Auto-pause when swiping away from this page, auto-play when landing on it.
+    LaunchedEffect(isActivePage, player) {
+        if (isActivePage) {
+            player.playWhenReady = true
+        } else {
+            player.pause()
+        }
+    }
+
+    // Poll playback position smoothly while active and not scrubbing.
+    LaunchedEffect(player, isActivePage, isDragging) {
+        while (isActivePage) {
+            if (player.duration > 0L) durationMs = player.duration
+            if (!isDragging) positionMs = player.currentPosition.coerceAtLeast(0L)
+            delay(150)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkroomColours.InkBlack)
+            .pointerInput(photo.id) {
+                detectTapGestures(onTap = { onToggleChrome() })
+            },
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    useController = false
+                    this.player = player
+                }
+            },
+            update = { view ->
+                if (view.player !== player) view.player = player
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        if (showChrome) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                val safeDuration = durationMs.coerceAtLeast(1L)
+                val sliderValue = if (isDragging) {
+                    dragFraction
+                } else {
+                    (positionMs.toFloat() / safeDuration.toFloat()).coerceIn(0f, 1f)
+                }
+                val displayedPosMs = if (isDragging) (dragFraction * safeDuration).toLong() else positionMs
+
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { frac ->
+                        if (!isDragging) {
+                            isDragging = true
+                            onScrubbingChanged(true)
+                        }
+                        dragFraction = frac
+                        if (durationMs > 0L) {
+                            player.seekTo((frac * durationMs).toLong())
+                        }
+                    },
+                    onValueChangeFinished = {
+                        if (durationMs > 0L) {
+                            val target = (dragFraction * durationMs).toLong()
+                            player.seekTo(target)
+                            positionMs = target
+                        }
+                        isDragging = false
+                        onScrubbingChanged(false)
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = DarkroomColours.SafelightAmber,
+                        activeTrackColor = DarkroomColours.SafelightAmber,
+                        inactiveTrackColor = DarkroomColours.Hairline,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                if (player.playbackState == Player.STATE_ENDED) {
+                                    player.seekTo(0L)
+                                    player.play()
+                                } else if (player.isPlaying) {
+                                    player.pause()
+                                } else {
+                                    player.play()
+                                }
+                            },
+                        ) {
+                            Icon(
+                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = DarkroomColours.PaperWhite,
+                            )
+                        }
+                        Text(
+                            "${formatDuration(displayedPosMs)} / ${formatDuration(durationMs)}",
+                            color = DarkroomColours.PaperWhite,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            isMuted = !isMuted
+                            player.volume = if (isMuted) 0f else 1f
+                        },
+                    ) {
+                        Icon(
+                            if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = if (isMuted) "Unmute" else "Mute",
+                            tint = DarkroomColours.PaperWhite,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    val totalSec = (ms / 1000L).coerceAtLeast(0L)
+    val h = totalSec / 3600L
+    val m = (totalSec % 3600L) / 60L
+    val s = totalSec % 60L
+    return if (h > 0L) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
 @Composable

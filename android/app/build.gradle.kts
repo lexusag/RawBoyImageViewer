@@ -78,6 +78,8 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.documentfile)
     implementation(libs.exifinterface)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
     implementation(libs.coroutines.android)
 
     testImplementation(libs.junit)

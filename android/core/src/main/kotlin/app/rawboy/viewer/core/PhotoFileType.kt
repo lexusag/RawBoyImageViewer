@@ -52,6 +52,13 @@ enum class PhotoFileType {
                 "tif", "tiff" -> "image/tiff"
                 "webp" -> "image/webp"
                 "avif" -> "image/avif"
+                "mp4" -> "video/mp4"
+                "mov" -> "video/quicktime"
+                "m4v" -> "video/x-m4v"
+                "mkv" -> "video/x-matroska"
+                "webm" -> "video/webm"
+                "avi" -> "video/x-msvideo"
+                "mts", "m2ts" -> "video/mp2t"
                 else -> "image/*"
             }
         }

@@ -203,7 +203,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             for ((parentDir, dirEntries) in byDir) {
                 val byLower = dirEntries.associateBy { it.name.lowercase() }
                 val groups = PhotoGroups.group(dirEntries.map { it.name })
-                    .filter { PhotoFileType.of(it.main) != PhotoFileType.VIDEO }
 
                 for (g in groups) {
                     val mainEntry = byLower[g.main.lowercase()] ?: continue
@@ -411,6 +410,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob = viewModelScope.launch(Dispatchers.IO) {
             for (i in order) {
                 val p = list.getOrNull(i) ?: continue
+                if (PhotoFileType.of(p.fileName) == PhotoFileType.VIDEO) continue
                 images.loadViewerBitmap(saf, p)
             }
         }

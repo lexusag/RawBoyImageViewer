@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
+import android.media.MediaMetadataRetriever
 import androidx.exifinterface.media.ExifInterface
 import app.rawboy.viewer.core.EmbeddedPreviews
 import app.rawboy.viewer.core.ExifFormat
@@ -155,6 +156,9 @@ class ImageRepository(private val context: Context) {
         rgb565: Boolean,
     ): Bitmap? {
         val type = PhotoFileType.of(photo.fileName)
+        if (type == PhotoFileType.VIDEO) {
+            return decodeVideoFrame(source, photo.docId, targetMaxPx)
+        }
         if (type == PhotoFileType.RAW) {
             var smallFallback: Pair<ByteArray, Int>? = null
             source.openByteSource(photo.docId, photo.size)?.use { bs ->
@@ -177,6 +181,28 @@ class ImageRepository(private val context: Context) {
             return smallFallback?.let { decodeJpegBytes(it.first, targetMaxPx, rgb565, it.second) }
         }
         return decodeViaImageDecoder(source, photo.docId, targetMaxPx)
+    }
+
+    private fun decodeVideoFrame(source: PhotoSource, docId: String, targetMaxPx: Int): Bitmap? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, source.uriForShare(docId))
+            retriever.getScaledFrameAtTime(
+                1_000_000L,
+                MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                targetMaxPx,
+                targetMaxPx,
+            ) ?: retriever.getScaledFrameAtTime(
+                0L,
+                MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                targetMaxPx,
+                targetMaxPx,
+            )
+        } catch (_: Throwable) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
     }
 
     /**

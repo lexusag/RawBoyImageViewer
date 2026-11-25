@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Send
@@ -601,10 +602,14 @@ private fun PhotoGridCell(
             )
         }
 
-        // Top-left: RAW / RAW+JPG badge
-        val isRaw = PhotoFileType.of(photo.relPath) == PhotoFileType.RAW
-        if (isRaw) {
-            val badge = if (photo.companionNames.isNotEmpty()) "RAW+JPG" else "RAW"
+        // Top-left: RAW / RAW+JPG / VIDEO badge
+        val fileType = PhotoFileType.of(photo.fileName)
+        if (fileType == PhotoFileType.RAW || fileType == PhotoFileType.VIDEO) {
+            val badge = when (fileType) {
+                PhotoFileType.VIDEO -> "VIDEO"
+                PhotoFileType.RAW -> if (photo.companionNames.isNotEmpty()) "RAW+JPG" else "RAW"
+                else -> ""
+            }
             Text(
                 badge,
                 color = DarkroomColours.PaperWhite,
@@ -616,6 +621,23 @@ private fun PhotoGridCell(
                     .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
                     .padding(horizontal = 4.dp, vertical = 1.dp),
             )
+        }
+
+        if (fileType == PhotoFileType.VIDEO) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(34.dp)
+                    .background(Color.Black.copy(alpha = 0.55f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "Video",
+                    tint = DarkroomColours.PaperWhite,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
 
         // Top-right: selection check or unsynced XMP dot

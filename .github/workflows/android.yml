@@ -1,11 +1,6 @@
 name: Android
 
 on:
-  push:
-    paths:
-      - 'android/**'
-      - 'Packages/Tests/RawBoyBrowseKitTests/Fixtures/**'
-      - '.github/workflows/android.yml'
   pull_request:
     paths:
       - 'android/**'
