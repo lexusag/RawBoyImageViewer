@@ -32,20 +32,63 @@ So a free account is worth using on your own Mac, but sharing the app with other
 
 ## 2. Notarize for everyone (needs the paid programme)
 
-1. Join the Apple Developer Program with the same Apple ID (developer.apple.com/programs). The Personal Team becomes
-   a paid team; the Team ID may change: update `Config/Signing.local.xcconfig`.
-2. Xcode › Settings › Accounts › Manage Certificates › **+** › **Developer ID Application**.
-3. An app-specific password at account.apple.com › Sign-In and Security › App-Specific Passwords, then store the
-   notarization credentials once in the keychain:
+Distribution outside the Mac App Store requires a **Developer ID Application** certificate (not *Apple Development* or
+*Mac App Distribution*) and notarization with Apple (`xcrun notarytool`). App Sandbox stays off (`ENABLE_APP_SANDBOX:
+NO`) so RawBoy Viewer can keep writing `.xmp` sidecars next to your photos; Hardened Runtime (`--options runtime`) and
+secure timestamps (`--timestamp`) are applied inside-out to `Sparkle.framework` (including its nested XPC services,
+`Updater.app`, and `Autoupdate`) and `RawBoy Viewer.app`.
+
+### Create and export the Developer ID Application certificate
+
+1. Join the Apple Developer Program with your Apple ID (`developer.apple.com/programs`).
+2. Open **Xcode › Settings › Accounts**, select your paid team, click **Manage Certificates…**, click **+** and choose
+   **Developer ID Application**.
+3. Open **Keychain Access**, select **login** (left sidebar) › **My Certificates** (top tab), and find
+   `Developer ID Application: <Your Name> (<TEAMID>)`. Expand the disclosure triangle to confirm its private key is
+   nested under it.
+4. Select the certificate, right-click › **Export "Developer ID Application: …"**, choose **Personal Information
+   Exchange (.p12)**, save it as `rawboy-dev-id.p12`, and set a strong export password. *(Keep a backup in a password
+   manager; you cannot re-download the private key from Apple.)*
+5. Base64-encode the `.p12` for GitHub Secrets:
    ```sh
-   xcrun notarytool store-credentials rawboy-notary --apple-id <your Apple ID> --team-id <team id>
+   base64 -i rawboy-dev-id.p12 | pbcopy
    ```
-4. Release:
+
+### Create an App Store Connect API key for notarization
+
+Using an App Store Connect API key (`.p8` file, Key ID, Issuer ID) is preferred over an Apple ID + app-specific
+password because it is not tied to your personal login and does not break when you change your Apple ID password.
+
+1. Open [appstoreconnect.apple.com](https://appstoreconnect.apple.com) › **Users and Access › Integrations › App Store
+   Connect API**.
+2. Under **Team Keys**, click **+** (Generate API Key) with **Access: Developer**.
+3. Copy the **Issuer ID** (top of the page) and the new key's **Key ID**.
+4. Click **Download** to save `AuthKey_<KEYID>.p8` *(can only be downloaded once — store it safely alongside your
+   `.p12`)*.
+5. Base64-encode the `.p8` for GitHub Secrets:
    ```sh
-   DEVELOPER_ID="Developer ID Application: <name> (<team id>)" NOTARY_PROFILE=rawboy-notary tools/release.sh 0.1
+   base64 -i AuthKey_<KEYID>.p8 | pbcopy
    ```
-   The script signs with a secure timestamp, notarizes the DMG (a few minutes), staples the ticket and checks it with
-   `spctl`.
+
+### Build, sign, and notarize locally on a Mac
+
+With the Developer ID Application certificate in your login keychain:
+
+```sh
+IDENTITY=$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)
+DEVELOPER_ID="$IDENTITY" \
+  APPLE_NOTARY_KEY_FILE=~/keys/AuthKey_<KEYID>.p8 \
+  APPLE_NOTARY_KEY_ID=<KEYID> \
+  APPLE_NOTARY_ISSUER_ID=<ISSUER_ID> \
+  tools/release.sh 0.2
+```
+
+*(Alternatively, if you stored credentials in your login keychain with `xcrun notarytool store-credentials rawboy-notary`,
+pass `NOTARY_PROFILE=rawboy-notary` instead of the `APPLE_NOTARY_*` variables.)*
+
+The script signs Sparkle and the app inside-out with Hardened Runtime and secure timestamps, packs and signs the DMG,
+notarizes it with Apple (printing the full `notarytool log` on rejection), staples and validates the ticket, and checks
+Gatekeeper with `spctl`.
 
 ## 3. Publish a release, with auto-update
 
@@ -62,24 +105,47 @@ login keychain:** without that key, installed copies can't take updates.
    the GitHub release with the DMG and the notes, then commits and pushes `appcast.xml`.
 3. "Check for Updates…" in an older copy offers it.
 
-## 4. Or let CI build the DMG
+## 4. Or let CI build, sign, and notarize the DMG
 
 `.github/workflows/release.yml` runs when a GitHub release is published (or by hand from the Actions tab, giving the
-tag). It checks out the tag, runs `tools/release.sh <version>` on a macOS runner and attaches the DMG to the release.
-Create the release first (tag `v<version>`, notes from `docs/releases/v<version>.md`), without `PUBLISH=1`:
+tag). It checks out the tag, runs `tools/release.sh <version>` on a macOS runner, verifies the app inside the DMG, and
+attaches the DMG to the release. Create the release first (tag `v<version>`, notes from `docs/releases/v<version>.md`),
+without `PUBLISH=1`:
 ```sh
 gh release create v0.2 --title "RawBoy Viewer 0.2" --notes-file docs/releases/v0.2.md --prerelease
 ```
-Repository secrets, all optional (without them the DMG is ad hoc signed: right-click › Open):
 
-| Secret | What |
+Repository secrets (**Settings › Secrets and variables › Actions**):
+
+| Secret | Value |
 |---|---|
-| `DEVELOPER_ID_CERT_P12`, `DEVELOPER_ID_CERT_PASSWORD` | the "Developer ID Application" certificate exported from Keychain Access as .p12, base64-encoded (`base64 -i cert.p12`), and its password |
-| `DEVELOPER_ID` | the identity name: `Developer ID Application: <name> (<team id>)` |
-| `NOTARY_APPLE_ID`, `NOTARY_PASSWORD`, `NOTARY_TEAM_ID` | Apple ID, its app-specific password and the team id: the DMG is notarized and stapled |
-| `SPARKLE_PRIVATE_KEY` | the Sparkle EdDSA private key (`generate_keys -x file`, in `build/SourcePackages/artifacts/sparkle/Sparkle/bin`): CI signs the DMG and commits `appcast.xml` to `main`. Without it the feed is left alone |
+| `MACOS_CERT_P12` | base64 of `rawboy-dev-id.p12` |
+| `MACOS_CERT_PASSWORD` | password you chose when exporting the `.p12` |
+| `APPLE_NOTARY_KEY` | base64 of `AuthKey_<KEYID>.p8` |
+| `APPLE_NOTARY_KEY_ID` | the 10-character Key ID from App Store Connect |
+| `APPLE_NOTARY_ISSUER_ID` | the UUID Issuer ID from App Store Connect |
+| `SPARKLE_PRIVATE_KEY` | *(optional)* the Sparkle EdDSA private key (`generate_keys -x file`, in `build/SourcePackages/artifacts/sparkle/Sparkle/bin`): CI signs the DMG for Sparkle and commits `appcast.xml` to `main`. Without it the feed is left alone |
 
-Don't also run `PUBLISH=1 tools/release.sh` for the same version: CI would replace the DMG the feed was signed for.
+You do not need a separate secret for the signing identity name: the workflow reads the `Developer ID Application: …`
+identity directly from the imported `.p12`.
+
+- **Safety check:** if `MACOS_CERT_P12` is set, the workflow requires all four companion secrets (`MACOS_CERT_PASSWORD`,
+  `APPLE_NOTARY_KEY`, `APPLE_NOTARY_KEY_ID`, `APPLE_NOTARY_ISSUER_ID`) and fails if signing or notarization fails, so a
+  misconfiguration never silently uploads an unnotarized DMG. If `MACOS_CERT_P12` is unset, it falls back to an ad-hoc
+  signed DMG with a warning.
+- Don't also run `PUBLISH=1 tools/release.sh` for the same version: CI would replace the DMG the feed was signed for.
+
+### Troubleshooting
+
+- **`No 'Developer ID Application' certificate found in MACOS_CERT_P12`:** you exported an *Apple Development* or *Mac
+  App Distribution* certificate, or exported the certificate without its private key. Re-export from **My Certificates**
+  in Keychain Access with the private key included.
+- **Notarization status `Invalid`:** `tools/release.sh` automatically prints the full JSON log from
+  `xcrun notarytool log <submission-id>` in the step output. The most common causes are a nested binary (such as inside
+  `Sparkle.framework`) missing `--timestamp` or `--options runtime`.
+- **Certificate renewal:** Developer ID Application certificates expire after 5 years. Existing notarized DMGs keep
+  working because they carry a secure timestamp; create a new certificate, export a new `.p12`, and update
+  `MACOS_CERT_P12` and `MACOS_CERT_PASSWORD`.
 
 ## Tags that RawBoy pins
 
