@@ -11,8 +11,20 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "viewer_settings")
 
+enum class StartupMode(val raw: String, val label: String) {
+    LAST("last", "Last folder"),
+    PICTURES("pictures", "Pictures & DCIM"),
+    CUSTOM("custom", "Default folder");
+
+    companion object {
+        fun fromRaw(raw: String?): StartupMode = entries.firstOrNull { it.raw == raw } ?: LAST
+    }
+}
+
 data class ViewerPrefs(
     val lastFolderUri: String? = null,
+    val defaultFolderUri: String? = null,
+    val startupMode: StartupMode = StartupMode.LAST,
     val sort: PhotoSort = PhotoSort.DATE,
     val autoAdvanceAfterRating: Boolean = true,
     val writeXmpBeforeSend: Boolean = false,
@@ -24,6 +36,8 @@ data class ViewerPrefs(
 class ViewerSettings(private val context: Context) {
     private object Keys {
         val LAST_FOLDER = stringPreferencesKey("last_folder_uri")
+        val DEFAULT_FOLDER = stringPreferencesKey("default_folder_uri")
+        val STARTUP_MODE = stringPreferencesKey("startup_mode")
         val SORT = stringPreferencesKey("sort")
         val AUTO_ADVANCE = booleanPreferencesKey("auto_advance")
         val WRITE_XMP_BEFORE_SEND = booleanPreferencesKey("write_xmp_before_send")
@@ -35,6 +49,8 @@ class ViewerSettings(private val context: Context) {
     val prefs: Flow<ViewerPrefs> = context.dataStore.data.map { p ->
         ViewerPrefs(
             lastFolderUri = p[Keys.LAST_FOLDER],
+            defaultFolderUri = p[Keys.DEFAULT_FOLDER],
+            startupMode = StartupMode.fromRaw(p[Keys.STARTUP_MODE]),
             sort = PhotoSort.fromRaw(p[Keys.SORT]),
             autoAdvanceAfterRating = p[Keys.AUTO_ADVANCE] ?: true,
             writeXmpBeforeSend = p[Keys.WRITE_XMP_BEFORE_SEND] ?: false,
@@ -48,6 +64,11 @@ class ViewerSettings(private val context: Context) {
         if (uri == null) it.remove(Keys.LAST_FOLDER) else it[Keys.LAST_FOLDER] = uri
     }
 
+    suspend fun setDefaultFolder(uri: String?) = context.dataStore.edit {
+        if (uri == null) it.remove(Keys.DEFAULT_FOLDER) else it[Keys.DEFAULT_FOLDER] = uri
+    }
+
+    suspend fun setStartupMode(mode: StartupMode) = context.dataStore.edit { it[Keys.STARTUP_MODE] = mode.raw }
     suspend fun setSort(sort: PhotoSort) = context.dataStore.edit { it[Keys.SORT] = sort.raw }
     suspend fun setAutoAdvance(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_ADVANCE] = v }
     suspend fun setWriteXmpBeforeSend(v: Boolean) = context.dataStore.edit { it[Keys.WRITE_XMP_BEFORE_SEND] = v }

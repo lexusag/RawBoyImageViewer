@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rawboy.viewer.data.StartupMode
 import app.rawboy.viewer.data.ViewerPrefs
 import app.rawboy.viewer.handoff.AutoImportMode
 import app.rawboy.viewer.xmp.ConflictResolution
@@ -199,6 +200,8 @@ fun SendToAutoSheet(
 @Composable
 fun SettingsDialog(
     prefs: ViewerPrefs,
+    onStartupMode: (StartupMode) -> Unit,
+    onPickDefaultFolder: () -> Unit,
     onAutoAdvance: (Boolean) -> Unit,
     onWriteXmpBeforeSend: (Boolean) -> Unit,
     onIncludeJpegs: (Boolean) -> Unit,
@@ -211,6 +214,32 @@ fun SettingsDialog(
         title = { Text("Settings", color = DarkroomColours.PaperWhite) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Open at launch", color = DarkroomColours.AshMuted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (mode in StartupMode.entries) {
+                        FilterChip(
+                            selected = prefs.startupMode == mode,
+                            onClick = { onStartupMode(mode) },
+                            label = { Text(mode.label, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = DarkroomColours.SafelightAmber,
+                                selectedLabelColor = DarkroomColours.AmberInk,
+                                containerColor = DarkroomColours.GraphiteRaised,
+                                labelColor = DarkroomColours.PaperWhite,
+                            ),
+                        )
+                    }
+                }
+                if (prefs.startupMode == StartupMode.CUSTOM) {
+                    TextButton(onClick = onPickDefaultFolder) {
+                        val label = prefs.defaultFolderUri?.substringAfterLast("%2F")?.substringAfterLast("%3A")
+                        Text(
+                            if (label != null) "Default folder: $label (change)" else "Choose default folder…",
+                            color = DarkroomColours.SafelightAmber,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
                 SettingToggle("Auto-advance after rating", prefs.autoAdvanceAfterRating, onAutoAdvance)
                 SettingToggle("Write XMP before sending to RawBoy", prefs.writeXmpBeforeSend, onWriteXmpBeforeSend)
                 SettingToggle("Include paired JPEGs in batches", prefs.includeJpegsInBatch, onIncludeJpegs)

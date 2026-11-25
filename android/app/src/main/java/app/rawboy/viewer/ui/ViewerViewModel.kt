@@ -1,8 +1,12 @@
 package app.rawboy.viewer.ui
 
+import android.Manifest
 import android.app.Application
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.rawboy.viewer.core.CaptureDate
@@ -18,6 +22,7 @@ import app.rawboy.viewer.data.CullEntity
 import app.rawboy.viewer.data.PhotoEntity
 import app.rawboy.viewer.data.PhotoWithCull
 import app.rawboy.viewer.data.SourceEntity
+import app.rawboy.viewer.data.StartupMode
 import app.rawboy.viewer.data.ViewerDatabase
 import app.rawboy.viewer.data.ViewerPrefs
 import app.rawboy.viewer.data.ViewerSettings
@@ -25,6 +30,7 @@ import app.rawboy.viewer.handoff.AutoImportMode
 import app.rawboy.viewer.handoff.RawBoyHandOff
 import app.rawboy.viewer.imaging.ImageRepository
 import app.rawboy.viewer.sources.LocalSafSource
+import app.rawboy.viewer.sources.MediaStoreSource
 import app.rawboy.viewer.sources.PhotoSource
 import app.rawboy.viewer.xmp.ConflictResolution
 import app.rawboy.viewer.xmp.XmpConflict
@@ -114,10 +120,84 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             val prefs = settings.prefs.first()
-            val lastUri = prefs.lastFolderUri
-            if (lastUri != null) {
-                runCatching { openFolder(Uri.parse(lastUri), persistPermission = false) }
+            when (prefs.startupMode) {
+                StartupMode.CUSTOM -> {
+                    val uri = prefs.defaultFolderUri ?: prefs.lastFolderUri
+                    if (uri != null) openUri(uri) else if (hasMediaPermission()) openPicturesGallery()
+                }
+                StartupMode.PICTURES -> {
+                    if (hasMediaPermission()) openPicturesGallery()
+                    else prefs.lastFolderUri?.let { openUri(it) }
+                }
+                StartupMode.LAST -> {
+                    val uri = prefs.lastFolderUri
+                    if (uri != null) openUri(uri) else if (hasMediaPermission()) openPicturesGallery()
+                }
             }
+        }
+    }
+
+    fun hasMediaPermission(): Boolean {
+        val app = getApplication<Application>()
+        return if (Build.VERSION.SDK_INT >= 33) {
+            ContextCompat.checkSelfPermission(app, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(app, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    fun openSource(source: SourceEntity) {
+        if (source.rootUri == MediaStoreSource.ROOT_URI) {
+            openPicturesGallery()
+        } else {
+            openFolder(Uri.parse(source.rootUri), persistPermission = false)
+        }
+    }
+
+    private fun openUri(uriStr: String) {
+        if (uriStr == MediaStoreSource.ROOT_URI) {
+            if (hasMediaPermission()) openPicturesGallery()
+        } else {
+            runCatching { openFolder(Uri.parse(uriStr), persistPermission = false) }
+        }
+    }
+
+    fun openPicturesGallery() {
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch {
+            val app = getApplication<Application>()
+            val mediaSource = MediaStoreSource(app)
+            _activePhotoSource.value = mediaSource
+            settings.setLastFolder(MediaStoreSource.ROOT_URI)
+
+            val existing = sourceDao.findByUri(MediaStoreSource.ROOT_URI)
+            val sourceId = if (existing != null) {
+                sourceDao.touch(existing.id, mediaSource.label)
+                existing.id
+            } else {
+                sourceDao.upsert(
+                    SourceEntity(
+                        kind = "mediastore",
+                        rootUri = MediaStoreSource.ROOT_URI,
+                        label = mediaSource.label,
+                        canWrite = false,
+                    )
+                )
+            }
+            val sourceEntity = sourceDao.findById(sourceId) ?: return@launch
+            _state.update {
+                it.copy(
+                    activeSource = sourceEntity,
+                    selectedIds = emptySet(),
+                    collapsedFolders = emptySet(),
+                    viewerPhotoId = null,
+                    isScanning = true,
+                    rawBoyInstalled = handOff.isRawBoyInstalled(),
+                    rawBoyAutoInstalled = handOff.isRawBoyAutoInstalled(),
+                )
+            }
+            observeSource(sourceId)
+            scanSource(sourceEntity, mediaSource)
         }
     }
 
@@ -544,6 +624,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSettings() = _state.update { it.copy(showSettings = true) }
     fun dismissSettings() = _state.update { it.copy(showSettings = false) }
+    fun setStartupMode(mode: StartupMode) = viewModelScope.launch { settings.setStartupMode(mode) }
+    fun setDefaultFolder(treeUri: Uri) = viewModelScope.launch {
+        val app = getApplication<Application>()
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { app.contentResolver.takePersistableUriPermission(treeUri, flags) }
+        settings.setDefaultFolder(treeUri.toString())
+        settings.setStartupMode(StartupMode.CUSTOM)
+        openFolder(treeUri, persistPermission = false)
+    }
     fun setAutoAdvance(v: Boolean) = viewModelScope.launch { settings.setAutoAdvance(v) }
     fun setWriteXmpBeforeSend(v: Boolean) = viewModelScope.launch { settings.setWriteXmpBeforeSend(v) }
     fun setIncludeJpegsInBatch(v: Boolean) = viewModelScope.launch { settings.setIncludeJpegsInBatch(v) }

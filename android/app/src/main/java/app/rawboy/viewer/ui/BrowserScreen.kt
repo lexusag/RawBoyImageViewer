@@ -107,6 +107,7 @@ fun BrowserScreen(
     images: ImageRepository,
     isExpanded: Boolean,
     onPickFolder: () -> Unit,
+    onOpenPictures: () -> Unit,
     onSelectSource: (SourceEntity) -> Unit,
     onOpenPhoto: (Long) -> Unit,
     onToggleSelect: (Long) -> Unit,
@@ -328,7 +329,7 @@ fun BrowserScreen(
                 }
 
                 if (state.activeSource == null) {
-                    EmptyFolderState(onPickFolder = onPickFolder)
+                    EmptyFolderState(onOpenPictures = onOpenPictures, onPickFolder = onPickFolder)
                 } else if (state.visiblePhotos.isEmpty() && !state.isScanning) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
@@ -794,7 +795,10 @@ private fun SubfolderSectionHeader(
 }
 
 @Composable
-private fun EmptyFolderState(onPickFolder: () -> Unit) {
+private fun EmptyFolderState(
+    onOpenPictures: () -> Unit,
+    onPickFolder: () -> Unit,
+) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Icon(
@@ -813,14 +817,18 @@ private fun EmptyFolderState(onPickFolder: () -> Unit) {
             )
             Spacer(Modifier.height(18.dp))
             Button(
-                onClick = onPickFolder,
+                onClick = onOpenPictures,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DarkroomColours.SafelightAmber,
                     contentColor = DarkroomColours.AmberInk,
                 ),
                 shape = RoundedCornerShape(8.dp),
             ) {
-                Text("Choose folder")
+                Text("Open Pictures & DCIM")
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onPickFolder) {
+                Text("Choose another folder…", color = DarkroomColours.PaperWhite)
             }
         }
     }

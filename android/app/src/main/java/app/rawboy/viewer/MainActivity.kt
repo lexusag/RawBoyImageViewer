@@ -1,7 +1,9 @@
 package app.rawboy.viewer
 
+import android.Manifest
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -15,8 +17,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import app.rawboy.viewer.handoff.AutoImportMode
 import app.rawboy.viewer.ui.BrowserScreen
@@ -45,10 +51,47 @@ class MainActivity : ComponentActivity() {
                 val state by viewModel.state.collectAsState()
                 val photoSource by viewModel.activePhotoSource.collectAsState()
 
+                val picturesInitialUri = Uri.parse("content://com.android.externalstorage.documents/document/primary:Pictures")
+
                 val folderPicker = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.OpenDocumentTree(),
                 ) { uri: Uri? ->
                     if (uri != null) viewModel.openFolder(uri, persistPermission = true)
+                }
+
+                val defaultFolderPicker = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocumentTree(),
+                ) { uri: Uri? ->
+                    if (uri != null) viewModel.setDefaultFolder(uri)
+                }
+
+                val mediaPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestMultiplePermissions(),
+                ) { results ->
+                    if (results.values.any { it }) {
+                        viewModel.openPicturesGallery()
+                    }
+                }
+
+                fun openPicturesWithPermission() {
+                    if (viewModel.hasMediaPermission()) {
+                        viewModel.openPicturesGallery()
+                    } else {
+                        val perms = if (Build.VERSION.SDK_INT >= 33) {
+                            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+                        } else {
+                            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+                        }
+                        mediaPermissionLauncher.launch(perms)
+                    }
+                }
+
+                var askedInitialPermission by rememberSaveable { mutableStateOf(false) }
+                LaunchedEffect(state.activeSource, state.prefs.lastFolderUri) {
+                    if (!askedInitialPermission && state.activeSource == null && state.prefs.lastFolderUri == null) {
+                        askedInitialPermission = true
+                        openPicturesWithPermission()
+                    }
                 }
 
                 // Keep BrowserScreen mounted underneath FullScreenViewer so LazyVerticalGrid keeps its exact scroll offset.
@@ -58,8 +101,9 @@ class MainActivity : ComponentActivity() {
                         photoSource = photoSource,
                         images = viewModel.images,
                         isExpanded = isExpanded,
-                        onPickFolder = { folderPicker.launch(null) },
-                        onSelectSource = { src -> viewModel.openFolder(Uri.parse(src.rootUri), persistPermission = false) },
+                        onPickFolder = { folderPicker.launch(picturesInitialUri) },
+                        onOpenPictures = { openPicturesWithPermission() },
+                        onSelectSource = viewModel::openSource,
                         onOpenPhoto = viewModel::openViewer,
                         onToggleSelect = viewModel::toggleSelect,
                         onSelectAll = viewModel::selectAllVisible,
@@ -135,6 +179,8 @@ class MainActivity : ComponentActivity() {
                 if (state.showSettings) {
                     SettingsDialog(
                         prefs = state.prefs,
+                        onStartupMode = viewModel::setStartupMode,
+                        onPickDefaultFolder = { defaultFolderPicker.launch(picturesInitialUri) },
                         onAutoAdvance = viewModel::setAutoAdvance,
                         onWriteXmpBeforeSend = viewModel::setWriteXmpBeforeSend,
                         onIncludeJpegs = viewModel::setIncludeJpegsInBatch,
