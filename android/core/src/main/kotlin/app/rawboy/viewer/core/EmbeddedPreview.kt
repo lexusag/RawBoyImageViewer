@@ -33,8 +33,8 @@ object EmbeddedPreviews {
 
     data class Box(val type: String, val start: Int, val end: Int, val uuid: String)
 
-    /** How much of a file's start the fallback scan reads. */
-    private const val SCAN_BYTES = 16 shl 20
+    /** How much of a file's start the fallback scan reads (2 MB on mobile to avoid OOM). */
+    private const val SCAN_BYTES = 2 shl 20
 
     private const val TAG_ORIENTATION = 274
     private const val TAG_COMPRESSION = 259

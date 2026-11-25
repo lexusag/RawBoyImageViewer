@@ -62,7 +62,7 @@ class BlockCachedSource(
 
     companion object {
         private const val BLOCK_SIZE = 1 shl 16
-        private const val MAX_BLOCKS = 64
+        private const val MAX_BLOCKS = 16
     }
 }
 

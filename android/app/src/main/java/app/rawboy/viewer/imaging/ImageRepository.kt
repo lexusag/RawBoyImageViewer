@@ -15,6 +15,8 @@ import app.rawboy.viewer.core.PhotoFileType
 import app.rawboy.viewer.data.PhotoWithCull
 import app.rawboy.viewer.sources.PhotoSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -34,45 +36,58 @@ data class PhotoDetails(
 
 /**
  * Loads grid thumbnails (cached on disk) and viewer previews (cached in a device-sized memory LRU).
- * Uses `EmbeddedPreviews.find` first for raws so folders of 50 MP raws open in seconds.
+ * Uses `EmbeddedPreviews.find` first for raws so folders of 1,000+ 50 MP raws open smoothly without OOM.
  */
 class ImageRepository(private val context: Context) {
     private val thumbDir = File(context.cacheDir, "thumbnails").apply { mkdirs() }
 
-    private val thumbCache = LRUCache<String, Bitmap>(budget = memoryBudgetBytes(context) / 4)
-    private val viewerCache = LRUCache<String, Bitmap>(budget = memoryBudgetBytes(context))
+    private val thumbCache = LRUCache<String, Bitmap>(budget = minOf(memoryBudgetBytes(context) / 3, 16 * 1024 * 1024))
+    private val viewerCache = LRUCache<String, Bitmap>(budget = minOf(memoryBudgetBytes(context), 48 * 1024 * 1024))
 
-    suspend fun loadThumbnail(source: PhotoSource, photo: PhotoWithCull, maxPx: Int = 480): Bitmap? =
+    private val thumbGate = Semaphore(permits = 2)
+    private val viewerGate = Semaphore(permits = 1)
+
+    suspend fun loadThumbnail(source: PhotoSource, photo: PhotoWithCull, maxPx: Int = 360): Bitmap? =
         withContext(Dispatchers.IO) {
             val key = cacheKey(source.rootUri, photo)
             thumbCache.value(key)?.let { return@withContext it }
 
             val diskFile = File(thumbDir, "$key.jpg")
             if (diskFile.exists()) {
-                BitmapFactory.decodeFile(diskFile.absolutePath)?.let { bmp ->
+                val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
+                runCatching { BitmapFactory.decodeFile(diskFile.absolutePath, opts) }.getOrNull()?.let { bmp ->
                     thumbCache.insert(bmp, key, bmp.allocationByteCount)
                     return@withContext bmp
                 }
             }
 
-            val bmp = decodePhoto(source, photo, targetMaxPx = maxPx, minPreviewPx = 400) ?: return@withContext null
-            thumbCache.insert(bmp, key, bmp.allocationByteCount)
-            runCatching {
-                FileOutputStream(diskFile).use { out ->
-                    bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+            thumbGate.withPermit {
+                thumbCache.value(key)?.let { return@withPermit it }
+                val bmp = safeDecode {
+                    decodePhoto(source, photo, targetMaxPx = maxPx, minPreviewPx = 240, rgb565 = true)
+                } ?: return@withPermit null
+                thumbCache.insert(bmp, key, bmp.allocationByteCount)
+                runCatching {
+                    FileOutputStream(diskFile).use { out ->
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 82, out)
+                    }
                 }
+                bmp
             }
-            bmp
         }
 
-    suspend fun loadViewerBitmap(source: PhotoSource, photo: PhotoWithCull, targetMaxPx: Int = 2560): Bitmap? =
+    suspend fun loadViewerBitmap(source: PhotoSource, photo: PhotoWithCull, targetMaxPx: Int = 2048): Bitmap? =
         withContext(Dispatchers.IO) {
             val key = "${cacheKey(source.rootUri, photo)}@$targetMaxPx"
             viewerCache.value(key)?.let { return@withContext it }
-            val bmp = decodePhoto(source, photo, targetMaxPx = targetMaxPx, minPreviewPx = 1600)
-                ?: return@withContext null
-            viewerCache.insert(bmp, key, bmp.allocationByteCount)
-            bmp
+            viewerGate.withPermit {
+                viewerCache.value(key)?.let { return@withPermit it }
+                val bmp = safeDecode {
+                    decodePhoto(source, photo, targetMaxPx = targetMaxPx, minPreviewPx = 1200, rgb565 = false)
+                } ?: return@withPermit null
+                viewerCache.insert(bmp, key, bmp.allocationByteCount)
+                bmp
+            }
         }
 
     suspend fun loadDetails(source: PhotoSource, photo: PhotoWithCull, previewBitmap: Bitmap?): PhotoDetails =
@@ -104,7 +119,7 @@ class ImageRepository(private val context: Context) {
             val h = exif?.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0)?.takeIf { it > 0 } ?: previewBitmap?.height
             val dims = if (w != null && h != null) "$w × $h" else null
 
-            val hist = previewBitmap?.let { computeHistogram(it) }
+            val hist = previewBitmap?.let { runCatching { computeHistogram(it) }.getOrNull() }
             PhotoDetails(
                 camera = camera,
                 lens = lens,
@@ -122,23 +137,46 @@ class ImageRepository(private val context: Context) {
         viewerCache.removeAll()
     }
 
-    private fun decodePhoto(source: PhotoSource, photo: PhotoWithCull, targetMaxPx: Int, minPreviewPx: Int): Bitmap? {
-        val type = PhotoFileType.of(photo.relPath)
+    private inline fun safeDecode(block: () -> Bitmap?): Bitmap? =
+        try {
+            block()
+        } catch (_: OutOfMemoryError) {
+            clearMemory()
+            null
+        } catch (_: Throwable) {
+            null
+        }
+
+    private fun decodePhoto(
+        source: PhotoSource,
+        photo: PhotoWithCull,
+        targetMaxPx: Int,
+        minPreviewPx: Int,
+        rgb565: Boolean,
+    ): Bitmap? {
+        val type = PhotoFileType.of(photo.fileName)
         if (type == PhotoFileType.RAW) {
+            var smallFallback: ByteArray? = null
             source.openByteSource(photo.docId, photo.size)?.use { bs ->
                 val preview = EmbeddedPreviews.find(bs)
                 if (preview != null && maxOf(preview.width, preview.height) >= minPreviewPx) {
-                    val jpeg = preview.jpeg(bs)
-                    return decodeJpegBytes(jpeg, targetMaxPx)
+                    return decodeJpegBytes(preview.jpeg(bs), targetMaxPx, rgb565)
+                } else if (preview != null && maxOf(preview.width, preview.height) >= 160) {
+                    smallFallback = preview.jpeg(bs)
                 }
             }
+            if (smallFallback != null && rgb565) {
+                return decodeJpegBytes(smallFallback!!, targetMaxPx, rgb565 = true)
+            }
             // Fallback for phone DNGs without a large embedded JPEG: Android ImageDecoder
-            return decodeViaImageDecoder(source, photo.docId, targetMaxPx)
+            val decoded = decodeViaImageDecoder(source, photo.docId, targetMaxPx)
+            if (decoded != null) return decoded
+            return smallFallback?.let { decodeJpegBytes(it, targetMaxPx, rgb565) }
         }
         return decodeViaImageDecoder(source, photo.docId, targetMaxPx)
     }
 
-    private fun decodeJpegBytes(jpeg: ByteArray, targetMaxPx: Int): Bitmap? {
+    private fun decodeJpegBytes(jpeg: ByteArray, targetMaxPx: Int, rgb565: Boolean): Bitmap? {
         val orientation = runCatching {
             ExifInterface(ByteArrayInputStream(jpeg)).getAttributeInt(
                 ExifInterface.TAG_ORIENTATION,
@@ -154,7 +192,7 @@ class ImageRepository(private val context: Context) {
 
         val opts = BitmapFactory.Options().apply {
             inSampleSize = sample
-            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inPreferredConfig = if (rgb565) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
         }
         val raw = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size, opts) ?: return null
         return applyOrientation(raw, orientation)

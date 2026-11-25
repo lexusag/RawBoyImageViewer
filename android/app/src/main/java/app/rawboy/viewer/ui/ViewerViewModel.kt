@@ -95,6 +95,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val undoStack = ArrayDeque<UndoEntry>()
     private var observeJob: Job? = null
+    private var scanJob: Job? = null
     private var prefetchJob: Job? = null
 
     init {
@@ -121,7 +122,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun openFolder(treeUri: Uri, persistPermission: Boolean = true) {
-        viewModelScope.launch {
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch {
             val app = getApplication<Application>()
             if (persistPermission) {
                 val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -152,6 +154,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 it.copy(
                     activeSource = sourceEntity,
                     selectedIds = emptySet(),
+                    collapsedFolders = emptySet(),
                     viewerPhotoId = null,
                     isScanning = true,
                     rawBoyInstalled = handOff.isRawBoyInstalled(),
@@ -171,7 +174,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 val ratings = photos.map { Rating(it.effectiveStars, Flag.fromDb(it.effectiveFlag)) }
                 val counts = FlagFilter.counts(ratings)
                 val unsynced = photos.count { it.needsXmpWrite }
-                val binned = withContext(Dispatchers.IO) { photoDao.getBinnedForSource(sourceId).size }
+                val binned = withContext(Dispatchers.IO) { photoDao.countBinnedForSource(sourceId) }
                 _state.update { s ->
                     val visible = sortAndFilter(photos, s.filter, s.minStars, s.prefs.sort)
                     s.copy(
@@ -193,7 +196,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
             val existingRows = photoDao.getAllForSource(sourceEntity.id)
             val existingByRel = existingRows.associateBy { it.relPath.lowercase() }
-            val matchedIds = HashSet<Long>()
+            val existingByFingerprint = existingRows.groupBy { it.size to it.mtime }
+            val matchedIds = HashSet<Long>(entries.size)
+            val toUpsert = ArrayList<PhotoEntity>(entries.size)
 
             for ((parentDir, dirEntries) in byDir) {
                 val byLower = dirEntries.associateBy { it.name.lowercase() }
@@ -205,33 +210,45 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     val relPath = if (parentDir.isEmpty()) g.main else "$parentDir/${g.main}"
                     val compIds = g.companions.mapNotNull { byLower[it.lowercase()]?.docId }
                     val prev = existingByRel[relPath.lowercase()]
-                        ?: existingRows.singleOrNull {
-                            it.id !in matchedIds && it.size == mainEntry.size && it.mtime == mainEntry.mtime
-                        }
+                        ?: existingByFingerprint[mainEntry.size to mainEntry.mtime]
+                            ?.singleOrNull { it.id !in matchedIds }
 
-                    val entity = PhotoEntity(
-                        id = prev?.id ?: 0L,
-                        sourceId = sourceEntity.id,
-                        relPath = relPath,
-                        docId = mainEntry.docId,
-                        companionNames = g.companions.joinToString("\n"),
-                        companionDocIds = compIds.joinToString("\n"),
-                        sidecarNames = g.sidecars.joinToString("\n"),
-                        size = mainEntry.size,
-                        mtime = mainEntry.mtime,
-                        captureDate = prev?.captureDate ?: PhotoOrder.fileDate(mainEntry.mtime),
-                        groupKey = if (parentDir.isEmpty()) g.stem.lowercase() else "${parentDir.lowercase()}/${g.stem.lowercase()}",
-                        inBin = false,
-                        orphanedAt = null,
+                    if (prev != null) matchedIds.add(prev.id)
+                    toUpsert.add(
+                        PhotoEntity(
+                            id = prev?.id ?: 0L,
+                            sourceId = sourceEntity.id,
+                            relPath = relPath,
+                            docId = mainEntry.docId,
+                            companionNames = g.companions.joinToString("\n"),
+                            companionDocIds = compIds.joinToString("\n"),
+                            sidecarNames = g.sidecars.joinToString("\n"),
+                            size = mainEntry.size,
+                            mtime = mainEntry.mtime,
+                            captureDate = prev?.captureDate ?: PhotoOrder.fileDate(mainEntry.mtime),
+                            groupKey = if (parentDir.isEmpty()) g.stem.lowercase() else "${parentDir.lowercase()}/${g.stem.lowercase()}",
+                            inBin = false,
+                            orphanedAt = null,
+                        )
                     )
-                    val id = photoDao.upsert(entity)
-                    matchedIds.add(id)
                 }
             }
 
-            val missingIds = existingRows.filter { it.id !in matchedIds && !it.inBin && it.orphanedAt == null }.map { it.id }
-            if (missingIds.isNotEmpty()) photoDao.markOrphaned(missingIds, System.currentTimeMillis())
-            photoDao.purgeOldOrphans(System.currentTimeMillis() - 30L * 86_400_000L)
+            // Single batched transaction instead of N individual upserts (avoids 1,000x Room Flow storms).
+            toUpsert.chunked(400).forEach { chunk ->
+                val ids = photoDao.upsertAll(chunk)
+                matchedIds.addAll(ids)
+            }
+
+            // Chunk IN(:ids) to stay well below SQLite's 999 bind-parameter limit.
+            val now = System.currentTimeMillis()
+            val missingIds = existingRows
+                .filter { it.id !in matchedIds && !it.inBin && it.orphanedAt == null }
+                .map { it.id }
+            missingIds.chunked(400).forEach { chunk ->
+                photoDao.markOrphaned(chunk, now)
+            }
+            photoDao.purgeOldOrphans(now - 30L * 86_400_000L)
 
             // Seed ratings from existing XMP sidecars on first open of this folder
             if (!sourceEntity.seededFromXmp) {
@@ -242,14 +259,23 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
             _state.update { it.copy(isScanning = false) }
 
-            // Backfill exact EXIF capture dates off the main thread
-            val currentPhotos = photoDao.observeActiveForSource(sourceEntity.id).first()
-            for (p in currentPhotos) {
-                saf.openByteSource(p.docId, p.size)?.use { bs ->
-                    CaptureDate.find(bs)?.let { date ->
-                        if (date != p.captureDate) photoDao.updateCaptureDate(p.id, date)
+            // Backfill exact EXIF capture dates in batches off the main thread
+            val allEntities = photoDao.getAllForSource(sourceEntity.id).filter { !it.inBin && it.orphanedAt == null }
+            val dateUpdates = ArrayList<PhotoEntity>(64)
+            for (p in allEntities) {
+                val date = runCatching {
+                    saf.openByteSource(p.docId, p.size)?.use { bs -> CaptureDate.find(bs) }
+                }.getOrNull()
+                if (date != null && date != p.captureDate) {
+                    dateUpdates.add(p.copy(captureDate = date))
+                    if (dateUpdates.size >= 100) {
+                        photoDao.upsertAll(dateUpdates)
+                        dateUpdates.clear()
                     }
                 }
+            }
+            if (dateUpdates.isNotEmpty()) {
+                photoDao.upsertAll(dateUpdates)
             }
         }
     }
@@ -257,7 +283,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun refreshFolder() {
         val src = _state.value.activeSource ?: return
         val saf = _activePhotoSource.value ?: return
-        viewModelScope.launch {
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch {
             _state.update { it.copy(isScanning = true) }
             scanSource(src, saf)
         }

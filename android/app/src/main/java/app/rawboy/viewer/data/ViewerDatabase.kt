@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Entity(
@@ -201,11 +202,17 @@ interface PhotoDao {
     )
     suspend fun getBinnedForSource(sourceId: Long): List<PhotoWithCull>
 
+    @Query("SELECT COUNT(*) FROM photos WHERE sourceId = :sourceId AND orphanedAt IS NULL AND inBin = 1")
+    suspend fun countBinnedForSource(sourceId: Long): Int
+
     @Query("SELECT * FROM photos WHERE sourceId = :sourceId")
     suspend fun getAllForSource(sourceId: Long): List<PhotoEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(photo: PhotoEntity): Long
+
+    @Upsert
+    suspend fun upsertAll(photos: List<PhotoEntity>): List<Long>
 
     @Query("UPDATE photos SET captureDate = :date WHERE id = :id")
     suspend fun updateCaptureDate(id: Long, date: String)
