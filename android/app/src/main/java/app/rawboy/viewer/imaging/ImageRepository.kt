@@ -156,33 +156,56 @@ class ImageRepository(private val context: Context) {
     ): Bitmap? {
         val type = PhotoFileType.of(photo.fileName)
         if (type == PhotoFileType.RAW) {
-            var smallFallback: ByteArray? = null
+            var smallFallback: Pair<ByteArray, Int>? = null
             source.openByteSource(photo.docId, photo.size)?.use { bs ->
                 val preview = EmbeddedPreviews.find(bs)
-                if (preview != null && maxOf(preview.width, preview.height) >= minPreviewPx) {
-                    return decodeJpegBytes(preview.jpeg(bs), targetMaxPx, rgb565)
-                } else if (preview != null && maxOf(preview.width, preview.height) >= 160) {
-                    smallFallback = preview.jpeg(bs)
+                if (preview != null) {
+                    val effectiveOrientation = effectivePreviewOrientation(preview)
+                    if (maxOf(preview.width, preview.height) >= minPreviewPx) {
+                        return decodeJpegBytes(preview.jpeg(bs), targetMaxPx, rgb565, effectiveOrientation)
+                    } else if (maxOf(preview.width, preview.height) >= 160) {
+                        smallFallback = preview.jpeg(bs) to effectiveOrientation
+                    }
                 }
             }
             if (smallFallback != null && rgb565) {
-                return decodeJpegBytes(smallFallback!!, targetMaxPx, rgb565 = true)
+                return decodeJpegBytes(smallFallback!!.first, targetMaxPx, rgb565 = true, smallFallback!!.second)
             }
             // Fallback for phone DNGs without a large embedded JPEG: Android ImageDecoder
             val decoded = decodeViaImageDecoder(source, photo.docId, targetMaxPx)
             if (decoded != null) return decoded
-            return smallFallback?.let { decodeJpegBytes(it, targetMaxPx, rgb565) }
+            return smallFallback?.let { decodeJpegBytes(it.first, targetMaxPx, rgb565, it.second) }
         }
         return decodeViaImageDecoder(source, photo.docId, targetMaxPx)
     }
 
-    private fun decodeJpegBytes(jpeg: ByteArray, targetMaxPx: Int, rgb565: Boolean): Bitmap? {
-        val orientation = runCatching {
-            ExifInterface(ByteArrayInputStream(jpeg)).getAttributeInt(
-                ExifInterface.TAG_ORIENTATION,
-                ExifInterface.ORIENTATION_NORMAL,
-            )
-        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+    /**
+     * Many cameras (Sony ARW, Nikon NEF, Canon CR2/CR3, DNG) store Orientation=1 (Normal) inside the
+     * embedded JPEG while placing the actual portrait rotation (6/8) in the RAW's IFD0/CMT1.
+     * Prefer the JPEG's orientation only when it actually rotates (> 1); otherwise use rawOrientation.
+     */
+    private fun effectivePreviewOrientation(preview: app.rawboy.viewer.core.EmbeddedPreview): Int = when {
+        preview.jpegOrientation > 1 -> preview.jpegOrientation
+        preview.rawOrientation > 1 -> preview.rawOrientation
+        else -> 0
+    }
+
+    private fun decodeJpegBytes(
+        jpeg: ByteArray,
+        targetMaxPx: Int,
+        rgb565: Boolean,
+        knownOrientation: Int = 0,
+    ): Bitmap? {
+        val orientation = if (knownOrientation > 1) {
+            knownOrientation
+        } else {
+            runCatching {
+                ExifInterface(ByteArrayInputStream(jpeg)).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL,
+                )
+            }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        }
 
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size, bounds)
@@ -261,7 +284,7 @@ class ImageRepository(private val context: Context) {
     }
 
     private fun cacheKey(rootUri: String, photo: PhotoWithCull): String {
-        val raw = "$rootUri|${photo.relPath}|${photo.size}|${photo.mtime}"
+        val raw = "v2|$rootUri|${photo.relPath}|${photo.size}|${photo.mtime}"
         val digest = MessageDigest.getInstance("SHA-256").digest(raw.toByteArray())
         return digest.take(12).joinToString("") { "%02x".format(it) }
     }

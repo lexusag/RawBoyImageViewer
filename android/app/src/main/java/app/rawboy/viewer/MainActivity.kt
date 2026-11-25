@@ -10,11 +10,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import app.rawboy.viewer.handoff.AutoImportMode
 import app.rawboy.viewer.ui.BrowserScreen
 import app.rawboy.viewer.ui.FullScreenViewer
@@ -48,26 +51,8 @@ class MainActivity : ComponentActivity() {
                     if (uri != null) viewModel.openFolder(uri, persistPermission = true)
                 }
 
-                val viewerId = state.viewerPhotoId
-                if (viewerId != null && photoSource != null && state.visiblePhotos.isNotEmpty()) {
-                    FullScreenViewer(
-                        photos = state.visiblePhotos,
-                        initialPhotoId = viewerId,
-                        photoSource = photoSource!!,
-                        images = viewModel.images,
-                        isExpanded = isExpanded,
-                        autoAdvance = state.prefs.autoAdvanceAfterRating,
-                        canUndo = state.canUndo,
-                        rawBoyInstalled = state.rawBoyInstalled,
-                        onClose = viewModel::closeViewer,
-                        onRate = { id, stars -> viewModel.ratePhotos(listOf(id), stars) },
-                        onFlag = { id, flag -> viewModel.flagPhotos(listOf(id), flag) },
-                        onUndo = viewModel::undo,
-                        onPrefetch = viewModel::prefetchAround,
-                        onSendToRawBoy = { photo -> viewModel.sendToRawBoy(listOf(photo)) },
-                        onSendToRawBoyAuto = { photo -> viewModel.openAutoSendSheet(listOf(photo)) },
-                    )
-                } else {
+                // Keep BrowserScreen mounted underneath FullScreenViewer so LazyVerticalGrid keeps its exact scroll offset.
+                Box(modifier = Modifier.fillMaxSize()) {
                     BrowserScreen(
                         state = state,
                         photoSource = photoSource,
@@ -98,6 +83,27 @@ class MainActivity : ComponentActivity() {
                         onOpenSettings = viewModel::openSettings,
                         onClearStatus = viewModel::clearStatus,
                     )
+
+                    val viewerId = state.viewerPhotoId
+                    if (viewerId != null && photoSource != null && state.visiblePhotos.isNotEmpty()) {
+                        FullScreenViewer(
+                            photos = state.visiblePhotos,
+                            initialPhotoId = viewerId,
+                            photoSource = photoSource!!,
+                            images = viewModel.images,
+                            isExpanded = isExpanded,
+                            autoAdvance = state.prefs.autoAdvanceAfterRating,
+                            canUndo = state.canUndo,
+                            rawBoyInstalled = state.rawBoyInstalled,
+                            onClose = viewModel::closeViewer,
+                            onRate = { id, stars -> viewModel.ratePhotos(listOf(id), stars) },
+                            onFlag = { id, flag -> viewModel.flagPhotos(listOf(id), flag) },
+                            onUndo = viewModel::undo,
+                            onPrefetch = viewModel::prefetchAround,
+                            onSendToRawBoy = { photo -> viewModel.sendToRawBoy(listOf(photo)) },
+                            onSendToRawBoyAuto = { photo -> viewModel.openAutoSendSheet(listOf(photo)) },
+                        )
+                    }
                 }
 
                 state.pendingConflicts?.let { conflicts ->
