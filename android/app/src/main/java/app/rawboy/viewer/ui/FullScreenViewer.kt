@@ -380,7 +380,10 @@ private fun ZoomablePhotoPage(
     onZoomChanged: (Boolean) -> Unit,
 ) {
     val bmp by produceState<Bitmap?>(initialValue = null, key1 = photo.id) {
-        value = images.loadViewerBitmap(photoSource, photo)
+        // Two-stage load: show cached grid thumbnail immediately (0 ms), then swap in full-res.
+        value = images.peekThumbnail(photoSource, photo)
+        val full = images.loadViewerBitmap(photoSource, photo)
+        if (full != null) value = full
     }
     var scale by remember(photo.id) { mutableFloatStateOf(1f) }
     var offset by remember(photo.id) { mutableStateOf(Offset.Zero) }

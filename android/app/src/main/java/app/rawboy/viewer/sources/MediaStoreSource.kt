@@ -2,8 +2,10 @@ package app.rawboy.viewer.sources
 
 import android.content.ContentUris
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Size
 import app.rawboy.viewer.core.BlockCachedSource
 import app.rawboy.viewer.core.ByteSource
 import kotlinx.coroutines.Dispatchers
@@ -100,6 +102,9 @@ class MediaStoreSource(
 
     override fun openInputStream(docId: String): InputStream? =
         runCatching { resolver.openInputStream(uriForShare(docId)) }.getOrNull()
+
+    override fun loadOsThumbnail(docId: String, maxPx: Int): Bitmap? =
+        runCatching { resolver.loadThumbnail(uriForShare(docId), Size(maxPx, maxPx), null) }.getOrNull()
 
     override suspend fun readText(docId: String): String? = null
     override suspend fun findChildByName(name: String, parentDir: String): SourceFileEntry? = null

@@ -1,5 +1,6 @@
 package app.rawboy.viewer.sources
 
+import android.graphics.Bitmap
 import android.net.Uri
 import app.rawboy.viewer.core.ByteSource
 import java.io.Closeable
@@ -32,6 +33,7 @@ interface PhotoSource {
     suspend fun listFiles(): List<SourceFileEntry>
     fun openByteSource(docId: String, size: Long): CloseableByteSource?
     fun openInputStream(docId: String): InputStream?
+    fun loadOsThumbnail(docId: String, maxPx: Int): Bitmap? = null
     suspend fun readText(docId: String): String?
     suspend fun findChildByName(name: String, parentDir: String = ""): SourceFileEntry?
     suspend fun writeText(name: String, existingDocId: String?, content: String, parentDir: String = ""): String?

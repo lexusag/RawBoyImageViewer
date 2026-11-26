@@ -490,13 +490,13 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun prefetchAround(index: Int, forward: Boolean = true) {
         val saf = _activePhotoSource.value ?: return
         val list = _state.value.visiblePhotos
-        val order = PrefetchPlan.order(index, list.size, forward, ahead = 2, behind = 1)
+        val order = PrefetchPlan.order(index, list.size, forward, ahead = 3, behind = 1)
         prefetchJob?.cancel()
         prefetchJob = viewModelScope.launch(Dispatchers.IO) {
             for (i in order) {
                 val p = list.getOrNull(i) ?: continue
                 if (PhotoFileType.of(p.fileName) == PhotoFileType.VIDEO) continue
-                images.loadViewerBitmap(saf, p)
+                images.loadViewerBitmap(saf, p, isPrefetch = true)
             }
         }
     }

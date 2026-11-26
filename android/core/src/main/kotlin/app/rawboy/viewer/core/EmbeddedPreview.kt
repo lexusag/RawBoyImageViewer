@@ -26,6 +26,14 @@ data class EmbeddedPreview(
     }
 }
 
+/** An uncompressed 8-bit RGB thumbnail embedded in a TIFF/DNG IFD (e.g. Pixel DNG IFD0). */
+data class RawRgbThumbnail(
+    val width: Int,
+    val height: Int,
+    val orientation: Int,
+    val rgbBytes: ByteArray,
+)
+
 object EmbeddedPreviews {
     data class Candidate(val offset: Int, val length: Int)
 
@@ -36,10 +44,16 @@ object EmbeddedPreviews {
     /** How much of a file's start the fallback scan reads (2 MB on mobile to avoid OOM). */
     private const val SCAN_BYTES = 2 shl 20
 
-    private const val TAG_ORIENTATION = 274
+    private const val TAG_IMAGE_WIDTH = 256
+    private const val TAG_IMAGE_LENGTH = 257
+    private const val TAG_BITS_PER_SAMPLE = 258
     private const val TAG_COMPRESSION = 259
+    private const val TAG_PHOTOMETRIC = 262
     private const val TAG_STRIP_OFFSETS = 273
+    private const val TAG_ORIENTATION = 274
+    private const val TAG_SAMPLES_PER_PIXEL = 277
     private const val TAG_STRIP_BYTE_COUNTS = 279
+    private const val TAG_PLANAR_CONFIG = 284
     private const val TAG_SUB_IFDS = 330
     private const val TAG_JPEG_OFFSET = 513
     private const val TAG_JPEG_LENGTH = 514
@@ -97,6 +111,97 @@ object EmbeddedPreviews {
             head.ascii(4, 8) == "ftyp" -> cr3Candidates(source).second
             else -> 0
         }
+    }
+
+    /**
+     * Finds an uncompressed 8-bit chunky RGB thumbnail in a TIFF/DNG IFD (common in phone DNGs without
+     * embedded JPEGs). Reads only a few hundred KB instead of demosaicing a 12-50 MP sensor.
+     */
+    fun findUncompressedRgbThumbnail(source: ByteSource): RawRgbThumbnail? {
+        val header = source.read(0, 8)
+        if (!isTiff(header)) return null
+        val le = header.u8(0) == 0x49
+        val queue = ArrayDeque<Int>()
+        queue.add(header.u32(4, le))
+        val seen = HashSet<Int>()
+        var rootOrientation = 0
+        var first = true
+
+        while (queue.isNotEmpty() && seen.size < 32) {
+            val at = queue.removeFirst()
+            if (at <= 0 || at in seen || at.toLong() + 2 > source.size.toLong()) continue
+            seen.add(at)
+            val n = source.u16(at, le)
+            if (n <= 0 || n > 1000) continue
+            val ifd = source.read(at + 2, n * 12 + 4)
+
+            fun values(i: Int, max: Int = 64): List<Int> {
+                val p = i * 12
+                val type = ifd.u16(p + 2, le)
+                val count = ifd.u32(p + 4, le)
+                if (type != 3 && type != 4 && type != 13) return emptyList()
+                val size = typeSize[type] ?: 1
+                val wanted = minOf(count, max)
+                if (wanted <= 0) return emptyList()
+                val data = if (size.toLong() * count.toLong() <= 4L) {
+                    ifd.copyOfRange(minOf(p + 8, ifd.size), minOf(p + 12, ifd.size))
+                } else {
+                    source.read(ifd.u32(p + 8, le), size * wanted)
+                }
+                return List(wanted) { k -> if (type == 3) data.u16(k * 2, le) else data.u32(k * 4, le) }
+            }
+
+            val tags = HashMap<Int, Int>(n * 2)
+            for (i in 0 until n) tags[ifd.u16(i * 12, le)] = i
+            fun one(tag: Int): Int? = tags[tag]?.let { values(it).firstOrNull() }
+
+            if (first) rootOrientation = one(TAG_ORIENTATION) ?: 0
+            first = false
+
+            val w = one(TAG_IMAGE_WIDTH) ?: 0
+            val h = one(TAG_IMAGE_LENGTH) ?: 0
+            val compression = one(TAG_COMPRESSION) ?: 1
+            val photometric = one(TAG_PHOTOMETRIC) ?: 0
+            val samples = one(TAG_SAMPLES_PER_PIXEL) ?: 0
+            val planar = one(TAG_PLANAR_CONFIG) ?: 1
+            val bps = tags[TAG_BITS_PER_SAMPLE]?.let { values(it, 4) }.orEmpty()
+
+            if (w in 64..1024 && h in 64..1024 &&
+                compression == 1 && photometric == 2 && samples == 3 && planar == 1 &&
+                bps.size >= 3 && bps[0] == 8 && bps[1] == 8 && bps[2] == 8
+            ) {
+                val offsets = tags[TAG_STRIP_OFFSETS]?.let { values(it, 512) }.orEmpty()
+                val counts = tags[TAG_STRIP_BYTE_COUNTS]?.let { values(it, 512) }.orEmpty()
+                val expectedBytes = w * h * 3
+                if (offsets.isNotEmpty() && offsets.size == counts.size) {
+                    val totalBytes = counts.sumOf { it.toLong() }
+                    if (totalBytes >= expectedBytes && totalBytes <= 4L * 1024 * 1024) {
+                        val rgb = ByteArray(expectedBytes)
+                        var dst = 0
+                        var ok = true
+                        for (s in offsets.indices) {
+                            val need = minOf(counts[s], expectedBytes - dst)
+                            if (need <= 0) break
+                            val chunk = source.read(offsets[s], need)
+                            if (chunk.size < need) {
+                                ok = false
+                                break
+                            }
+                            System.arraycopy(chunk, 0, rgb, dst, need)
+                            dst += need
+                        }
+                        if (ok && dst == expectedBytes) {
+                            val ori = one(TAG_ORIENTATION)?.takeIf { it > 1 } ?: rootOrientation
+                            return RawRgbThumbnail(w, h, ori, rgb)
+                        }
+                    }
+                }
+            }
+
+            tags[TAG_SUB_IFDS]?.let { i -> queue.addAll(values(i)) }
+            queue.add(ifd.u32(n * 12, le))
+        }
+        return null
     }
 
     private fun largest(source: ByteSource, candidates: List<Candidate>): Pair<Candidate, JpegInfo>? {

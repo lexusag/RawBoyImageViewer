@@ -45,8 +45,23 @@ class ImageRepository(private val context: Context) {
     private val thumbCache = LRUCache<String, Bitmap>(budget = minOf(memoryBudgetBytes(context) / 3, 16 * 1024 * 1024))
     private val viewerCache = LRUCache<String, Bitmap>(budget = minOf(memoryBudgetBytes(context), 48 * 1024 * 1024))
 
-    private val thumbGate = Semaphore(permits = 2)
-    private val viewerGate = Semaphore(permits = 1)
+    private val thumbGate = Semaphore(permits = Runtime.getRuntime().availableProcessors().coerceIn(2, 4))
+    private val viewerGate = Semaphore(permits = 2)
+    private val prefetchGate = Semaphore(permits = 1)
+
+    /** Instant (0 ms) check for an already-cached grid thumbnail to show while full-res decodes. */
+    suspend fun peekThumbnail(source: PhotoSource, photo: PhotoWithCull): Bitmap? {
+        val key = cacheKey(source.rootUri, photo)
+        thumbCache.value(key)?.let { return it }
+        return withContext(Dispatchers.IO) {
+            val diskFile = File(thumbDir, "$key.jpg")
+            if (!diskFile.exists()) return@withContext null
+            val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
+            runCatching { BitmapFactory.decodeFile(diskFile.absolutePath, opts) }.getOrNull()?.also { bmp ->
+                thumbCache.insert(bmp, key, bmp.allocationByteCount)
+            }
+        }
+    }
 
     suspend fun loadThumbnail(source: PhotoSource, photo: PhotoWithCull, maxPx: Int = 360): Bitmap? =
         withContext(Dispatchers.IO) {
@@ -64,7 +79,9 @@ class ImageRepository(private val context: Context) {
 
             thumbGate.withPermit {
                 thumbCache.value(key)?.let { return@withPermit it }
-                val bmp = safeDecode {
+                // #2 Fast OS-cached thumbnail (MediaStore Pictures & DCIM returns oriented thumbnails in 2-10ms).
+                val osThumb = safeDecode { source.loadOsThumbnail(photo.docId, maxPx) }
+                val bmp = osThumb ?: safeDecode {
                     decodePhoto(source, photo, targetMaxPx = maxPx, minPreviewPx = 240, rgb565 = true)
                 } ?: return@withPermit null
                 thumbCache.insert(bmp, key, bmp.allocationByteCount)
@@ -77,19 +94,24 @@ class ImageRepository(private val context: Context) {
             }
         }
 
-    suspend fun loadViewerBitmap(source: PhotoSource, photo: PhotoWithCull, targetMaxPx: Int = 2048): Bitmap? =
-        withContext(Dispatchers.IO) {
-            val key = "${cacheKey(source.rootUri, photo)}@$targetMaxPx"
-            viewerCache.value(key)?.let { return@withContext it }
-            viewerGate.withPermit {
-                viewerCache.value(key)?.let { return@withPermit it }
-                val bmp = safeDecode {
-                    decodePhoto(source, photo, targetMaxPx = targetMaxPx, minPreviewPx = 1200, rgb565 = false)
-                } ?: return@withPermit null
-                viewerCache.insert(bmp, key, bmp.allocationByteCount)
-                bmp
-            }
+    suspend fun loadViewerBitmap(
+        source: PhotoSource,
+        photo: PhotoWithCull,
+        targetMaxPx: Int = 2048,
+        isPrefetch: Boolean = false,
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        val key = "${cacheKey(source.rootUri, photo)}@$targetMaxPx"
+        viewerCache.value(key)?.let { return@withContext it }
+        val gate = if (isPrefetch) prefetchGate else viewerGate
+        gate.withPermit {
+            viewerCache.value(key)?.let { return@withPermit it }
+            val bmp = safeDecode {
+                decodePhoto(source, photo, targetMaxPx = targetMaxPx, minPreviewPx = 1200, rgb565 = false)
+            } ?: return@withPermit null
+            viewerCache.insert(bmp, key, bmp.allocationByteCount)
+            bmp
         }
+    }
 
     suspend fun loadDetails(source: PhotoSource, photo: PhotoWithCull, previewBitmap: Bitmap?): PhotoDetails =
         withContext(Dispatchers.IO) {
@@ -148,6 +170,18 @@ class ImageRepository(private val context: Context) {
             null
         }
 
+    private fun pairedDisplayDocId(photo: PhotoWithCull): String? {
+        if (photo.companionDocIds.isEmpty()) return null
+        val names = photo.companionNames.split('\n')
+        val ids = photo.companionDocIds.split('\n')
+        for (i in ids.indices) {
+            val id = ids[i]
+            val name = names.getOrNull(i) ?: continue
+            if (id.isNotEmpty() && PhotoFileType.of(name) == PhotoFileType.DISPLAY) return id
+        }
+        return null
+    }
+
     private fun decodePhoto(
         source: PhotoSource,
         photo: PhotoWithCull,
@@ -160,7 +194,13 @@ class ImageRepository(private val context: Context) {
             return decodeVideoFrame(source, photo.docId, targetMaxPx)
         }
         if (type == PhotoFileType.RAW) {
+            // #3 If RAW + JPEG pair exists, decode the paired JPEG for preview (20x faster than demosaicing).
+            pairedDisplayDocId(photo)?.let { jpegDocId ->
+                decodeViaImageDecoder(source, jpegDocId, targetMaxPx)?.let { return it }
+            }
+
             var smallFallback: Pair<ByteArray, Int>? = null
+            var rawRgbThumb: app.rawboy.viewer.core.RawRgbThumbnail? = null
             var rawOrientation = 0
             source.openByteSource(photo.docId, photo.size)?.use { bs ->
                 val preview = EmbeddedPreviews.find(bs)
@@ -173,8 +213,15 @@ class ImageRepository(private val context: Context) {
                         smallFallback = preview.jpeg(bs) to effectiveOrientation
                     }
                 } else {
-                    rawOrientation = EmbeddedPreviews.rawOrientation(bs)
+                    // #1 Fast uncompressed TIFF/DNG IFD0 RGB thumbnail (~2 ms) for grid thumbnails.
+                    if (rgb565) {
+                        rawRgbThumb = EmbeddedPreviews.findUncompressedRgbThumbnail(bs)
+                    }
+                    rawOrientation = rawRgbThumb?.orientation ?: EmbeddedPreviews.rawOrientation(bs)
                 }
+            }
+            if (rawRgbThumb != null && rgb565) {
+                decodeRawRgbThumbnail(rawRgbThumb!!)?.let { return it }
             }
             if (smallFallback != null && rgb565) {
                 return decodeJpegBytes(smallFallback!!.first, targetMaxPx, rgb565 = true, smallFallback!!.second)
@@ -196,6 +243,22 @@ class ImageRepository(private val context: Context) {
             return smallFallback?.let { decodeJpegBytes(it.first, targetMaxPx, rgb565, it.second) }
         }
         return decodeViaImageDecoder(source, photo.docId, targetMaxPx)
+    }
+
+    private fun decodeRawRgbThumbnail(thumb: app.rawboy.viewer.core.RawRgbThumbnail): Bitmap? {
+        val count = thumb.width * thumb.height
+        val pixels = IntArray(count)
+        val src = thumb.rgbBytes
+        var s = 0
+        for (i in 0 until count) {
+            val r = src[s].toInt() and 0xFF
+            val g = src[s + 1].toInt() and 0xFF
+            val b = src[s + 2].toInt() and 0xFF
+            pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            s += 3
+        }
+        val bmp = Bitmap.createBitmap(pixels, thumb.width, thumb.height, Bitmap.Config.ARGB_8888)
+        return if (thumb.orientation > 1) applyOrientation(bmp, thumb.orientation) else bmp
     }
 
     private fun decodeVideoFrame(source: PhotoSource, docId: String, targetMaxPx: Int): Bitmap? {

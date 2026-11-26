@@ -143,4 +143,57 @@ class CoreTests {
         assertTrue(hist.shadows > 0.3)
         assertEquals("33%", Histogram.percent(1.0 / 3.0))
     }
+
+    @Test
+    fun uncompressedRgbThumbnailParsedFromTiffIfd0() {
+        val w = 64
+        val h = 64
+        val rgb = ByteArray(w * h * 3) { (it % 251).toByte() }
+        val entries = 9
+        val ifdOffset = 8
+        val bpsOffset = ifdOffset + 2 + entries * 12 + 4
+        val rgbOffset = bpsOffset + 6
+        val buf = ByteArray(rgbOffset + rgb.size)
+
+        fun putLe16(at: Int, v: Int) {
+            buf[at] = (v and 0xff).toByte()
+            buf[at + 1] = ((v ushr 8) and 0xff).toByte()
+        }
+        fun putLe32(at: Int, v: Int) {
+            buf[at] = (v and 0xff).toByte()
+            buf[at + 1] = ((v ushr 8) and 0xff).toByte()
+            buf[at + 2] = ((v ushr 16) and 0xff).toByte()
+            buf[at + 3] = ((v ushr 24) and 0xff).toByte()
+        }
+        // Little-endian TIFF header
+        buf[0] = 0x49; buf[1] = 0x49
+        putLe16(2, 42)
+        putLe32(4, ifdOffset)
+        putLe16(ifdOffset, entries)
+
+        var p = ifdOffset + 2
+        fun putEntry(tag: Int, type: Int, count: Int, value: Int) {
+            putLe16(p, tag); putLe16(p + 2, type); putLe32(p + 4, count); putLe32(p + 8, value)
+            p += 12
+        }
+        putEntry(256, 4, 1, w)           // ImageWidth
+        putEntry(257, 4, 1, h)           // ImageLength
+        putEntry(258, 3, 3, bpsOffset)   // BitsPerSample = [8, 8, 8]
+        putEntry(259, 3, 1, 1)           // Compression = Uncompressed
+        putEntry(262, 3, 1, 2)           // PhotometricInterpretation = RGB
+        putEntry(273, 4, 1, rgbOffset)   // StripOffsets
+        putEntry(274, 3, 1, 6)           // Orientation = Rotate 90 CW
+        putEntry(277, 3, 1, 3)           // SamplesPerPixel = 3
+        putEntry(279, 4, 1, rgb.size)    // StripByteCounts
+
+        putLe16(bpsOffset, 8); putLe16(bpsOffset + 2, 8); putLe16(bpsOffset + 4, 8)
+        rgb.copyInto(buf, rgbOffset)
+
+        val thumb = EmbeddedPreviews.findUncompressedRgbThumbnail(BytesSource(buf))
+        assertNotNull(thumb)
+        assertEquals(64, thumb!!.width)
+        assertEquals(64, thumb.height)
+        assertEquals(6, thumb.orientation)
+        assertArrayEquals(rgb, thumb.rgbBytes)
+    }
 }
