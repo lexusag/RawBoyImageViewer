@@ -35,7 +35,7 @@ jobs:
           fi
           files=$(git diff --name-only "$BASE" "$HEAD")
           echo "Changed files:"; echo "$files"
-          if echo "$files" | grep -Evq '^(docs/|branding/|.*\.md$|LICENSE$|appcast\.xml$|\.gitignore$)'; then
+          if echo "$files" | grep -Evq '^(docs/|branding/|android/|\.github/workflows/android\.yml$|.*\.md$|LICENSE$|appcast\.xml$|\.gitignore$)'; then
             echo "app=true" >> "$GITHUB_OUTPUT"
           else
             echo "Only docs and similar changed: skipping the build."
