@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -74,10 +75,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,6 +101,7 @@ import app.rawboy.viewer.data.PhotoWithCull
 import app.rawboy.viewer.data.SourceEntity
 import app.rawboy.viewer.imaging.ImageRepository
 import app.rawboy.viewer.sources.PhotoSource
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -355,74 +359,134 @@ fun BrowserScreen(
                     val hasSubfolders = state.prefs.groupBySubfolders &&
                         (groupedByFolder.size > 1 || groupedByFolder.any { it.key.isNotEmpty() })
                     val columns = if (isExpanded) GridCells.Adaptive(160.dp) else GridCells.Adaptive(112.dp)
-                    LazyVerticalGrid(
-                        columns = columns,
-                        contentPadding = PaddingValues(6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
+                    val gridState = rememberLazyGridState()
+                    val scope = rememberCoroutineScope()
+
+                    // Map each subfolder section to its header item index inside LazyVerticalGrid.
+                    val sectionHeaders = remember(groupedByFolder, state.collapsedFolders, hasSubfolders) {
                         if (!hasSubfolders) {
-                            items(state.visiblePhotos, key = { it.id }) { photo ->
-                                PhotoGridCell(
-                                    photo = photo,
-                                    photoSource = photoSource,
-                                    images = images,
-                                    selected = photo.id in state.selectedIds,
-                                    selecting = selecting,
-                                    onClick = {
-                                        if (selecting) onToggleSelect(photo.id) else onOpenPhoto(photo.id)
-                                    },
-                                    onLongClick = { onToggleSelect(photo.id) },
-                                )
-                            }
+                            emptyList()
                         } else {
-                            if (groupedByFolder.size > 1) {
-                                item(key = "fold_all_bar", span = { GridItemSpan(maxLineSpan) }) {
-                                    val allCollapsed = groupedByFolder.all { it.key in state.collapsedFolders }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                                        horizontalArrangement = Arrangement.End,
-                                    ) {
-                                        TextButton(onClick = { onSetAllFoldersCollapsed(!allCollapsed) }) {
-                                            Text(
-                                                if (allCollapsed) "Unfold all (${groupedByFolder.size})" else "Fold all",
-                                                fontSize = 12.sp,
-                                                color = DarkroomColours.AshMuted,
+                            val list = ArrayList<Triple<Int, String, List<PhotoWithCull>>>(groupedByFolder.size)
+                            var idx = if (groupedByFolder.size > 1) 1 else 0 // account for fold_all_bar
+                            for ((folder, folderPhotos) in groupedByFolder) {
+                                list.add(Triple(idx, folder, folderPhotos))
+                                idx += 1 + if (folder in state.collapsedFolders) 0 else folderPhotos.size
+                            }
+                            list
+                        }
+                    }
+
+                    // Pin ONLY the current folder once its own header has scrolled off the top.
+                    val pinnedSection by remember(sectionHeaders) {
+                        derivedStateOf {
+                            if (sectionHeaders.isEmpty()) return@derivedStateOf null
+                            val firstIdx = gridState.firstVisibleItemIndex
+                            val firstOffset = gridState.firstVisibleItemScrollOffset
+                            var active: Triple<Int, String, List<PhotoWithCull>>? = null
+                            for (s in sectionHeaders) {
+                                if (s.first <= firstIdx) active = s else break
+                            }
+                            if (active != null && (firstIdx > active.first || firstOffset > 0)) active else null
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = columns,
+                            contentPadding = PaddingValues(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            if (!hasSubfolders) {
+                                items(state.visiblePhotos, key = { it.id }) { photo ->
+                                    PhotoGridCell(
+                                        photo = photo,
+                                        photoSource = photoSource,
+                                        images = images,
+                                        selected = photo.id in state.selectedIds,
+                                        selecting = selecting,
+                                        onClick = {
+                                            if (selecting) onToggleSelect(photo.id) else onOpenPhoto(photo.id)
+                                        },
+                                        onLongClick = { onToggleSelect(photo.id) },
+                                    )
+                                }
+                            } else {
+                                if (groupedByFolder.size > 1) {
+                                    item(key = "fold_all_bar", span = { GridItemSpan(maxLineSpan) }) {
+                                        val allCollapsed = groupedByFolder.all { it.key in state.collapsedFolders }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                            horizontalArrangement = Arrangement.End,
+                                        ) {
+                                            TextButton(onClick = { onSetAllFoldersCollapsed(!allCollapsed) }) {
+                                                Text(
+                                                    if (allCollapsed) "Unfold all (${groupedByFolder.size})" else "Fold all",
+                                                    fontSize = 12.sp,
+                                                    color = DarkroomColours.AshMuted,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                for ((folder, folderPhotos) in groupedByFolder) {
+                                    val collapsed = folder in state.collapsedFolders
+                                    val folderLabel = folder.ifEmpty { state.activeSource?.label ?: "Root" }
+                                    val selectedInFolder = folderPhotos.count { it.id in state.selectedIds }
+                                    item(key = "hdr:$folder", span = { GridItemSpan(maxLineSpan) }) {
+                                        SubfolderSectionHeader(
+                                            label = folderLabel,
+                                            count = folderPhotos.size,
+                                            selectedCount = selectedInFolder,
+                                            collapsed = collapsed,
+                                            onToggleCollapse = { onToggleFolderCollapsed(folder) },
+                                            onLongPress = { onToggleSelectFolder(folder) },
+                                        )
+                                    }
+                                    if (!collapsed) {
+                                        items(folderPhotos, key = { it.id }) { photo ->
+                                            PhotoGridCell(
+                                                photo = photo,
+                                                photoSource = photoSource,
+                                                images = images,
+                                                selected = photo.id in state.selectedIds,
+                                                selecting = selecting,
+                                                onClick = {
+                                                    if (selecting) onToggleSelect(photo.id) else onOpenPhoto(photo.id)
+                                                },
+                                                onLongClick = { onToggleSelect(photo.id) },
                                             )
                                         }
                                     }
                                 }
                             }
-                            for ((folder, folderPhotos) in groupedByFolder) {
-                                val collapsed = folder in state.collapsedFolders
-                                val folderLabel = folder.ifEmpty { state.activeSource?.label ?: "Root" }
-                                val selectedInFolder = folderPhotos.count { it.id in state.selectedIds }
-                                item(key = "hdr:$folder", span = { GridItemSpan(maxLineSpan) }) {
-                                    SubfolderSectionHeader(
-                                        label = folderLabel,
-                                        count = folderPhotos.size,
-                                        selectedCount = selectedInFolder,
-                                        collapsed = collapsed,
-                                        onToggleCollapse = { onToggleFolderCollapsed(folder) },
-                                        onLongPress = { onToggleSelectFolder(folder) },
-                                    )
-                                }
-                                if (!collapsed) {
-                                    items(folderPhotos, key = { it.id }) { photo ->
-                                        PhotoGridCell(
-                                            photo = photo,
-                                            photoSource = photoSource,
-                                            images = images,
-                                            selected = photo.id in state.selectedIds,
-                                            selecting = selecting,
-                                            onClick = {
-                                                if (selecting) onToggleSelect(photo.id) else onOpenPhoto(photo.id)
-                                            },
-                                            onLongClick = { onToggleSelect(photo.id) },
-                                        )
-                                    }
-                                }
+                        }
+
+                        pinnedSection?.let { (headerIdx, folder, folderPhotos) ->
+                            val collapsed = folder in state.collapsedFolders
+                            val folderLabel = folder.ifEmpty { state.activeSource?.label ?: "Root" }
+                            val selectedInFolder = folderPhotos.count { it.id in state.selectedIds }
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .fillMaxWidth()
+                                    .background(DarkroomColours.InkBlack)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            ) {
+                                SubfolderSectionHeader(
+                                    label = folderLabel,
+                                    count = folderPhotos.size,
+                                    selectedCount = selectedInFolder,
+                                    collapsed = collapsed,
+                                    onToggleCollapse = {
+                                        onToggleFolderCollapsed(folder)
+                                        scope.launch { gridState.scrollToItem(headerIdx) }
+                                    },
+                                    onLongPress = { onToggleSelectFolder(folder) },
+                                )
                             }
                         }
                     }
