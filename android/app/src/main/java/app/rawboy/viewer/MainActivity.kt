@@ -89,8 +89,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var askedInitialPermission by rememberSaveable { mutableStateOf(false) }
-                LaunchedEffect(state.activeSource, state.prefs.lastFolderUri) {
-                    if (!askedInitialPermission && state.activeSource == null && state.prefs.lastFolderUri == null) {
+                LaunchedEffect(state.prefsLoaded, state.activeSource, state.prefs.lastFolderUri) {
+                    if (state.prefsLoaded && !askedInitialPermission && state.activeSource == null && state.prefs.lastFolderUri == null) {
                         askedInitialPermission = true
                         openPicturesWithPermission()
                     }

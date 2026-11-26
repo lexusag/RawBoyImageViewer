@@ -68,6 +68,7 @@ data class ViewerUiState(
     val isScanning: Boolean = false,
     val statusMessage: String? = null,
     val canUndo: Boolean = false,
+    val prefsLoaded: Boolean = false,
     val prefs: ViewerPrefs = ViewerPrefs(),
     val rawBoyInstalled: Boolean = false,
     val rawBoyAutoInstalled: Boolean = false,
@@ -121,6 +122,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             val prefs = settings.prefs.first()
+            _state.update { it.copy(prefs = prefs, prefsLoaded = true) }
             when (prefs.startupMode) {
                 StartupMode.CUSTOM -> {
                     val uri = prefs.defaultFolderUri ?: prefs.lastFolderUri
