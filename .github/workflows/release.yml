@@ -129,3 +129,56 @@ jobs:
         run: |
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/sparkle.key"
+
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android signing
+        working-directory: android
+        run: |
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; release APK will use debug signing."
+            exit 0
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > release.jks
+          cat > keystore.properties <<EOF
+          storeFile=release.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+
+      - name: Test & build release APK
+        working-directory: android
+        run: ./gradlew :core:test :app:assembleRelease
+
+      - name: Attach APK to the release
+        run: |
+          VERSION="${TAG#v}"
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          OUT="RawBoy-Viewer-${VERSION}.apk"
+          cp "$APK" "$OUT"
+          gh release upload "$TAG" "$OUT" --clobber
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f android/release.jks android/keystore.properties
+
