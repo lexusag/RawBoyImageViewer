@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -91,9 +92,11 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -381,21 +384,44 @@ private fun ZoomablePhotoPage(
     }
     var scale by remember(photo.id) { mutableFloatStateOf(1f) }
     var offset by remember(photo.id) { mutableStateOf(Offset.Zero) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    fun clampOffset(raw: Offset, targetScale: Float): Offset {
+        if (targetScale <= 1.02f || containerSize.width == 0 || containerSize.height == 0) return Offset.Zero
+        val maxX = (containerSize.width * (targetScale - 1f) / 2f).coerceAtLeast(0f)
+        val maxY = (containerSize.height * (targetScale - 1f) / 2f).coerceAtLeast(0f)
+        return Offset(raw.x.coerceIn(-maxX, maxX), raw.y.coerceIn(-maxY, maxY))
+    }
+
+    fun zoomAround(focal: Offset, targetScale: Float, pan: Offset = Offset.Zero) {
+        val clampedScale = targetScale.coerceIn(1f, 6f)
+        if (clampedScale <= 1.02f) {
+            scale = 1f
+            offset = Offset.Zero
+            onZoomChanged(false)
+            return
+        }
+        val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
+        val anchor = focal - center
+        val ratio = clampedScale / scale
+        val nextOffset = anchor - (anchor - offset) * ratio + pan
+        scale = clampedScale
+        offset = clampOffset(nextOffset, clampedScale)
+        onZoomChanged(true)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onSizeChanged { containerSize = it }
             .pointerInput(photo.id) {
                 detectTapGestures(
                     onTap = { onToggleChrome() },
-                    onDoubleTap = {
+                    onDoubleTap = { tapOffset ->
                         if (scale > 1.05f) {
-                            scale = 1f
-                            offset = Offset.Zero
-                            onZoomChanged(false)
+                            zoomAround(tapOffset, 1f)
                         } else {
-                            scale = 2.5f
-                            onZoomChanged(true)
+                            zoomAround(tapOffset, 2.5f)
                         }
                     },
                 )
@@ -418,10 +444,13 @@ private fun ZoomablePhotoPage(
                             if (totalPan.getDistance() > touchSlop) pastSlop = true
                         }
                         if (pastSlop && (pressed >= 2 || scale > 1.02f)) {
-                            val nextScale = (scale * zoomChange).coerceIn(1f, 6f)
-                            scale = nextScale
-                            offset = if (nextScale > 1.02f) offset + panChange else Offset.Zero
-                            onZoomChanged(nextScale > 1.02f)
+                            val centroid = event.calculateCentroid(useCurrent = true)
+                            val focal = if (centroid != Offset.Unspecified) {
+                                centroid
+                            } else {
+                                Offset(containerSize.width / 2f, containerSize.height / 2f)
+                            }
+                            zoomAround(focal, scale * zoomChange, panChange)
                             event.changes.forEach { it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
