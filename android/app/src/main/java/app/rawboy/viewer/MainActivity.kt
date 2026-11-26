@@ -184,6 +184,7 @@ class MainActivity : ComponentActivity() {
                         prefs = state.prefs,
                         onStartupMode = viewModel::setStartupMode,
                         onPickDefaultFolder = { defaultFolderPicker.launch(picturesInitialUri) },
+                        onGroupBySubfolders = viewModel::setGroupBySubfolders,
                         onAutoAdvance = viewModel::setAutoAdvance,
                         onWriteXmpBeforeSend = viewModel::setWriteXmpBeforeSend,
                         onIncludeJpegs = viewModel::setIncludeJpegsInBatch,

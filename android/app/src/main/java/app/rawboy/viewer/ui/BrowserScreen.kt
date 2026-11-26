@@ -352,7 +352,8 @@ fun BrowserScreen(
                                 }
                             }
                     }
-                    val hasSubfolders = groupedByFolder.size > 1 || groupedByFolder.any { it.key.isNotEmpty() }
+                    val hasSubfolders = state.prefs.groupBySubfolders &&
+                        (groupedByFolder.size > 1 || groupedByFolder.any { it.key.isNotEmpty() })
                     val columns = if (isExpanded) GridCells.Adaptive(160.dp) else GridCells.Adaptive(112.dp)
                     LazyVerticalGrid(
                         columns = columns,

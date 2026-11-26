@@ -26,6 +26,7 @@ data class ViewerPrefs(
     val defaultFolderUri: String? = null,
     val startupMode: StartupMode = StartupMode.LAST,
     val sort: PhotoSort = PhotoSort.DATE,
+    val groupBySubfolders: Boolean = true,
     val autoAdvanceAfterRating: Boolean = true,
     val writeXmpBeforeSend: Boolean = false,
     val includeJpegsInBatch: Boolean = false,
@@ -39,6 +40,7 @@ class ViewerSettings(private val context: Context) {
         val DEFAULT_FOLDER = stringPreferencesKey("default_folder_uri")
         val STARTUP_MODE = stringPreferencesKey("startup_mode")
         val SORT = stringPreferencesKey("sort")
+        val GROUP_BY_SUBFOLDERS = booleanPreferencesKey("group_by_subfolders")
         val AUTO_ADVANCE = booleanPreferencesKey("auto_advance")
         val WRITE_XMP_BEFORE_SEND = booleanPreferencesKey("write_xmp_before_send")
         val INCLUDE_JPEGS_IN_BATCH = booleanPreferencesKey("include_jpegs_in_batch")
@@ -52,6 +54,7 @@ class ViewerSettings(private val context: Context) {
             defaultFolderUri = p[Keys.DEFAULT_FOLDER],
             startupMode = StartupMode.fromRaw(p[Keys.STARTUP_MODE]),
             sort = PhotoSort.fromRaw(p[Keys.SORT]),
+            groupBySubfolders = p[Keys.GROUP_BY_SUBFOLDERS] ?: true,
             autoAdvanceAfterRating = p[Keys.AUTO_ADVANCE] ?: true,
             writeXmpBeforeSend = p[Keys.WRITE_XMP_BEFORE_SEND] ?: false,
             includeJpegsInBatch = p[Keys.INCLUDE_JPEGS_IN_BATCH] ?: false,
@@ -70,6 +73,7 @@ class ViewerSettings(private val context: Context) {
 
     suspend fun setStartupMode(mode: StartupMode) = context.dataStore.edit { it[Keys.STARTUP_MODE] = mode.raw }
     suspend fun setSort(sort: PhotoSort) = context.dataStore.edit { it[Keys.SORT] = sort.raw }
+    suspend fun setGroupBySubfolders(v: Boolean) = context.dataStore.edit { it[Keys.GROUP_BY_SUBFOLDERS] = v }
     suspend fun setAutoAdvance(v: Boolean) = context.dataStore.edit { it[Keys.AUTO_ADVANCE] = v }
     suspend fun setWriteXmpBeforeSend(v: Boolean) = context.dataStore.edit { it[Keys.WRITE_XMP_BEFORE_SEND] = v }
     suspend fun setIncludeJpegsInBatch(v: Boolean) = context.dataStore.edit { it[Keys.INCLUDE_JPEGS_IN_BATCH] = v }

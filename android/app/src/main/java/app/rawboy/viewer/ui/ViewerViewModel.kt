@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import app.rawboy.viewer.core.CaptureDate
 import app.rawboy.viewer.core.Flag
 import app.rawboy.viewer.core.FlagFilter
+import app.rawboy.viewer.core.NaturalOrder
 import app.rawboy.viewer.core.PhotoFileType
 import app.rawboy.viewer.core.PhotoGroups
 import app.rawboy.viewer.core.PhotoOrder
@@ -113,7 +114,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             settings.prefs.collect { prefs ->
                 _state.update { s ->
-                    val sorted = sortAndFilter(s.allPhotos, s.filter, s.minStars, prefs.sort)
+                    val sorted = sortAndFilter(s.allPhotos, s.filter, s.minStars, prefs.sort, prefs.groupBySubfolders)
                     s.copy(prefs = prefs, visiblePhotos = sorted)
                 }
             }
@@ -633,6 +634,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         settings.setStartupMode(StartupMode.CUSTOM)
         openFolder(treeUri, persistPermission = false)
     }
+    fun setGroupBySubfolders(v: Boolean) = viewModelScope.launch { settings.setGroupBySubfolders(v) }
     fun setAutoAdvance(v: Boolean) = viewModelScope.launch { settings.setAutoAdvance(v) }
     fun setWriteXmpBeforeSend(v: Boolean) = viewModelScope.launch { settings.setWriteXmpBeforeSend(v) }
     fun setIncludeJpegsInBatch(v: Boolean) = viewModelScope.launch { settings.setIncludeJpegsInBatch(v) }
@@ -646,10 +648,22 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         filter: FlagFilter,
         minStars: Int,
         sort: PhotoSort,
+        groupBySubfolders: Boolean = _state.value.prefs.groupBySubfolders,
     ): List<PhotoWithCull> {
         val cmp = PhotoOrder.comparator(sort)
         return photos
             .filter { filter.passes(Rating(it.effectiveStars, Flag.fromDb(it.effectiveFlag)), minStars) }
-            .sortedWith { a, b -> cmp.compare(a.captureDate to a.relPath, b.captureDate to b.relPath) }
+            .sortedWith { a, b ->
+                if (groupBySubfolders) {
+                    val folderCmp = when {
+                        a.folderPath.isEmpty() && b.folderPath.isEmpty() -> 0
+                        a.folderPath.isEmpty() -> -1
+                        b.folderPath.isEmpty() -> 1
+                        else -> NaturalOrder.compare(a.folderPath, b.folderPath)
+                    }
+                    if (folderCmp != 0) return@sortedWith folderCmp
+                }
+                cmp.compare(a.captureDate to a.fileName, b.captureDate to b.fileName)
+            }
     }
 }

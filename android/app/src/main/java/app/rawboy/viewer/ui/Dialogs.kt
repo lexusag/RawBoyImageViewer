@@ -202,6 +202,7 @@ fun SettingsDialog(
     prefs: ViewerPrefs,
     onStartupMode: (StartupMode) -> Unit,
     onPickDefaultFolder: () -> Unit,
+    onGroupBySubfolders: (Boolean) -> Unit,
     onAutoAdvance: (Boolean) -> Unit,
     onWriteXmpBeforeSend: (Boolean) -> Unit,
     onIncludeJpegs: (Boolean) -> Unit,
@@ -240,6 +241,7 @@ fun SettingsDialog(
                         )
                     }
                 }
+                SettingToggle("Group by subfolders", prefs.groupBySubfolders, onGroupBySubfolders)
                 SettingToggle("Auto-advance after rating", prefs.autoAdvanceAfterRating, onAutoAdvance)
                 SettingToggle("Write XMP before sending to RawBoy", prefs.writeXmpBeforeSend, onWriteXmpBeforeSend)
                 SettingToggle("Include paired JPEGs in batches", prefs.includeJpegsInBatch, onIncludeJpegs)
