@@ -89,6 +89,16 @@ object EmbeddedPreviews {
         )
     }
 
+    /** The raw file's own EXIF orientation (TIFF IFD0 or CR3 CMT1), or 0 if absent. */
+    fun rawOrientation(source: ByteSource): Int {
+        val head = source.read(0, 16)
+        return when {
+            isTiff(head) -> tiffCandidates(source, base = 0).second
+            head.ascii(4, 8) == "ftyp" -> cr3Candidates(source).second
+            else -> 0
+        }
+    }
+
     private fun largest(source: ByteSource, candidates: List<Candidate>): Pair<Candidate, JpegInfo>? {
         var best: Pair<Candidate, JpegInfo>? = null
         for (c in candidates) {

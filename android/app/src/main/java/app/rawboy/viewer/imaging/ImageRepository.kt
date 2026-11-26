@@ -161,23 +161,38 @@ class ImageRepository(private val context: Context) {
         }
         if (type == PhotoFileType.RAW) {
             var smallFallback: Pair<ByteArray, Int>? = null
+            var rawOrientation = 0
             source.openByteSource(photo.docId, photo.size)?.use { bs ->
                 val preview = EmbeddedPreviews.find(bs)
                 if (preview != null) {
+                    rawOrientation = preview.rawOrientation
                     val effectiveOrientation = effectivePreviewOrientation(preview)
                     if (maxOf(preview.width, preview.height) >= minPreviewPx) {
                         return decodeJpegBytes(preview.jpeg(bs), targetMaxPx, rgb565, effectiveOrientation)
                     } else if (maxOf(preview.width, preview.height) >= 160) {
                         smallFallback = preview.jpeg(bs) to effectiveOrientation
                     }
+                } else {
+                    rawOrientation = EmbeddedPreviews.rawOrientation(bs)
                 }
             }
             if (smallFallback != null && rgb565) {
                 return decodeJpegBytes(smallFallback!!.first, targetMaxPx, rgb565 = true, smallFallback!!.second)
             }
             // Fallback for phone DNGs without a large embedded JPEG: Android ImageDecoder
+            // Note: Android's ImageDecoder/SkRawCodec does NOT apply TIFF IFD0 Orientation to DNGs.
             val decoded = decodeViaImageDecoder(source, photo.docId, targetMaxPx)
-            if (decoded != null) return decoded
+            if (decoded != null) {
+                val ori = if (rawOrientation > 1) {
+                    rawOrientation
+                } else {
+                    readExif(source, photo)?.getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL,
+                    ) ?: ExifInterface.ORIENTATION_NORMAL
+                }
+                return if (ori > 1) applyOrientation(decoded, ori) else decoded
+            }
             return smallFallback?.let { decodeJpegBytes(it.first, targetMaxPx, rgb565, it.second) }
         }
         return decodeViaImageDecoder(source, photo.docId, targetMaxPx)
@@ -310,7 +325,7 @@ class ImageRepository(private val context: Context) {
     }
 
     private fun cacheKey(rootUri: String, photo: PhotoWithCull): String {
-        val raw = "v2|$rootUri|${photo.relPath}|${photo.size}|${photo.mtime}"
+        val raw = "v3|$rootUri|${photo.relPath}|${photo.size}|${photo.mtime}"
         val digest = MessageDigest.getInstance("SHA-256").digest(raw.toByteArray())
         return digest.take(12).joinToString("") { "%02x".format(it) }
     }
