@@ -5,11 +5,13 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
@@ -27,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import app.rawboy.viewer.handoff.AutoImportMode
 import app.rawboy.viewer.ui.BrowserScreen
+import app.rawboy.viewer.ui.DeleteConfirmDialog
 import app.rawboy.viewer.ui.FullScreenViewer
 import app.rawboy.viewer.ui.RawBoyViewerTheme
 import app.rawboy.viewer.ui.SendToAutoSheet
@@ -96,6 +99,24 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val mediaDeleteLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartIntentSenderForResult(),
+                ) { res ->
+                    viewModel.onMediaStoreDeleteResult(res.resultCode == RESULT_OK)
+                }
+
+                LaunchedEffect(state.pendingMediaStoreDeleteUris) {
+                    val uris = state.pendingMediaStoreDeleteUris ?: return@LaunchedEffect
+                    if (Build.VERSION.SDK_INT >= 30 && uris.isNotEmpty()) {
+                        runCatching {
+                            val pi = MediaStore.createDeleteRequest(contentResolver, uris)
+                            mediaDeleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                        }.onFailure {
+                            viewModel.onMediaStoreDeleteResult(false)
+                        }
+                    }
+                }
+
                 // Keep BrowserScreen mounted underneath FullScreenViewer so LazyVerticalGrid keeps its exact scroll offset.
                 Box(modifier = Modifier.fillMaxSize()) {
                     BrowserScreen(
@@ -124,6 +145,7 @@ class MainActivity : ComponentActivity() {
                         onSendToRawBoy = viewModel::sendToRawBoy,
                         onSendToRawBoyAuto = viewModel::openAutoSendSheet,
                         onShare = viewModel::shareTargets,
+                        onDelete = viewModel::requestDelete,
                         onMoveRejectsToBin = viewModel::moveRejectsToBin,
                         onRestoreFromBin = viewModel::restoreFromBin,
                         onOpenSettings = viewModel::openSettings,
@@ -149,8 +171,18 @@ class MainActivity : ComponentActivity() {
                             onPrefetch = viewModel::prefetchAround,
                             onSendToRawBoy = { photo -> viewModel.sendToRawBoy(listOf(photo)) },
                             onSendToRawBoyAuto = { photo -> viewModel.openAutoSendSheet(listOf(photo)) },
+                            onDelete = { photo -> viewModel.requestDelete(listOf(photo)) },
                         )
                     }
+                }
+
+                if (state.pendingDeleteTargets.isNotEmpty() && state.pendingMediaStoreDeleteUris == null) {
+                    DeleteConfirmDialog(
+                        count = state.pendingDeleteTargets.size,
+                        singleFileName = state.pendingDeleteTargets.singleOrNull()?.fileName,
+                        onConfirm = viewModel::confirmSafDelete,
+                        onDismiss = viewModel::dismissDeleteDialog,
+                    )
                 }
 
                 state.pendingConflicts?.let { conflicts ->

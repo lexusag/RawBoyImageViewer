@@ -226,6 +226,9 @@ interface PhotoDao {
     @Query("UPDATE photos SET orphanedAt = :ts WHERE id IN (:ids)")
     suspend fun markOrphaned(ids: List<Long>, ts: Long)
 
+    @Query("DELETE FROM photos WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
     @Query("DELETE FROM photos WHERE orphanedAt IS NOT NULL AND orphanedAt < :cutoff")
     suspend fun purgeOldOrphans(cutoff: Long)
 }

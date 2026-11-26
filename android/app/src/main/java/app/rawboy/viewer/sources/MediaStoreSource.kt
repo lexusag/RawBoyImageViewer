@@ -104,6 +104,16 @@ class MediaStoreSource(
     override suspend fun readText(docId: String): String? = null
     override suspend fun findChildByName(name: String, parentDir: String): SourceFileEntry? = null
     override suspend fun writeText(name: String, existingDocId: String?, content: String, parentDir: String): String? = null
+
+    override suspend fun deleteDocuments(docIds: List<String>): Set<String> = withContext(Dispatchers.IO) {
+        val deleted = HashSet<String>(docIds.size)
+        for (docId in docIds) {
+            val rows = runCatching { resolver.delete(uriForShare(docId), null, null) }.getOrDefault(0)
+            if (rows > 0) deleted.add(docId)
+        }
+        deleted
+    }
+
     override suspend fun moveToBin(docIds: List<String>): Map<String, String> = emptyMap()
     override suspend fun restoreFromBin(docIds: List<String>): Map<String, String> = emptyMap()
 

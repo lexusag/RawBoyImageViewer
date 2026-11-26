@@ -144,6 +144,17 @@ class LocalSafSource(
             if (ok) targetDocId else null
         }
 
+    override suspend fun deleteDocuments(docIds: List<String>): Set<String> = withContext(Dispatchers.IO) {
+        val deleted = HashSet<String>(docIds.size)
+        for (docId in docIds) {
+            val ok = runCatching {
+                DocumentsContract.deleteDocument(resolver, uriForShare(docId))
+            }.getOrDefault(false)
+            if (ok) deleted.add(docId)
+        }
+        deleted
+    }
+
     override suspend fun moveToBin(docIds: List<String>): Map<String, String> = withContext(Dispatchers.IO) {
         val binId = getOrCreateBinDir() ?: return@withContext emptyMap()
         val moved = LinkedHashMap<String, String>()

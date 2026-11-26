@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
@@ -131,6 +132,7 @@ fun BrowserScreen(
     onSendToRawBoy: (List<PhotoWithCull>) -> Unit,
     onSendToRawBoyAuto: (List<PhotoWithCull>) -> Unit,
     onShare: (List<PhotoWithCull>) -> Unit,
+    onDelete: (List<PhotoWithCull>) -> Unit,
     onMoveRejectsToBin: () -> Unit,
     onRestoreFromBin: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -196,6 +198,9 @@ fun BrowserScreen(
                 },
                 actions = {
                     if (selecting) {
+                        IconButton(onClick = { onDelete(selectedPhotos) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete selected", tint = DarkroomColours.WarningRed)
+                        }
                         IconButton(onClick = { onSendToRawBoyAuto(selectedPhotos) }) {
                             Icon(Icons.Default.Send, contentDescription = "Send to RawBoy Auto", tint = DarkroomColours.SafelightAmber)
                         }

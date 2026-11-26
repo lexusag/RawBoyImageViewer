@@ -40,6 +40,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Pause
@@ -129,6 +130,7 @@ fun FullScreenViewer(
     onPrefetch: (Int, Boolean) -> Unit,
     onSendToRawBoy: (PhotoWithCull) -> Unit,
     onSendToRawBoyAuto: (PhotoWithCull) -> Unit,
+    onDelete: (PhotoWithCull) -> Unit,
 ) {
     BackHandler(onBack = onClose)
 
@@ -255,6 +257,9 @@ fun FullScreenViewer(
                             }
                             IconButton(onClick = { onSendToRawBoyAuto(currentPhoto) }) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send to RawBoy Auto", tint = DarkroomColours.SafelightAmber)
+                            }
+                            IconButton(onClick = { onDelete(currentPhoto) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = DarkroomColours.WarningRed)
                             }
                             if (!isExpanded) {
                                 IconButton(onClick = { showDetailsSheet = true }) {

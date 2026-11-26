@@ -78,6 +78,8 @@ data class ViewerUiState(
     val showAutoSendSheet: Boolean = false,
     val autoSendTargets: List<PhotoWithCull> = emptyList(),
     val showSettings: Boolean = false,
+    val pendingDeleteTargets: List<PhotoWithCull> = emptyList(),
+    val pendingMediaStoreDeleteUris: List<Uri>? = null,
 )
 
 class ViewerViewModel(application: Application) : AndroidViewModel(application) {
@@ -621,6 +623,92 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             }
             showStatus("Restored ${restored.size} photos from _bin")
         }
+    }
+
+    // --- Direct delete (SAF + MediaStore) ---
+
+    fun requestDelete(targets: List<PhotoWithCull>) {
+        val src = _activePhotoSource.value ?: return
+        if (targets.isEmpty()) return
+        if (src is MediaStoreSource && Build.VERSION.SDK_INT >= 30) {
+            val uris = buildList {
+                for (p in targets) {
+                    add(src.uriForShare(p.docId))
+                    p.companionDocIds.split('\n').filter { it.isNotEmpty() }.forEach { add(src.uriForShare(it)) }
+                }
+            }
+            _state.update { it.copy(pendingDeleteTargets = targets, pendingMediaStoreDeleteUris = uris) }
+        } else {
+            _state.update { it.copy(pendingDeleteTargets = targets, pendingMediaStoreDeleteUris = null) }
+        }
+    }
+
+    fun dismissDeleteDialog() {
+        _state.update { it.copy(pendingDeleteTargets = emptyList(), pendingMediaStoreDeleteUris = null) }
+    }
+
+    fun confirmSafDelete() {
+        val src = _activePhotoSource.value ?: return
+        val targets = _state.value.pendingDeleteTargets
+        dismissDeleteDialog()
+        if (targets.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val docIdsToDelete = ArrayList<String>(targets.size * 2)
+            for (p in targets) {
+                docIdsToDelete.add(p.docId)
+                p.companionDocIds.split('\n').filter { it.isNotEmpty() }.forEach { docIdsToDelete.add(it) }
+                // Also delete any existing XMP sidecars belonging to this photo
+                for (sidecarName in p.sidecarNames.split('\n').filter { it.isNotEmpty() }) {
+                    src.findChildByName(sidecarName, p.folderPath)?.docId?.let { docIdsToDelete.add(it) }
+                }
+            }
+            val deletedDocIds = src.deleteDocuments(docIdsToDelete)
+            val deletedPhotos = targets.filter { it.docId in deletedDocIds }
+            finalizeDeletedPhotos(deletedPhotos, totalRequested = targets.size)
+        }
+    }
+
+    fun onMediaStoreDeleteResult(succeeded: Boolean) {
+        val targets = _state.value.pendingDeleteTargets
+        dismissDeleteDialog()
+        if (!succeeded || targets.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            finalizeDeletedPhotos(targets, totalRequested = targets.size)
+        }
+    }
+
+    private suspend fun finalizeDeletedPhotos(deletedPhotos: List<PhotoWithCull>, totalRequested: Int) {
+        val deletedIds = deletedPhotos.map { it.id }.toSet()
+        if (deletedIds.isEmpty()) {
+            showStatus("Could not delete selected files")
+            return
+        }
+        val prevVisible = _state.value.visiblePhotos
+        val currentViewerId = _state.value.viewerPhotoId
+        val nextViewerId = if (currentViewerId != null && currentViewerId in deletedIds) {
+            val curIdx = prevVisible.indexOfFirst { it.id == currentViewerId }
+            val remaining = prevVisible.filter { it.id !in deletedIds }
+            if (remaining.isEmpty()) null
+            else remaining[curIdx.coerceIn(0, remaining.lastIndex)].id
+        } else {
+            currentViewerId
+        }
+
+        deletedIds.toList().chunked(400).forEach { chunk ->
+            photoDao.deleteByIds(chunk)
+        }
+        _state.update { s ->
+            s.copy(
+                selectedIds = s.selectedIds - deletedIds,
+                viewerPhotoId = nextViewerId,
+            )
+        }
+        val msg = if (deletedIds.size == totalRequested) {
+            "Deleted ${deletedIds.size} ${if (deletedIds.size == 1) "file" else "files"}"
+        } else {
+            "Deleted ${deletedIds.size} of $totalRequested files"
+        }
+        showStatus(msg)
     }
 
     // --- Settings ---

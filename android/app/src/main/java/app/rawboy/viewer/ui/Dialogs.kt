@@ -255,6 +255,49 @@ fun SettingsDialog(
 }
 
 @Composable
+fun DeleteConfirmDialog(
+    count: Int,
+    singleFileName: String?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkroomColours.GraphiteSurface,
+        title = {
+            Text(
+                if (count == 1) "Delete photo?" else "Delete $count photos?",
+                color = DarkroomColours.PaperWhite,
+            )
+        },
+        text = {
+            val detail = if (count == 1 && singleFileName != null) {
+                "\"$singleFileName\" (plus any paired JPEG and XMP sidecars) will be permanently deleted."
+            } else {
+                "$count selected items (plus any paired JPEGs and XMP sidecars) will be permanently deleted."
+            }
+            Text(detail, color = DarkroomColours.AshMuted, fontSize = 13.sp)
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DarkroomColours.WarningRed,
+                    contentColor = DarkroomColours.InkBlack,
+                ),
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = DarkroomColours.PaperWhite)
+            }
+        },
+    )
+}
+
+@Composable
 private fun SettingToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),

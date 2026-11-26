@@ -35,6 +35,7 @@ interface PhotoSource {
     suspend fun readText(docId: String): String?
     suspend fun findChildByName(name: String, parentDir: String = ""): SourceFileEntry?
     suspend fun writeText(name: String, existingDocId: String?, content: String, parentDir: String = ""): String?
+    suspend fun deleteDocuments(docIds: List<String>): Set<String>
     suspend fun moveToBin(docIds: List<String>): Map<String, String>
     suspend fun restoreFromBin(docIds: List<String>): Map<String, String>
     fun uriForShare(docId: String): Uri
