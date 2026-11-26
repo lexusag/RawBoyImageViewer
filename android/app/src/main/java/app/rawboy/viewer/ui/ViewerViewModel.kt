@@ -78,6 +78,7 @@ data class ViewerUiState(
     val showAutoSendSheet: Boolean = false,
     val autoSendTargets: List<PhotoWithCull> = emptyList(),
     val showSettings: Boolean = false,
+    val showHelp: Boolean = false,
     val pendingDeleteTargets: List<PhotoWithCull> = emptyList(),
     val pendingMediaStoreDeleteUris: List<Uri>? = null,
 )
@@ -715,6 +716,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSettings() = _state.update { it.copy(showSettings = true) }
     fun dismissSettings() = _state.update { it.copy(showSettings = false) }
+    fun openHelp() = _state.update { it.copy(showHelp = true) }
+    fun dismissHelp() = _state.update { it.copy(showHelp = false) }
     fun setStartupMode(mode: StartupMode) = viewModelScope.launch { settings.setStartupMode(mode) }
     fun setDefaultFolder(treeUri: Uri) = viewModelScope.launch {
         val app = getApplication<Application>()

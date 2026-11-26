@@ -7,13 +7,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -295,6 +298,95 @@ fun DeleteConfirmDialog(
             }
         },
     )
+}
+
+@Composable
+fun HelpDialog(
+    versionName: String,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkroomColours.GraphiteSurface,
+        title = {
+            Column {
+                Text("RawBoy Viewer", color = DarkroomColours.PaperWhite, fontWeight = FontWeight.SemiBold)
+                Text("Android · v$versionName", color = DarkroomColours.AshMuted, fontSize = 12.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                HelpSection(
+                    title = "Browser",
+                    items = listOf(
+                        "Open folder" to "Tap the folder icon to pick any folder (internal storage, SD card, USB reader). Opens Pictures & DCIM by default; change in Settings.",
+                        "Subfolders" to "Tap a subfolder header to fold or unfold it. Long-press a header to select or deselect the whole subfolder. The current folder stays pinned while scrolling.",
+                        "Multi-select" to "Long-press a photo, then tap others to add or remove. Press Back to clear.",
+                        "Filter & sort" to "Filter by All, Picks, Unflagged, Rejects and minimum stars. Tap the sort icon for capture date or name.",
+                    ),
+                )
+                HorizontalDivider(color = DarkroomColours.Hairline)
+                HelpSection(
+                    title = "Viewer & Video",
+                    items = listOf(
+                        "Next / previous" to "Swipe left or right (follows subfolder grouping when enabled).",
+                        "Zoom" to "Double-tap to zoom into that point and render full resolution; double-tap again to fit. Pinch to zoom around your fingers and drag to pan.",
+                        "Exit" to "Press Back or tap ← to return to your exact position in the grid. Single tap hides or shows the bars.",
+                        "Details" to "Tap i for EXIF and RGB histogram (pinned on the right on tablets).",
+                        "Videos" to "Play/pause, mute, and drag the timeline to scrub.",
+                    ),
+                )
+                HorizontalDivider(color = DarkroomColours.Hairline)
+                HelpSection(
+                    title = "Culling, XMP & Delete",
+                    items = listOf(
+                        "Rate & flag" to "Use 1–5 stars, Pick (flag), and Reject (×). Tapping the same star or flag clears it. Undo reverses the last change.",
+                        "Local database" to "Ratings stay in a local database so photo folders aren't modified while culling. An amber dot marks ratings not yet written to XMP.",
+                        "Write XMP" to "Tap Write XMP (in the filter bar or menu) to write xmp:Rating and rawboy:Pick in place, keeping all other metadata intact. On conflicts, existing XMP wins by default (you can override).",
+                        "Delete / _bin" to "Tap the red trash icon to delete immediately (with paired JPEG and sidecars), or move rejects into _bin from the menu.",
+                    ),
+                )
+                HorizontalDivider(color = DarkroomColours.Hairline)
+                HelpSection(
+                    title = "Send to RawBoy",
+                    items = listOf(
+                        "RawBoy Pro" to "Tap RawBoy in the viewer or single-photo selection to open in RawBoy.",
+                        "RawBoy Auto" to "Tap the amber send icon to send a photo, selection, or visible filter (e.g. Picks) as a batch (Looks / Film / As is). Sends raws by default; toggle Include paired JPEGs if needed.",
+                    ),
+                )
+                HorizontalDivider(color = DarkroomColours.Hairline)
+                HelpSection(
+                    title = "Tablet keyboard shortcuts",
+                    items = listOf(
+                        "← / → / Space" to "Previous / next photo",
+                        "1–5 / 0" to "Set or clear stars",
+                        "P / X / U" to "Pick / Reject / Unflag",
+                        "I" to "Toggle details",
+                        "Ctrl/⌘Z · Esc" to "Undo · back to grid",
+                    ),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close", color = DarkroomColours.SafelightAmber) }
+        },
+    )
+}
+
+@Composable
+private fun HelpSection(title: String, items: List<Pair<String, String>>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, color = DarkroomColours.SafelightAmber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        for ((k, v) in items) {
+            Column {
+                Text(k, color = DarkroomColours.PaperWhite, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(v, color = DarkroomColours.AshMuted, fontSize = 12.sp, lineHeight = 16.sp)
+            }
+        }
+    }
 }
 
 @Composable

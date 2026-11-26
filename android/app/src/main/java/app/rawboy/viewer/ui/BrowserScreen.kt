@@ -35,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -136,6 +137,7 @@ fun BrowserScreen(
     onMoveRejectsToBin: () -> Unit,
     onRestoreFromBin: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHelp: () -> Unit,
     onClearStatus: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -219,6 +221,9 @@ fun BrowserScreen(
                         }
                         IconButton(onClick = onRefresh) {
                             Icon(Icons.Default.Refresh, contentDescription = "Reload folder")
+                        }
+                        IconButton(onClick = onOpenHelp) {
+                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Help")
                         }
                         Box {
                             IconButton(onClick = { menuExpanded = true }) {

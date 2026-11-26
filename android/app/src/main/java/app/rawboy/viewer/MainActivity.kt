@@ -31,6 +31,7 @@ import app.rawboy.viewer.handoff.AutoImportMode
 import app.rawboy.viewer.ui.BrowserScreen
 import app.rawboy.viewer.ui.DeleteConfirmDialog
 import app.rawboy.viewer.ui.FullScreenViewer
+import app.rawboy.viewer.ui.HelpDialog
 import app.rawboy.viewer.ui.RawBoyViewerTheme
 import app.rawboy.viewer.ui.SendToAutoSheet
 import app.rawboy.viewer.ui.SettingsDialog
@@ -149,6 +150,7 @@ class MainActivity : ComponentActivity() {
                         onMoveRejectsToBin = viewModel::moveRejectsToBin,
                         onRestoreFromBin = viewModel::restoreFromBin,
                         onOpenSettings = viewModel::openSettings,
+                        onOpenHelp = viewModel::openHelp,
                         onClearStatus = viewModel::clearStatus,
                     )
 
@@ -222,6 +224,16 @@ class MainActivity : ComponentActivity() {
                         onIncludeJpegs = viewModel::setIncludeJpegsInBatch,
                         onEnableBin = viewModel::setEnableBin,
                         onDismiss = viewModel::dismissSettings,
+                    )
+                }
+
+                if (state.showHelp) {
+                    val versionName = runCatching {
+                        packageManager.getPackageInfo(packageName, 0).versionName ?: "0.1"
+                    }.getOrDefault("0.1")
+                    HelpDialog(
+                        versionName = versionName,
+                        onDismiss = viewModel::dismissHelp,
                     )
                 }
             }
