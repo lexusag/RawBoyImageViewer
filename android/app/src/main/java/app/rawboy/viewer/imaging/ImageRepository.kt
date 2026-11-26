@@ -113,6 +113,22 @@ class ImageRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Decodes a sharp high-resolution bitmap (up to 4096 px, safe for Android's GPU texture limit)
+     * on demand when the user zooms in. Not stored in the shared LRU so it doesn't evict neighbours.
+     */
+    suspend fun loadFullResBitmap(
+        source: PhotoSource,
+        photo: PhotoWithCull,
+        maxPx: Int = 4096,
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        viewerGate.withPermit {
+            safeDecode {
+                decodePhoto(source, photo, targetMaxPx = maxPx, minPreviewPx = 2560, rgb565 = false)
+            }
+        }
+    }
+
     suspend fun loadDetails(source: PhotoSource, photo: PhotoWithCull, previewBitmap: Bitmap?): PhotoDetails =
         withContext(Dispatchers.IO) {
             val exif = readExif(source, photo)

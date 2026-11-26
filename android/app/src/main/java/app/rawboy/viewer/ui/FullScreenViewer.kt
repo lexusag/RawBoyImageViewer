@@ -379,15 +379,29 @@ private fun ZoomablePhotoPage(
     onToggleChrome: () -> Unit,
     onZoomChanged: (Boolean) -> Unit,
 ) {
-    val bmp by produceState<Bitmap?>(initialValue = null, key1 = photo.id) {
-        // Two-stage load: show cached grid thumbnail immediately (0 ms), then swap in full-res.
+    val baseBmp by produceState<Bitmap?>(initialValue = null, key1 = photo.id) {
+        // Two-stage load: show cached grid thumbnail immediately (0 ms), then swap in 2048 px preview.
         value = images.peekThumbnail(photoSource, photo)
-        val full = images.loadViewerBitmap(photoSource, photo)
-        if (full != null) value = full
+        val preview = images.loadViewerBitmap(photoSource, photo)
+        if (preview != null) value = preview
     }
     var scale by remember(photo.id) { mutableFloatStateOf(1f) }
     var offset by remember(photo.id) { mutableStateOf(Offset.Zero) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    var fullResBmp by remember(photo.id) { mutableStateOf<Bitmap?>(null) }
+    var loadingFullRes by remember(photo.id) { mutableStateOf(false) }
+    val wantsFullRes = scale > 1.35f
+
+    LaunchedEffect(photo.id, wantsFullRes) {
+        if (wantsFullRes && fullResBmp == null) {
+            loadingFullRes = true
+            fullResBmp = images.loadFullResBitmap(photoSource, photo)
+            loadingFullRes = false
+        }
+    }
+
+    val bmp = if (wantsFullRes && fullResBmp != null) fullResBmp else baseBmp
 
     fun clampOffset(raw: Offset, targetScale: Float): Offset {
         if (targetScale <= 1.02f || containerSize.width == 0 || containerSize.height == 0) return Offset.Zero
@@ -463,7 +477,7 @@ private fun ZoomablePhotoPage(
     ) {
         if (bmp != null) {
             Image(
-                bitmap = bmp!!.asImageBitmap(),
+                bitmap = bmp.asImageBitmap(),
                 contentDescription = photo.relPath,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
@@ -475,6 +489,16 @@ private fun ZoomablePhotoPage(
                         translationY = offset.y,
                     ),
             )
+            if (loadingFullRes) {
+                CircularProgressIndicator(
+                    color = DarkroomColours.SafelightAmber,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp)
+                        .size(20.dp),
+                )
+            }
         } else {
             CircularProgressIndicator(color = DarkroomColours.SafelightAmber)
         }
