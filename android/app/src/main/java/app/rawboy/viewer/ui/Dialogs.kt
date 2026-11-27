@@ -334,7 +334,7 @@ fun HelpDialog(
                     items = listOf(
                         "Next / previous" to "Swipe left or right (follows subfolder grouping when enabled).",
                         "Zoom" to "Double-tap to zoom into that point and render full resolution; double-tap again to fit. Pinch to zoom around your fingers and drag to pan.",
-                        "Exit" to "Press Back or tap ← to return to your exact position in the grid. Single tap hides or shows the bars.",
+                        "Exit" to "Swipe down, press Back or tap ← to return to your exact position in the grid. Single tap hides or shows the bars.",
                         "Details" to "Tap i for EXIF and RGB histogram (pinned on the right on tablets).",
                         "Videos" to "Play/pause, mute, and drag the timeline to scrub.",
                     ),

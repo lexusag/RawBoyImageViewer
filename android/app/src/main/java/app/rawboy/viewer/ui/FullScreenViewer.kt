@@ -2,6 +2,11 @@ package app.rawboy.viewer.ui
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,6 +36,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -67,11 +73,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,16 +98,22 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -113,6 +127,7 @@ import app.rawboy.viewer.imaging.PhotoDetails
 import app.rawboy.viewer.sources.PhotoSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,10 +157,34 @@ fun FullScreenViewer(
     }
     val pagerState = rememberPagerState(initialPage = startIndex, pageCount = { photos.size })
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
     var showChrome by remember { mutableStateOf(true) }
     var showDetailsSheet by remember { mutableStateOf(false) }
     var lastPage by remember { mutableStateOf(startIndex) }
     var isZoomed by remember { mutableStateOf(false) }
+    var isScrubbing by remember { mutableStateOf(false) }
+
+    val dismissOffsetY = remember { Animatable(0f) }
+    val dismissAlpha = remember { Animatable(1f) }
+    var isDismissDragging by remember { mutableStateOf(false) }
+    var isDismissing by remember { mutableStateOf(false) }
+    var pagerContainerHeightPx by remember { mutableIntStateOf(0) }
+
+    val currentIsZoomed by rememberUpdatedState(isZoomed)
+    val currentIsScrubbing by rememberUpdatedState(isScrubbing)
+    val currentIsDismissing by rememberUpdatedState(isDismissing)
+    val currentContainerHeightPx by rememberUpdatedState(pagerContainerHeightPx)
+    val currentOnClose by rememberUpdatedState(onClose)
+
+    val dismissThresholdPx = swipeDismissThresholdPx(pagerContainerHeightPx, density.density)
+    val dismissProgress = (dismissOffsetY.value / dismissThresholdPx).coerceIn(0f, 1f)
+    val backgroundAlpha = if (isDismissing) {
+        (dismissAlpha.value * (1f - dismissProgress * 0.72f)).coerceIn(0f, 1f)
+    } else {
+        (1f - dismissProgress * 0.72f).coerceIn(0.28f, 1f)
+    }
+    val chromeAlpha = if (isDismissing) 0f else (1f - dismissProgress * 1.6f).coerceIn(0f, 1f)
+    val dismissScale = 1f - 0.12f * dismissProgress
 
     val currentPhoto = photos.getOrNull(pagerState.currentPage)
     LaunchedEffect(pagerState.currentPage, photos.size) {
@@ -171,10 +210,128 @@ fun FullScreenViewer(
         value = currentPhoto?.let { images.loadDetails(photoSource, it, currentBitmap) }
     }
 
+    val dismissGestureModifier = Modifier
+        .onSizeChanged { pagerContainerHeightPx = it.height }
+        .pointerInput(Unit) {
+            val touchSlop = viewConfiguration.touchSlop
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Main)
+                if (down.isConsumed || currentIsZoomed || currentIsScrubbing || currentIsDismissing) {
+                    return@awaitEachGesture
+                }
+                val pointerId = down.id
+                val velocityTracker = VelocityTracker()
+                velocityTracker.addPointerInputChange(down)
+                var totalPan = Offset.Zero
+                var draggingDismiss = false
+                var lockedOut = false
+                var dragY = 0f
+
+                while (true) {
+                    val pass = if (draggingDismiss) PointerEventPass.Initial else PointerEventPass.Main
+                    val event = awaitPointerEvent(pass = pass)
+                    val activeChanges = event.changes
+                    val pressedCount = activeChanges.count { it.pressed }
+                    val tracked = activeChanges.firstOrNull { it.id == pointerId }
+
+                    if (draggingDismiss) {
+                        if (pressedCount >= 2) {
+                            draggingDismiss = false
+                            isDismissDragging = false
+                            scope.launch {
+                                dismissOffsetY.animateTo(
+                                    0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
+                            break
+                        }
+                        if (tracked != null) {
+                            velocityTracker.addPointerInputChange(tracked)
+                            if (tracked.pressed) {
+                                val delta = tracked.position - tracked.previousPosition
+                                dragY = (dragY + delta.y).coerceAtLeast(0f)
+                                scope.launch { dismissOffsetY.snapTo(dragY) }
+                            }
+                        }
+                        val releasedNormally = event.type == PointerEventType.Release
+                        // Consume all changes in Initial pass (including Up) so HorizontalPager
+                        // and tap detectors do not react to a dismiss drag.
+                        activeChanges.forEach { it.consume() }
+                        if (pressedCount == 0) {
+                            isDismissDragging = false
+                            val velocityY = velocityTracker.calculateVelocity().y
+                            if (releasedNormally && shouldDismissOnSwipeDown(dragY, velocityY, currentContainerHeightPx, this.density)) {
+                                isDismissing = true
+                                scope.launch {
+                                    val targetY = (currentContainerHeightPx.coerceAtLeast(300) * 0.45f).coerceAtLeast(dragY)
+                                    launch {
+                                        dismissAlpha.animateTo(0f, tween(durationMillis = 130, easing = FastOutLinearInEasing))
+                                    }
+                                    dismissOffsetY.animateTo(targetY, tween(durationMillis = 130, easing = FastOutLinearInEasing))
+                                    currentOnClose()
+                                }
+                            } else {
+                                scope.launch {
+                                    dismissOffsetY.animateTo(
+                                        0f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow,
+                                        ),
+                                    )
+                                }
+                            }
+                            break
+                        }
+                    } else {
+                        if (pressedCount == 0) break
+                        if (lockedOut || pressedCount >= 2 || currentIsZoomed || currentIsScrubbing || activeChanges.any { it.isConsumed }) {
+                            lockedOut = true
+                            continue
+                        }
+                        if (tracked == null || !tracked.pressed) {
+                            lockedOut = true
+                            continue
+                        }
+                        val delta = tracked.position - tracked.previousPosition
+                        totalPan += delta
+                        velocityTracker.addPointerInputChange(tracked)
+
+                        val absX = abs(totalPan.x)
+                        val absY = abs(totalPan.y)
+                        if (absX > touchSlop && absX >= absY) {
+                            lockedOut = true
+                        } else if (totalPan.y < -touchSlop && absY > absX) {
+                            lockedOut = true
+                        } else if (totalPan.y > touchSlop && totalPan.y > absX * 1.2f) {
+                            draggingDismiss = true
+                            isDismissDragging = true
+                            dragY = (dismissOffsetY.value + totalPan.y - touchSlop).coerceAtLeast(0f)
+                            scope.launch { dismissOffsetY.snapTo(dragY) }
+                            activeChanges.forEach { it.consume() }
+                        }
+                    }
+                }
+            }
+        }
+
+    val pagerTransformModifier = Modifier
+        .fillMaxSize()
+        .graphicsLayer {
+            translationY = dismissOffsetY.value
+            scaleX = dismissScale
+            scaleY = dismissScale
+            alpha = dismissAlpha.value
+        }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkroomColours.InkBlack)
+            .background(DarkroomColours.InkBlack.copy(alpha = backgroundAlpha))
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { ev ->
@@ -296,11 +453,10 @@ fun FullScreenViewer(
             }
         }
 
-        var isScrubbing by remember { mutableStateOf(false) }
         val pagerContent: @Composable (Modifier) -> Unit = { mod ->
             HorizontalPager(
                 state = pagerState,
-                userScrollEnabled = !isZoomed && !isScrubbing,
+                userScrollEnabled = !isZoomed && !isScrubbing && !isDismissDragging,
                 modifier = mod,
             ) { page ->
                 val photo = photos[page]
@@ -327,27 +483,49 @@ fun FullScreenViewer(
 
         if (overlayChrome) {
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                pagerContent(Modifier.fillMaxSize())
-                Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()) { topBar() }
-                Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()) { bottomBar() }
+                Box(modifier = Modifier.fillMaxSize().then(dismissGestureModifier)) {
+                    pagerContent(pagerTransformModifier)
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .graphicsLayer { alpha = chromeAlpha },
+                ) { topBar() }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .graphicsLayer { alpha = chromeAlpha },
+                ) { bottomBar() }
             }
         } else {
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                topBar()
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    pagerContent(Modifier.fillMaxSize())
+                Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) { topBar() }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .zIndex(if (dismissOffsetY.value > 0f) 1f else 0f)
+                        .then(dismissGestureModifier),
+                ) {
+                    pagerContent(pagerTransformModifier)
                 }
-                bottomBar()
+                Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) { bottomBar() }
             }
         }
 
         // Tablet pinned right details pane
         if (isExpanded && showChrome && currentPhoto != null) {
-            VerticalDivider(color = DarkroomColours.Hairline)
+            VerticalDivider(
+                color = DarkroomColours.Hairline,
+                modifier = Modifier.graphicsLayer { alpha = chromeAlpha },
+            )
             Box(
                 modifier = Modifier
                     .width(280.dp)
                     .fillMaxHeight()
+                    .graphicsLayer { alpha = chromeAlpha }
                     .background(DarkroomColours.GraphiteSurface)
                     .statusBarsPadding()
                     .navigationBarsPadding()
@@ -691,6 +869,64 @@ private fun formatDuration(ms: Long): String {
     return if (h > 0L) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
+private val FilmstripThumbSize = 56.dp
+private val FilmstripItemSpacing = 6.dp
+
+internal data class FilmstripScrollTarget(val index: Int, val offsetPx: Int)
+
+internal fun filmstripCenterPosition(
+    index: Int,
+    count: Int,
+    viewportWidthPx: Int,
+    itemWidthPx: Int,
+    spacingPx: Int,
+): FilmstripScrollTarget {
+    if (count <= 0 || itemWidthPx <= 0) return FilmstripScrollTarget(0, 0)
+    val clampedIndex = index.coerceIn(0, count - 1)
+    if (viewportWidthPx <= 0) return FilmstripScrollTarget(clampedIndex, 0)
+    val pitch = itemWidthPx.toLong() + spacingPx.toLong()
+    val totalContentWidth = count.toLong() * itemWidthPx.toLong() + (count - 1).toLong() * spacingPx.toLong()
+    val maxStart = (totalContentWidth - viewportWidthPx.toLong()).coerceAtLeast(0L)
+    if (maxStart == 0L) return FilmstripScrollTarget(0, 0)
+    val itemCenter = clampedIndex.toLong() * pitch + itemWidthPx.toLong() / 2L
+    val desiredStart = (itemCenter - viewportWidthPx.toLong() / 2L).coerceIn(0L, maxStart)
+    val firstIndex = (desiredStart / pitch).toInt().coerceIn(0, count - 1)
+    val firstOffset = (desiredStart - firstIndex.toLong() * pitch).toInt().coerceAtLeast(0)
+    return FilmstripScrollTarget(firstIndex, firstOffset)
+}
+
+internal const val SWIPE_DISMISS_MIN_FLING_DRAG_DP = 32f
+internal const val SWIPE_DISMISS_FLING_VELOCITY_DP_PER_SEC = 750f
+internal const val SWIPE_DISMISS_CANCEL_UP_VELOCITY_DP_PER_SEC = -200f
+internal const val SWIPE_DISMISS_MIN_THRESHOLD_DP = 100f
+internal const val SWIPE_DISMISS_MAX_THRESHOLD_DP = 180f
+internal const val SWIPE_DISMISS_HEIGHT_FRACTION = 0.18f
+
+internal fun swipeDismissThresholdPx(containerHeightPx: Int, density: Float): Float {
+    val safeDensity = density.coerceAtLeast(0.5f)
+    val minPx = SWIPE_DISMISS_MIN_THRESHOLD_DP * safeDensity
+    val maxPx = SWIPE_DISMISS_MAX_THRESHOLD_DP * safeDensity
+    if (containerHeightPx <= 0) return minPx
+    return (containerHeightPx * SWIPE_DISMISS_HEIGHT_FRACTION).coerceIn(minPx, maxPx)
+}
+
+internal fun shouldDismissOnSwipeDown(
+    dragDistancePx: Float,
+    velocityYPxPerSec: Float,
+    containerHeightPx: Int,
+    density: Float,
+): Boolean {
+    if (dragDistancePx <= 0f) return false
+    val safeDensity = density.coerceAtLeast(0.5f)
+    val threshold = swipeDismissThresholdPx(containerHeightPx, safeDensity)
+    if (dragDistancePx >= threshold && velocityYPxPerSec >= SWIPE_DISMISS_CANCEL_UP_VELOCITY_DP_PER_SEC * safeDensity) {
+        return true
+    }
+    val minFlingDrag = SWIPE_DISMISS_MIN_FLING_DRAG_DP * safeDensity
+    val flingVelocity = SWIPE_DISMISS_FLING_VELOCITY_DP_PER_SEC * safeDensity
+    return dragDistancePx >= minFlingDrag && velocityYPxPerSec >= flingVelocity
+}
+
 @Composable
 private fun FilmstripRow(
     photos: List<PhotoWithCull>,
@@ -699,12 +935,43 @@ private fun FilmstripRow(
     images: ImageRepository,
     onSelect: (Int) -> Unit,
 ) {
+    val density = LocalDensity.current
+    val itemWidthPx = remember(density) { with(density) { FilmstripThumbSize.roundToPx() } }
+    val spacingPx = remember(density) { with(density) { FilmstripItemSpacing.roundToPx() } }
+    val initialIndex = currentIndex.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    var viewportWidthPx by remember { mutableIntStateOf(0) }
+    var lastViewportWidthPx by remember { mutableIntStateOf(0) }
+    var hasCenteredInitially by remember { mutableStateOf(false) }
+
+    val currentPhotoId = photos.getOrNull(currentIndex)?.id
+    LaunchedEffect(currentIndex, currentPhotoId, photos.size, viewportWidthPx) {
+        if (photos.isEmpty() || viewportWidthPx <= 0) return@LaunchedEffect
+        val target = filmstripCenterPosition(
+            index = currentIndex,
+            count = photos.size,
+            viewportWidthPx = viewportWidthPx,
+            itemWidthPx = itemWidthPx,
+            spacingPx = spacingPx,
+        )
+        val viewportResized = viewportWidthPx != lastViewportWidthPx
+        lastViewportWidthPx = viewportWidthPx
+        if (!hasCenteredInitially || viewportResized) {
+            listState.scrollToItem(target.index, target.offsetPx)
+            hasCenteredInitially = true
+        } else {
+            listState.animateScrollToItem(target.index, target.offsetPx)
+        }
+    }
+
     LazyRow(
+        state = listState,
         modifier = Modifier
             .fillMaxWidth()
             .background(DarkroomColours.GraphiteSurface)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .onSizeChanged { viewportWidthPx = it.width },
+        horizontalArrangement = Arrangement.spacedBy(FilmstripItemSpacing),
     ) {
         itemsIndexed(photos, key = { _, p -> p.id }) { idx, p ->
             val thumb by produceState<Bitmap?>(initialValue = null, key1 = p.id) {
@@ -713,7 +980,7 @@ private fun FilmstripRow(
             val active = idx == currentIndex
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(FilmstripThumbSize)
                     .clip(RoundedCornerShape(6.dp))
                     .background(DarkroomColours.GraphiteRaised)
                     .border(if (active) 2.dp else 0.dp, if (active) DarkroomColours.SafelightAmber else Color.Transparent, RoundedCornerShape(6.dp))
