@@ -743,7 +743,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         sort: PhotoSort,
         groupBySubfolders: Boolean = _state.value.prefs.groupBySubfolders,
     ): List<PhotoWithCull> {
-        val cmp = PhotoOrder.comparator(sort)
+        val cmp = PhotoOrder.comparator(sort, newestFirst = true)
         return photos
             .filter { filter.passes(Rating(it.effectiveStars, Flag.fromDb(it.effectiveFlag)), minStars) }
             .sortedWith { a, b ->
