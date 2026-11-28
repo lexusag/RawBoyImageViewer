@@ -51,11 +51,29 @@ object PhotoOrder {
         return (if (first != 0) first else second) < 0
     }
 
-    fun comparator(sort: PhotoSort): Comparator<Pair<String?, String>> = Comparator { a, b ->
-        when {
-            inOrder(sort, a, b) -> -1
-            inOrder(sort, b, a) -> 1
-            else -> 0
+    /**
+     * Order for [sort]. With [newestFirst], date sort puts the latest capture first (undated photos
+     * still last, ties by name A to Z); name sort is unaffected. The default matches the Swift port.
+     */
+    fun comparator(sort: PhotoSort, newestFirst: Boolean = false): Comparator<Pair<String?, String>> {
+        if (newestFirst && sort == PhotoSort.DATE) {
+            return Comparator { a, b ->
+                val da = a.first
+                val db = b.first
+                when {
+                    da != null && db != null && da != db -> db.compareTo(da)
+                    da == null && db != null -> 1
+                    da != null && db == null -> -1
+                    else -> compareNames(a.second, b.second)
+                }
+            }
+        }
+        return Comparator { a, b ->
+            when {
+                inOrder(sort, a, b) -> -1
+                inOrder(sort, b, a) -> 1
+                else -> 0
+            }
         }
     }
 

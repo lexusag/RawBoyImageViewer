@@ -51,6 +51,21 @@ class CoreTests {
         assertTrue(PhotoOrder.inOrder(PhotoSort.DATE, "2026:01:01 10:00:00" to "B.ARW", "2026:01:02 10:00:00" to "A.ARW"))
         assertTrue(PhotoOrder.inOrder(PhotoSort.DATE, "2026:01:01 10:00:00" to "B.ARW", null to "A.ARW"))
 
+        val newest = PhotoOrder.comparator(PhotoSort.DATE, newestFirst = true)
+        val shots = listOf(
+            "2026:01:01 10:00:00" to "A.ARW",
+            null to "C.ARW",
+            "2026:01:02 10:00:00" to "B.ARW",
+            "2026:01:02 10:00:00" to "A.ARW",
+        )
+        assertEquals(
+            listOf("A.ARW", "B.ARW", "A.ARW", "C.ARW"),
+            shots.sortedWith(newest).map { it.second },
+        )
+        assertEquals("2026:01:02 10:00:00", shots.sortedWith(newest).first().first)
+        val byName = shots.sortedWith(PhotoOrder.comparator(PhotoSort.NAME, newestFirst = true)).map { it.second }
+        assertEquals(listOf("A.ARW", "A.ARW", "B.ARW", "C.ARW"), byName)
+
         val rated = Rating.withStars(listOf(Rating(stars = 0, flag = Flag.REJECT)), 3)
         assertEquals(listOf(Rating(stars = 3, flag = null)), rated)
         assertEquals(listOf(Rating(stars = 0, flag = null)), Rating.withStars(rated, 3))
