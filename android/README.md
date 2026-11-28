@@ -18,4 +18,4 @@ cd android
 ./gradlew :app:assembleDebug  # outputs android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-For a signed release APK, place a `keystore.properties` file in `android/` (git-ignored) with `storeFile`, `storePassword`, `keyAlias`, and `keyPassword`, then run `./gradlew :app:assembleRelease`.
+For a signed release APK, place a `keystore.properties` file in `android/` (git-ignored) with `storeFile`, `storePassword`, `keyAlias`, and `keyPassword`, then run `./gradlew :app:assembleRelease -PversionName=0.4.2 -PversionCode=60`. GitHub Releases set `versionName` from the tag and `versionCode` from the commit count automatically (configure the `ANDROID_KEYSTORE_*` repository secrets so releases share one signing key and update in place).
