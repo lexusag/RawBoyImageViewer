@@ -143,6 +143,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.TAG }}
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -168,7 +169,13 @@ jobs:
 
       - name: Test & build release APK
         working-directory: android
-        run: ./gradlew :core:test :app:assembleRelease
+        run: |
+          VERSION="${TAG#v}"
+          BUILD="$(git rev-list --count HEAD)"
+          echo "Building Android APK $VERSION (versionCode $BUILD)"
+          ./gradlew :core:test :app:assembleRelease \
+            -PversionName="$VERSION" \
+            -PversionCode="$BUILD"
 
       - name: Attach APK to the release
         run: |

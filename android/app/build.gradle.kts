@@ -12,6 +12,9 @@ val keystoreProperties = Properties().apply {
     if (f.exists()) f.inputStream().use(::load)
 }
 
+val appVersionCode = providers.gradleProperty("versionCode").map(String::toInt).getOrElse(1)
+val appVersionName = providers.gradleProperty("versionName").getOrElse("0.1.0-alpha1")
+
 android {
     namespace = "app.rawboy.viewer"
     compileSdk = 36
@@ -20,8 +23,8 @@ android {
         applicationId = "app.rawboy.viewer"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-alpha1"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
