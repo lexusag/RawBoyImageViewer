@@ -475,6 +475,11 @@ fun BrowserScreen(
                             }
                         }
 
+                        GridFastScroll(
+                            state = gridState,
+                            modifier = Modifier.align(Alignment.CenterEnd),
+                        )
+
                         pinnedSection?.let { (headerIdx, folder, folderPhotos) ->
                             val collapsed = folder in state.collapsedFolders
                             val folderLabel = folder.ifEmpty { state.activeSource?.label ?: "Root" }
