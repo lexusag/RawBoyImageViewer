@@ -215,8 +215,10 @@ fun FullScreenViewer(
         .pointerInput(Unit) {
             val touchSlop = viewConfiguration.touchSlop
             awaitEachGesture {
+                // Wait in Main pass so child sliders can react to press, but ignore down.isConsumed
+                // because detectTapGestures in ZoomablePhotoPage/VideoPlayerPage always consumes ACTION_DOWN.
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Main)
-                if (down.isConsumed || currentIsZoomed || currentIsScrubbing || currentIsDismissing) {
+                if (currentIsZoomed || currentIsScrubbing || currentIsDismissing) {
                     return@awaitEachGesture
                 }
                 val pointerId = down.id
@@ -228,8 +230,7 @@ fun FullScreenViewer(
                 var dragY = 0f
 
                 while (true) {
-                    val pass = if (draggingDismiss) PointerEventPass.Initial else PointerEventPass.Main
-                    val event = awaitPointerEvent(pass = pass)
+                    val event = awaitPointerEvent(pass = PointerEventPass.Initial)
                     val activeChanges = event.changes
                     val pressedCount = activeChanges.count { it.pressed }
                     val tracked = activeChanges.firstOrNull { it.id == pointerId }
